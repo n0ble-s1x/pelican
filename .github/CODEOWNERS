@@ -1,0 +1,4 @@
+# Default reviewer for every PR. Update as more trusted maintainers join.
+# (Project is owned by Krypteia LLC; this routes review to the active maintainer.)
+
+* @n0ble-s1x

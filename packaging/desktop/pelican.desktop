@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Krypteia · Pelican
+GenericName=Garmin Music Sync
+Comment=Pelican — sync music to a Garmin watch over USB
+Exec=pelican
+Icon=pelican
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Utility;
+Keywords=garmin;music;sync;mtp;watch;
+StartupNotify=true

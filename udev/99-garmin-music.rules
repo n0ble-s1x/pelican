@@ -1,0 +1,12 @@
+# garmin-music: grant the active-session user direct USB access to Garmin
+# devices, and tag them so GVFS can identify them as media players.
+#
+# Install with:
+#   sudo install -m 644 udev/99-garmin-music.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload && sudo udevadm trigger
+#
+# TAG+="uaccess" hands the active local user an ACL on the device node, so
+# this works on Fedora (no plugdev group) and Ubuntu (has plugdev) without
+# group fiddling.
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="091e", MODE="0660", TAG+="uaccess", ENV{ID_MTP_DEVICE}="1"

@@ -29,10 +29,27 @@ pub struct Job {
 #[derive(Debug, Clone)]
 pub enum Event {
     Started(PathBuf),
-    Progress { src: PathBuf, transferred: u64, total: u64 },
-    Skipped { src: PathBuf, reason: String },
-    Done { src: PathBuf, bytes: u64 },
-    Failed { src: PathBuf, error: String },
+    /// Mid-upload progress. Fields are read by the GUI worker (which builds
+    /// its own equivalent payload) and ignored by headless `run_jobs_per_file`,
+    /// so they show as dead in cargo. Suppress.
+    #[allow(dead_code)]
+    Progress {
+        src: PathBuf,
+        transferred: u64,
+        total: u64,
+    },
+    Skipped {
+        src: PathBuf,
+        reason: String,
+    },
+    Done {
+        src: PathBuf,
+        bytes: u64,
+    },
+    Failed {
+        src: PathBuf,
+        error: String,
+    },
 }
 
 #[derive(Default, Debug)]
@@ -75,8 +92,7 @@ pub fn expand_inputs_with(
 }
 
 fn walk(path: &Path, remote_dir: &str, flatten: bool, out: &mut Vec<Job>) -> Result<()> {
-    let meta = std::fs::metadata(path)
-        .with_context(|| format!("stat {}", path.display()))?;
+    let meta = std::fs::metadata(path).with_context(|| format!("stat {}", path.display()))?;
     if meta.is_file() {
         if let Some(name) = path.file_name() {
             out.push(Job {
@@ -198,53 +214,6 @@ pub fn run_jobs_per_file(
     })
 }
 
-pub fn run_jobs(backend: &mut dyn Backend, inputs: &[PathBuf], opts: &Options) -> Result<Report> {
-    let (tx, rx) = channel();
-    let jobs = expand_inputs(inputs)?;
-    std::thread::scope(|s| {
-        s.spawn(|| run_worker(backend, jobs, opts, tx));
-        let mut report = Report::default();
-        for evt in rx {
-            match evt {
-                Event::Started(p) => tracing::info!(file=%p.display(), "uploading"),
-                Event::Progress { .. } => {} // not surfaced in headless mode
-                Event::Done { src, bytes } => {
-                    report.ok += 1;
-                    tracing::info!(file=%src.display(), bytes, "ok");
-                }
-                Event::Skipped { src, reason } => {
-                    report.skipped += 1;
-                    tracing::warn!(file=%src.display(), %reason, "skipped");
-                }
-                Event::Failed { src, error } => {
-                    report.failed += 1;
-                    tracing::error!(file=%src.display(), %error, "failed");
-                }
-            }
-        }
-        Ok(report)
-    })
-}
-
-/// Drain jobs into a Vec<Event>. Used by the GUI which collects results to
-/// display in the log panel rather than streaming through a channel.
-pub fn run_worker_into(
-    backend: &mut dyn Backend,
-    jobs: Vec<Job>,
-    opts: &Options,
-    out: &mut Vec<Event>,
-) {
-    let (tx, rx) = channel();
-    std::thread::scope(|s| {
-        s.spawn(|| {
-            run_worker(backend, jobs, opts, tx);
-        });
-        for evt in rx {
-            out.push(evt);
-        }
-    });
-}
-
 fn run_worker(backend: &mut dyn Backend, jobs: Vec<Job>, opts: &Options, tx: Sender<Event>) {
     for job in jobs {
         let _ = tx.send(Event::Started(job.src.clone()));
@@ -320,7 +289,12 @@ fn run_worker(backend: &mut dyn Backend, jobs: Vec<Job>, opts: &Options, tx: Sen
                 total,
             });
         };
-        match backend.upload(&upload_path, &job.remote_dir, &upload_name, &mut on_progress) {
+        match backend.upload(
+            &upload_path,
+            &job.remote_dir,
+            &upload_name,
+            &mut on_progress,
+        ) {
             Ok(bytes) => {
                 // Soft verify: Garmin's GetObjectInfo errors on freshly-
                 // written files until the watch's indexer settles, so a
@@ -336,7 +310,10 @@ fn run_worker(backend: &mut dyn Backend, jobs: Vec<Job>, opts: &Options, tx: Sen
                         });
                     }
                     _ => {
-                        let _ = tx.send(Event::Done { src: job.src.clone(), bytes });
+                        let _ = tx.send(Event::Done {
+                            src: job.src.clone(),
+                            bytes,
+                        });
                     }
                 }
             }

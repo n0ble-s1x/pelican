@@ -49,9 +49,10 @@ pub fn install(ctx: &egui::Context) {
         TextStyle::Button,
         FontId::new(12.5, FontFamily::Proportional),
     );
-    style
-        .text_styles
-        .insert(TextStyle::Small, FontId::new(10.5, FontFamily::Proportional));
+    style.text_styles.insert(
+        TextStyle::Small,
+        FontId::new(10.5, FontFamily::Proportional),
+    );
     style.text_styles.insert(
         TextStyle::Monospace,
         FontId::new(12.0, FontFamily::Monospace),

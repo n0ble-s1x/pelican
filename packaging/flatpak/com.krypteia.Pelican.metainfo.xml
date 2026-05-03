@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Flathub / AppStream metadata for Pelican. This file is what Cosmic Store,
+  GNOME Software, KDE Discover, and other software-center apps read to render
+  the listing page. Validate with `appstreamcli validate <file>`.
+-->
+<component type="desktop-application">
+  <id>com.krypteia.Pelican</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+
+  <name>Pelican</name>
+  <summary>Sync your music to a Garmin watch on Linux. No telemetry, no cloud.</summary>
+
+  <description>
+    <p>
+      Pelican is a Linux-first tool for moving your own music files onto a
+      Garmin watch over USB. Drop a folder of MP3s or FLACs, and the tool
+      transcodes, tags, and uploads — without going through Garmin Express,
+      iTunes, or any cloud service.
+    </p>
+    <p>
+      Privacy-first by design. The binary makes zero network connections.
+      Your music stays on your computer; your fitness data stays on your
+      watch. Nothing leaves either unless you decide.
+    </p>
+    <p>
+      A Krypteia tool — part of an effort to give people open-source
+      alternatives to subscription-only platforms.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Drag-and-drop sync from your file manager</li>
+      <li>Auto-transcode FLAC, OGG, Opus, M4A, and more to Garmin-compatible MP3</li>
+      <li>Local playlists (named track groups you can mass-upload)</li>
+      <li>Right-click delete on watch entries</li>
+      <li>Per-device upload journal (persists across runs)</li>
+      <li>Single static binary; no webview, no daemon, no telemetry</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.krypteia.Pelican.desktop</launchable>
+
+  <url type="homepage">https://github.com/n0ble-s1x/pelican</url>
+  <url type="bugtracker">https://github.com/n0ble-s1x/pelican/issues</url>
+  <url type="vcs-browser">https://github.com/n0ble-s1x/pelican</url>
+
+  <developer id="com.krypteia">
+    <name>Krypteia</name>
+  </developer>
+
+  <content_rating type="oars-1.1" />
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>garmin</keyword>
+    <keyword>music</keyword>
+    <keyword>mtp</keyword>
+    <keyword>watch</keyword>
+    <keyword>sync</keyword>
+  </keywords>
+
+  <recommends>
+    <display_length compare="ge">768</display_length>
+    <internet>offline-only</internet>
+  </recommends>
+
+  <releases>
+    <release version="0.1.0" date="2026-05-02">
+      <description>
+        <p>Initial release.</p>
+        <ul>
+          <li>Drag-and-drop GUI (egui)</li>
+          <li>Headless CLI with --copy / --delete / --create-playlist</li>
+          <li>ffmpeg-based audio normalization to Garmin-compatible MP3</li>
+          <li>Local upload journal + local playlists</li>
+          <li>Verified on Forerunner 165 Music (firmware 2506)</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+
+  <provides>
+    <binary>pelican</binary>
+  </provides>
+</component>

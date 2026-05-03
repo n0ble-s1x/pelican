@@ -11,6 +11,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .timeout(Duration::from_secs(90))
         .open_first()
         .await?;
-    println!("open OK: {} {}", device.device_info().manufacturer, device.device_info().model);
+    println!(
+        "open OK: {} {}",
+        device.device_info().manufacturer,
+        device.device_info().model
+    );
     Ok(())
 }

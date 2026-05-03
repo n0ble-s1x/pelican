@@ -87,13 +87,14 @@ mod mtp_rs_impl {
                 .build()
                 .context("starting tokio runtime")?;
 
-            let mtp = rt.block_on(async {
-                match device.serial.as_deref() {
-                    Some(s) => MtpDevice::open_by_serial(s).await,
-                    None => MtpDevice::open_first().await,
-                }
-            })
-            .with_context(|| format!("opening MTP session to {}", device.label()))?;
+            let mtp = rt
+                .block_on(async {
+                    match device.serial.as_deref() {
+                        Some(s) => MtpDevice::open_by_serial(s).await,
+                        None => MtpDevice::open_first().await,
+                    }
+                })
+                .with_context(|| format!("opening MTP session to {}", device.label()))?;
 
             // Garmin watches require the PTP container header to be sent in a
             // separate USB bulk transfer from the payload. Without this,
@@ -197,8 +198,8 @@ mod mtp_rs_impl {
         ) -> Result<u64> {
             const CHUNK: usize = 256 * 1024;
             let parent = self.resolve_folder(remote_dir)?;
-            let bytes = std::fs::read(local)
-                .with_context(|| format!("reading {}", local.display()))?;
+            let bytes =
+                std::fs::read(local).with_context(|| format!("reading {}", local.display()))?;
             let len = bytes.len() as u64;
             let info = NewObjectInfo::file(remote_name, len);
             let chunks: Vec<_> = bytes
@@ -209,15 +210,12 @@ mod mtp_rs_impl {
             let storage = &self.storage;
             on_progress(0, len);
             self.rt
-                .block_on(storage.upload_with_progress(
-                    parent,
-                    info,
-                    Box::pin(stream),
-                    |p| {
+                .block_on(
+                    storage.upload_with_progress(parent, info, Box::pin(stream), |p| {
                         on_progress(p.bytes_transferred, len);
                         std::ops::ControlFlow::Continue(())
-                    },
-                ))
+                    }),
+                )
                 .with_context(|| format!("uploading {}", local.display()))?;
             on_progress(len, len);
             Ok(len)
@@ -254,9 +252,7 @@ mod mtp_rs_impl {
             let (handles, infos): (Vec<_>, Vec<_>) = self
                 .rt
                 .block_on(async {
-                    let handles = session
-                        .get_object_handles(storage_id, None, parent)
-                        .await?;
+                    let handles = session.get_object_handles(storage_id, None, parent).await?;
                     let mut infos = Vec::with_capacity(handles.len());
                     for h in &handles {
                         infos.push(session.get_object_info(*h).await);
@@ -268,7 +264,7 @@ mod mtp_rs_impl {
             let key = normalize(path);
             let mut out = Vec::with_capacity(handles.len());
             let mut broken_count = 0usize;
-            for (handle, info_result) in handles.into_iter().zip(infos.into_iter()) {
+            for (handle, info_result) in handles.into_iter().zip(infos) {
                 match info_result {
                     Ok(info) => {
                         // CRITICAL: `session.get_object_info` does NOT populate

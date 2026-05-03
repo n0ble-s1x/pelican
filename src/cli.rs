@@ -98,7 +98,10 @@ pub fn run_headless(args: Cli) -> anyhow::Result<()> {
 
     if let Some(name) = &args.create_playlist {
         let mut backend = mtp::open(&device)?;
-        let safe_name = name.trim().replace(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != ' ', "-");
+        let safe_name = name.trim().replace(
+            |c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != ' ',
+            "-",
+        );
         let filename = format!("{safe_name}.{}", crate::playlist::EXT);
         let bytes = crate::playlist::serialize(&args.track);
         backend.write_raw("Music", &filename, &bytes)?;

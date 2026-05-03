@@ -27,7 +27,9 @@ impl Device {
 
 pub fn list_devices() -> Result<Vec<Device>> {
     let mut out = Vec::new();
-    let infos = nusb::list_devices().wait().context("enumerating USB devices")?;
+    let infos = nusb::list_devices()
+        .wait()
+        .context("enumerating USB devices")?;
     for info in infos {
         if info.vendor_id() != GARMIN_VENDOR_ID {
             continue;

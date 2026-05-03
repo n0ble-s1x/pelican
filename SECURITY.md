@@ -1,7 +1,7 @@
 # Security Policy
 
 Krypteia takes security seriously. This document explains how to report
-vulnerabilities and what we do to keep this project safe.
+vulnerabilities and the supply-chain posture we maintain on this project.
 
 ## Reporting a vulnerability
 
@@ -19,7 +19,7 @@ let us know anyway — we'll help shepherd the report.
 
 In scope:
 - Code in this repository
-- Build configuration, CI workflows
+- Build configuration, packaging recipes
 - Anything our binary writes to disk or sends over USB
 
 Out of scope:
@@ -30,27 +30,57 @@ Out of scope:
 
 ## What we do on our side
 
-- **`cargo audit`** runs in CI on every PR and main-branch push; advisories
-  break the build
-- **`cargo deny`** enforces an allowlist of approved licenses and forbids
-  yanked / vulnerable crates
-- **Dependabot** opens PRs weekly for outdated dependencies
-- **No telemetry, no network access** — the binary doesn't connect to anything
-- **Reproducible builds** via committed `Cargo.lock`
-- **CI builds on a pinned toolchain** to avoid silent compiler/std-lib changes
-- **All releases are signed** (SSH-key signed git tags; releases include
-  SHA-256 of binaries)
-- **Branch protection on `main`**: required PR review, required passing CI,
-  no force pushes, no direct admin merges of unreviewed code
+- **No third-party CI.** We do not use GitHub Actions or any hosted CI. The
+  build / lint / test / audit pipeline lives in [`scripts/check.sh`](scripts/check.sh)
+  and runs entirely on the maintainer's machine, where every command is
+  inspectable. Eliminates a major supply-chain surface (compromised Action,
+  leaked CI tokens, malicious workflow on PR from fork).
+- **Local-CI contract.** Contributors run `./scripts/check.sh --full` before
+  opening a PR. The maintainer pulls the PR branch and re-runs the same script
+  locally before merge.
+- **`cargo audit`** runs as part of `scripts/check.sh --full`; new RUSTSEC
+  advisories break the build. Allowlisted advisories (with rationale) live in
+  [`deny.toml`](deny.toml).
+- **`cargo deny`** enforces an SPDX license allowlist, forbids yanked crates,
+  restricts crate sources to crates.io, and bans wildcard versions.
+- **Dependabot** opens PRs for outdated dependencies on a **48-hour cooldown**
+  — no PR is created for a release younger than 2 days, giving the world time
+  to flag a poisoned release before it surfaces here.
+- **Never auto-merge. Anything.** Not Dependabot PRs, not security PRs, not
+  one-line typo fixes. Every merge is a deliberate human decision.
+- **No telemetry, no network access.** The binary opens no sockets and bundles
+  no HTTP/TLS code. The dep tree is audited (via `cargo deny check sources`)
+  to keep this true; any new network-capable transitive dep would surface in
+  the supply-chain check.
+- **Reproducible builds** via committed `Cargo.lock`.
+- **`unsafe_code = "deny"`** in `Cargo.toml` — every `unsafe` block in our
+  code requires an explicit `#[allow(unsafe_code)]` with a SAFETY comment.
+  Currently there is exactly one (a `geteuid` syscall in `src/gvfs.rs`).
+- **Branch protection on `main`**: PRs are required (no direct push to main),
+  no force-pushes, no branch deletion, conversation must be resolved before
+  merge, admins are subject to all rules. The maintainer is the sole
+  collaborator with merge access; external contributors PR from forks.
+- **Signed commits enforced on `main`.** Every commit that lands on `main`
+  must carry a valid SSH signature from a key registered to the maintainer's
+  GitHub account. GitHub displays a green "Verified" badge on each commit;
+  unsigned commits are rejected at push time. The maintainer signs from a
+  dedicated, passphrase-protected ed25519 key kept separate from any
+  authentication key — a leak of one does not compromise the other.
+- **Squash-only merges.** Web UI does not offer rebase or merge-commit;
+  every PR collapses into a single signed commit on `main`, keeping a
+  linear, attributable history.
+- **Web commit sign-off required** — any commit authored through GitHub's
+  web UI must include a DCO sign-off line.
 - **Minimum-required permissions** on the udev rule we ship
   (`MODE="0660" TAG+="uaccess"` — grants ACL to the active session user only;
-  no `root:root` daemon, no setuid binary)
+  no `root:root` daemon, no setuid binary).
 
 ## What you, the user, should know
 
 - Krypteia · Pelican runs in **userspace** with no elevated privileges
 - It writes only to: `~/.local/share/pelican/` (per-device journal)
-  and `$TMPDIR/pelican/` (transcoded MP3 cache, swept on startup)
+  and `$XDG_CACHE_HOME/pelican/` (transcoded MP3 cache, swept on startup) —
+  per-user dirs, never `/tmp` or another shared location
 - It opens USB devices through `nusb`, requires the udev rule for non-root
   access
 - It shells out to `ffmpeg` for audio normalization. The path it shells out
@@ -58,6 +88,17 @@ Out of scope:
   so is this. (Standard for any tool that uses `ffmpeg`.)
 - It does **not** open network sockets, write outside its data dir, or
   modify system files
+
+## Future hardening (tracked, not yet shipped)
+
+- `cargo-vet` for an explicit per-dependency audit ledger — every transitive
+  crate signed off in `supply-chain/` instead of trusting the SPDX-license
+  allowlist alone. Surveyed during the security-hardening pass: of 449
+  crates, 93 are covered by community audits (Mozilla / Bytecode Alliance /
+  Google / Embark / ISRG / Zcash / Fermyon); the remaining 354 would need
+  to be exempted at adoption and audited incrementally.
+- Reproducible-build verification (deterministic `cargo build --release`
+  output across machines).
 
 ## Acknowledgements
 

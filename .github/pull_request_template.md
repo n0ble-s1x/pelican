@@ -7,12 +7,13 @@
 <!-- How did you verify this works? If you tested against a real Garmin
 device, list the model + firmware. Headless CLI test commands are great. -->
 
-- [ ] `cargo build --release` clean
-- [ ] `cargo test` passes
-- [ ] `cargo clippy -- -D warnings` clean
+- [ ] `./scripts/check.sh --full` passed locally (rustfmt, clippy, build,
+      tests, cargo audit, cargo deny)
 - [ ] Tested on hardware (model: …, firmware: …)
 - [ ] Updated docs / README if user-facing
 - [ ] Updated `Cargo.lock` (if dependencies changed)
+- [ ] No new network-capable deps introduced (or: discussed first per
+      [CONTRIBUTING.md](../CONTRIBUTING.md))
 
 ## Related issues
 

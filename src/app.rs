@@ -319,10 +319,7 @@ impl App {
             Ok(b) => {
                 self.backend = Some(b);
                 if self.last_link_failed {
-                    self.push_log(
-                        LogKind::Ok,
-                        format!("link recovered · {}", device.label()),
-                    );
+                    self.push_log(LogKind::Ok, format!("link recovered · {}", device.label()));
                 } else {
                     self.push_log(
                         LogKind::Ok,
@@ -426,7 +423,10 @@ impl App {
     }
 
     fn push_log(&mut self, kind: LogKind, text: impl Into<String>) {
-        self.log.push(LogLine { text: text.into(), kind });
+        self.log.push(LogLine {
+            text: text.into(),
+            kind,
+        });
         if self.log.len() > 600 {
             self.log.drain(0..self.log.len() - 600);
         }
@@ -449,10 +449,10 @@ impl App {
             }
         }
         // Watch → Local  (= future: pull-from-watch). Soft-fail for now.
-        if self.local_rect.contains(pt) {
-            if egui::DragAndDrop::take_payload::<DragWatch>(ctx).is_some() {
-                self.push_log(LogKind::Warn, "pull from watch not yet implemented");
-            }
+        if self.local_rect.contains(pt)
+            && egui::DragAndDrop::take_payload::<DragWatch>(ctx).is_some()
+        {
+            self.push_log(LogKind::Warn, "pull from watch not yet implemented");
         }
     }
 
@@ -649,7 +649,8 @@ impl App {
                 // transcode others. Garmin firmware needs both a clean
                 // audio profile and a standard-frames-only ID3 tag.
                 let mut transcoded_holder: Option<crate::transcode::Transcoded> = None;
-                let (upload_path, upload_name): (std::path::PathBuf, String) = if transcode_enabled {
+                let (upload_path, upload_name): (std::path::PathBuf, String) = if transcode_enabled
+                {
                     let label = job
                         .src
                         .file_name()
@@ -691,7 +692,9 @@ impl App {
                     if !skip_tag_check {
                         let _ = tx.send(OpMsg::Skipped {
                             src: job.src.clone(),
-                            reason: "missing ID3 title/artist — uncheck 'Require tags' to send anyway".into(),
+                            reason:
+                                "missing ID3 title/artist — uncheck 'Require tags' to send anyway"
+                                    .into(),
                         });
                         done += 1;
                         continue;
@@ -729,8 +732,12 @@ impl App {
                         files_total: total_for_progress,
                     });
                 };
-                match backend.upload(&upload_path, &job.remote_dir, &upload_name, &mut on_progress)
-                {
+                match backend.upload(
+                    &upload_path,
+                    &job.remote_dir,
+                    &upload_name,
+                    &mut on_progress,
+                ) {
                     Ok(bytes) => {
                         done += 1;
                         let _ = tx.send(OpMsg::Done {
@@ -895,7 +902,11 @@ impl App {
         };
         if shift {
             if let Some(anchor) = self.local.last_clicked {
-                let (a, b) = if anchor < idx { (anchor, idx) } else { (idx, anchor) };
+                let (a, b) = if anchor < idx {
+                    (anchor, idx)
+                } else {
+                    (idx, anchor)
+                };
                 for e in &self.local.entries[a..=b] {
                     self.local.selected.insert(e.path.clone());
                 }
@@ -930,10 +941,9 @@ impl App {
                 if chip(ui, "↻  Refresh")
                     .on_hover_text("Re-list /Music. The watch's library updates separately.")
                     .clicked()
+                    && self.try_connect()
                 {
-                    if self.try_connect() {
-                        self.refresh_watch();
-                    }
+                    self.refresh_watch();
                 }
             });
         });
@@ -976,11 +986,7 @@ impl App {
                 } else {
                     "Connecting to watch…"
                 };
-                ui.label(
-                    egui::RichText::new(msg)
-                        .color(theme::ASH)
-                        .size(12.0),
-                );
+                ui.label(egui::RichText::new(msg).color(theme::ASH).size(12.0));
             });
             return;
         }
@@ -1243,7 +1249,11 @@ impl App {
         };
         if shift {
             if let Some(anchor) = self.watch.last_clicked {
-                let (a, b) = if anchor < idx { (anchor, idx) } else { (idx, anchor) };
+                let (a, b) = if anchor < idx {
+                    (anchor, idx)
+                } else {
+                    (idx, anchor)
+                };
                 for e in &self.watch.entries[a..=b] {
                     self.watch.selected.insert(e.path.clone());
                 }
@@ -1313,7 +1323,8 @@ impl App {
             let (rect, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
             ui.painter().circle_filled(rect.center(), 4.0, dot_color);
             if animate {
-                ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(50));
             }
             ui.add_space(8.0);
             ui.label(
@@ -1336,27 +1347,17 @@ impl App {
                     .width(280.0)
                     .show_ui(ui, |ui| {
                         for (i, d) in self.devices.iter().enumerate() {
-                            ui.selectable_value(
-                                &mut self.selected_device,
-                                Some(i),
-                                d.label(),
-                            );
+                            ui.selectable_value(&mut self.selected_device, Some(i), d.label());
                         }
                     });
-            } else if let Some(d) = self
-                .selected_device
-                .and_then(|i| self.devices.get(i))
-            {
-                ui.label(
-                    egui::RichText::new(d.label())
-                        .color(theme::BONE)
-                        .size(12.0),
-                );
+            } else if let Some(d) = self.selected_device.and_then(|i| self.devices.get(i)) {
+                ui.label(egui::RichText::new(d.label()).color(theme::BONE).size(12.0));
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(20.0);
-                if !self.show_onboarding && chip(ui, "?").on_hover_text("Show onboarding").clicked() {
+                if !self.show_onboarding && chip(ui, "?").on_hover_text("Show onboarding").clicked()
+                {
                     self.show_onboarding = true;
                 }
                 ui.add_space(8.0);
@@ -1378,10 +1379,8 @@ impl App {
                         ui.allocate_exact_size(egui::vec2(bar_w, 4.0), egui::Sense::hover());
                     ui.painter().rect_filled(rect, 2.0, theme::ELEVATED);
                     let used = ((1.0 - free as f32 / total as f32) * bar_w).clamp(0.0, bar_w);
-                    let used_rect = egui::Rect::from_min_size(
-                        rect.left_top(),
-                        egui::vec2(used, rect.height()),
-                    );
+                    let used_rect =
+                        egui::Rect::from_min_size(rect.left_top(), egui::vec2(used, rect.height()));
                     ui.painter().rect_filled(used_rect, 2.0, theme::SCARLET);
                 }
             });
@@ -1431,11 +1430,7 @@ impl App {
                             .strong(),
                     );
                     ui.add_space(2.0);
-                    ui.label(
-                        egui::RichText::new(body)
-                            .color(theme::BONE_DIM)
-                            .size(11.5),
-                    );
+                    ui.label(egui::RichText::new(body).color(theme::BONE_DIM).size(11.5));
                 });
             });
             ui.add_space(12.0);
@@ -1689,11 +1684,7 @@ impl App {
             }
             ui.add_space(12.0);
             if let Some(p) = self.progress.as_ref() {
-                ui.label(
-                    egui::RichText::new(&p.label)
-                        .color(theme::BONE)
-                        .size(13.0),
-                );
+                ui.label(egui::RichText::new(&p.label).color(theme::BONE).size(13.0));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(20.0);
                     if p.stage == Stage::Uploading && p.file_total > 0 {
@@ -1731,10 +1722,13 @@ impl App {
         // Line 2 — progress bar (determinate for upload, marquee for transcode).
         ui.horizontal(|ui| {
             ui.add_space(20.0);
-            let (rect, _) =
-                ui.allocate_exact_size(egui::vec2(avail, 4.0), egui::Sense::hover());
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(avail, 4.0), egui::Sense::hover());
             ui.painter().rect_filled(rect, 2.0, theme::ELEVATED);
-            match self.progress.as_ref().map(|p| (p.stage, p.file_done, p.file_total)) {
+            match self
+                .progress
+                .as_ref()
+                .map(|p| (p.stage, p.file_done, p.file_total))
+            {
                 Some((Stage::Uploading, done, total)) if total > 0 => {
                     let target = (done as f32 / total as f32).clamp(0.0, 1.0);
                     // Smoothly interpolate the displayed fill so chunk-to-chunk
@@ -1834,9 +1828,7 @@ impl eframe::App for App {
                             .add_enabled(
                                 !self.new_playlist_name.trim().is_empty(),
                                 egui::Button::new(
-                                    egui::RichText::new("Save")
-                                        .color(theme::BONE)
-                                        .strong(),
+                                    egui::RichText::new("Save").color(theme::BONE).strong(),
                                 )
                                 .fill(theme::SCARLET_DEEP)
                                 .stroke(egui::Stroke::new(1.0, theme::SCARLET)),
@@ -1858,10 +1850,7 @@ impl eframe::App for App {
                     if let Some(serial) = self.history_serial.clone() {
                         history::add_playlist(&serial, name.clone(), tracks);
                         self.history = history::load(&serial);
-                        self.push_log(
-                            LogKind::Ok,
-                            format!("✓ saved local playlist «{name}»"),
-                        );
+                        self.push_log(LogKind::Ok, format!("✓ saved local playlist «{name}»"));
                     } else {
                         self.push_log(
                             LogKind::Warn,
@@ -1912,8 +1901,8 @@ impl eframe::App for App {
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
                         ui.add_space(20.0);
-                        let (rect, _) = ui
-                            .allocate_exact_size(egui::vec2(2.0, 11.0), egui::Sense::hover());
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(2.0, 11.0), egui::Sense::hover());
                         ui.painter().rect_filled(rect, 1.0, theme::SCARLET);
                         ui.add_space(8.0);
                         ui.label(
@@ -1955,9 +1944,7 @@ impl eframe::App for App {
                                 ui.horizontal(|ui| {
                                     ui.add_space(16.0);
                                     ui.label(
-                                        egui::RichText::new(&line.text)
-                                            .color(color)
-                                            .monospace(),
+                                        egui::RichText::new(&line.text).color(color).monospace(),
                                     );
                                 });
                             }
@@ -2053,23 +2040,30 @@ impl eframe::App for App {
 // ─────────────────────────── widgets ───────────────────────────
 
 fn chip(ui: &mut egui::Ui, label: &str) -> egui::Response {
-    let btn = egui::Button::new(
-        egui::RichText::new(label)
-            .color(theme::BONE_DIM)
-            .size(11.5),
-    )
-    .fill(theme::ELEVATED)
-    .stroke(egui::Stroke::new(1.0, theme::HAIRLINE_FAINT))
-    .min_size(egui::vec2(0.0, 22.0));
+    let btn = egui::Button::new(egui::RichText::new(label).color(theme::BONE_DIM).size(11.5))
+        .fill(theme::ELEVATED)
+        .stroke(egui::Stroke::new(1.0, theme::HAIRLINE_FAINT))
+        .min_size(egui::vec2(0.0, 22.0));
     ui.add(btn)
 }
 
 fn action_button(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Response {
-    let bg = if enabled { theme::SCARLET_DEEP } else { theme::ELEVATED };
-    let stroke_col = if enabled { theme::SCARLET } else { theme::HAIRLINE_FAINT };
+    let bg = if enabled {
+        theme::SCARLET_DEEP
+    } else {
+        theme::ELEVATED
+    };
+    let stroke_col = if enabled {
+        theme::SCARLET
+    } else {
+        theme::HAIRLINE_FAINT
+    };
     let text_col = if enabled { theme::BONE } else { theme::ASH_DIM };
     let btn = egui::Button::new(
-        egui::RichText::new(label).strong().color(text_col).size(12.5),
+        egui::RichText::new(label)
+            .strong()
+            .color(text_col)
+            .size(12.5),
     )
     .fill(bg)
     .stroke(egui::Stroke::new(1.0, stroke_col))
@@ -2078,10 +2072,21 @@ fn action_button(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Respons
 }
 
 fn action_button_danger(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Response {
-    let stroke_col = if enabled { theme::SCARLET } else { theme::HAIRLINE_FAINT };
-    let text_col = if enabled { theme::SCARLET_BRIGHT } else { theme::ASH_DIM };
+    let stroke_col = if enabled {
+        theme::SCARLET
+    } else {
+        theme::HAIRLINE_FAINT
+    };
+    let text_col = if enabled {
+        theme::SCARLET_BRIGHT
+    } else {
+        theme::ASH_DIM
+    };
     let btn = egui::Button::new(
-        egui::RichText::new(label).strong().color(text_col).size(12.5),
+        egui::RichText::new(label)
+            .strong()
+            .color(text_col)
+            .size(12.5),
     )
     .fill(theme::PANEL)
     .stroke(egui::Stroke::new(1.0, stroke_col))
@@ -2139,6 +2144,7 @@ fn path_breadcrumb(ui: &mut egui::Ui, path: &str) {
 /// Watch-pane row variant that knows about `is_broken` — renders a scarlet ✕
 /// glyph and a "broken" tag instead of the size, signaling that the entry is
 /// only useful for one operation: delete.
+#[allow(clippy::too_many_arguments)]
 fn watch_row<P: Send + Sync + Clone + 'static>(
     ui: &mut egui::Ui,
     id: egui::Id,
@@ -2210,7 +2216,11 @@ fn watch_row<P: Send + Sync + Clone + 'static>(
         text_color,
     );
     if let Some(s) = size {
-        let color = if is_broken { theme::SCARLET } else { theme::ASH };
+        let color = if is_broken {
+            theme::SCARLET
+        } else {
+            theme::ASH
+        };
         painter.text(
             rect.right_center() + egui::vec2(-14.0, 0.0),
             egui::Align2::RIGHT_CENTER,
@@ -2270,7 +2280,11 @@ fn drag_row<P: Send + Sync + Clone + 'static>(
         font.clone(),
         glyph_color,
     );
-    let text_color = if selected { theme::BONE } else { theme::BONE_DIM };
+    let text_color = if selected {
+        theme::BONE
+    } else {
+        theme::BONE_DIM
+    };
     painter.text(
         rect.left_center() + egui::vec2(34.0, 0.0),
         egui::Align2::LEFT_CENTER,
@@ -2331,7 +2345,9 @@ fn short_path(p: &Path) -> String {
     if s.len() > 60 {
         format!(
             "…/{}",
-            p.file_name().map(|n| n.to_string_lossy()).unwrap_or_default()
+            p.file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_default()
         )
     } else {
         s

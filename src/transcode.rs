@@ -13,11 +13,21 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, Context, Result};
 
-/// Where transcoded MP3s live during their brief life. We use a dedicated
-/// subdir under the system tmp so a startup sweep can reliably find leftovers
-/// from a prior crash without touching unrelated /tmp content.
+/// Where transcoded MP3s live during their brief life. Per-user cache dir
+/// (`$XDG_CACHE_HOME/pelican`, fallback `$HOME/.cache/pelican`) — a startup
+/// sweep can reliably find leftovers from a prior crash without touching
+/// unrelated content. Per-user (not `/tmp`) so a hostile local user on a
+/// shared box can't pre-create the dir as a symlink to redirect our writes.
 pub fn cache_dir() -> PathBuf {
-    let mut p = std::env::temp_dir();
+    let mut p = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let mut h = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir);
+            h.push(".cache");
+            h
+        });
     p.push("pelican");
     let _ = std::fs::create_dir_all(&p);
     p
@@ -27,12 +37,18 @@ pub fn cache_dir() -> PathBuf {
 /// Called once at app startup to clean up after a crashed previous session.
 pub fn sweep(max_age: Duration) {
     let dir = cache_dir();
-    let Ok(rd) = std::fs::read_dir(&dir) else { return };
+    let Ok(rd) = std::fs::read_dir(&dir) else {
+        return;
+    };
     let now = SystemTime::now();
     for ent in rd.flatten() {
         let Ok(meta) = ent.metadata() else { continue };
         let Ok(mtime) = meta.modified() else { continue };
-        if now.duration_since(mtime).map(|d| d > max_age).unwrap_or(false) {
+        if now
+            .duration_since(mtime)
+            .map(|d| d > max_age)
+            .unwrap_or(false)
+        {
             let _ = std::fs::remove_file(ent.path());
         }
     }
@@ -42,26 +58,14 @@ pub fn sweep(max_age: Duration) {
 /// here gets a strict ID3v2.3 tag (title/artist/album/track/date/genre only)
 /// before upload — Garmin firmware rejects files with non-standard frames.
 pub const AUDIO_EXTS: &[&str] = &[
-    "mp3", "m4a", "m4b", "aac", "wav", "flac", "ogg", "oga", "opus", "wma",
-    "ape", "aiff", "aif", "wv", "alac",
-];
-
-/// Subset that needs full re-encoding to MP3 (Garmin can't play these natively).
-pub const TRANSCODABLE: &[&str] = &[
-    "flac", "ogg", "oga", "opus", "wma", "ape", "aiff", "aif", "wv", "alac",
+    "mp3", "m4a", "m4b", "aac", "wav", "flac", "ogg", "oga", "opus", "wma", "ape", "aiff", "aif",
+    "wv", "alac",
 ];
 
 pub fn is_audio(p: &Path) -> bool {
     p.extension()
         .and_then(|e| e.to_str())
         .map(|e| AUDIO_EXTS.iter().any(|s| s.eq_ignore_ascii_case(e)))
-        .unwrap_or(false)
-}
-
-pub fn is_transcodable(p: &Path) -> bool {
-    p.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| TRANSCODABLE.iter().any(|s| s.eq_ignore_ascii_case(e)))
         .unwrap_or(false)
 }
 
@@ -121,8 +125,12 @@ fn extract_safe_tags(src: &Path) -> Vec<(&'static str, String)> {
     let mut all = std::collections::HashMap::<String, String>::new();
     for line in text.lines() {
         let line = line.trim();
-        let Some(rest) = line.strip_prefix("TAG:") else { continue };
-        let Some((k, v)) = rest.split_once('=') else { continue };
+        let Some(rest) = line.strip_prefix("TAG:") else {
+            continue;
+        };
+        let Some((k, v)) = rest.split_once('=') else {
+            continue;
+        };
         all.insert(k.to_ascii_lowercase(), v.to_string());
     }
     // Prefer `album_artist` as the ARTIST we write — Garmin's library groups
@@ -201,15 +209,11 @@ fn sanitize_tag_value(v: &str) -> String {
                 && *c != '\u{2117}'  // ℗
                 && *c != '\u{00A9}'  // ©
                 && *c != '\u{2122}'  // ™
-                && *c != '\u{00AE}'  // ®
+                && *c != '\u{00AE}' // ®
         })
         .collect::<String>()
         .trim()
         .to_string()
-}
-
-pub fn transcode_to_mp3(src: &Path) -> Result<Transcoded> {
-    normalize(src)
 }
 
 /// One pass through ffmpeg that produces a Garmin-clean MP3:
@@ -254,16 +258,23 @@ pub fn normalize(src: &Path) -> Result<Transcoded> {
     } else {
         // Full transcode to Garmin's reliable profile.
         cmd.args([
-            "-ac", "2",
-            "-ar", "44100",
-            "-codec:a", "libmp3lame",
-            "-b:a", "192k",
+            "-ac",
+            "2",
+            "-ar",
+            "44100",
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            "192k",
         ]);
     }
     cmd.args([
-        "-map_metadata", "-1",
-        "-id3v2_version", "3",
-        "-write_id3v1", "0",
+        "-map_metadata",
+        "-1",
+        "-id3v2_version",
+        "3",
+        "-write_id3v1",
+        "0",
     ]);
     for (k, v) in &tags {
         cmd.arg("-metadata").arg(format!("{k}={v}"));
@@ -280,5 +291,8 @@ pub fn normalize(src: &Path) -> Result<Transcoded> {
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    Ok(Transcoded { path: tmp, mp3_name })
+    Ok(Transcoded {
+        path: tmp,
+        mp3_name,
+    })
 }

@@ -12,7 +12,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     device.session().set_split_header_data(true);
     let storages = device.storages().await?;
     let storage = &storages[0];
-    println!("Storage: {} · {} bytes free", storage.info().description, storage.info().free_space_bytes);
+    println!(
+        "Storage: {} · {} bytes free",
+        storage.info().description,
+        storage.info().free_space_bytes
+    );
 
     let root = storage.list_objects(None).await?;
     let music = root
@@ -29,7 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while let Some(result) = stream.next().await {
         match result {
             Ok(info) => {
-                println!("  found: {} ({} bytes) handle={:?}", info.filename, info.size, info.handle);
+                println!(
+                    "  found: {} ({} bytes) handle={:?}",
+                    info.filename, info.size, info.handle
+                );
                 handles.push(info.handle);
             }
             Err(e) => {

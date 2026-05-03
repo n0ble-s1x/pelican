@@ -99,8 +99,6 @@ Out of scope:
   to be exempted at adoption and audited incrementally.
 - Reproducible-build verification (deterministic `cargo build --release`
   output across machines).
-- Per-account secret-scanning extras (non-provider patterns, validity
-  checks) — repo-level toggle is API-gated behind an account-level opt-in.
 
 ## Acknowledgements
 

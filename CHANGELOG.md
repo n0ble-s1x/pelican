@@ -6,6 +6,49 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- `--no-transcode` uploads now share the 56-char filename cap with the
+  transcode path. Previously, direct uploads of MP3/M4A/AAC/WAV with long
+  source filenames silently became broken stubs on the watch.
+- Headless dispatch in `main.rs` now triggers when any of `--delete`,
+  `--list-playlists`, `--create-playlist` is set. Previously these flags
+  silently launched the GUI and the requested operation never ran.
+
+### Changed
+- `MtpRsBackend::upload` streams chunks lazily from disk via
+  `futures::stream::poll_fn` instead of buffering the entire file plus a
+  parallel chunked Vec. Memory peak ≈ 256 KB instead of 2× file size.
+- `transcode::sanitize_filename_stem` is now public so the filename rules
+  can be reused by both upload paths.
+- `playlist::serialize_for_device` takes a `PathStyle` enum (variants
+  `BareCasePreserved` and `UppercaseWithPrefix`) — documented seam for
+  future playlist-protocol work.
+
+### Added
+- `examples/probe_playlist.rs` — automated playlist write-format probe
+  (six variants: path styles × format codes).
+- `examples/probe_vendor_ops.rs` — sweep Garmin vendor opcodes
+  `0x9000-0x900B` + `0x9810`/`0x9811`. Logs to `target/probe_vendor_ops.log`.
+- `examples/wipe_stubs.rs` — find and delete unreadable handles in `/Music`.
+- `examples/dump_file.rs` — hex-dump a single file pulled from the watch.
+- `docs/` directory — protocol reference, vendor-op probe results,
+  playlist failure log, code-audit findings, dated research log,
+  references snapshots from `better-sync` / `go-mtpfs`.
+- 25 new unit tests covering filename + tag sanitizers, audio
+  classification, directory-tree expansion, playlist parse edge cases,
+  and `serialize_for_device` for both `PathStyle` variants.
+
+### Verified hardware behavior (Forerunner 165 Music · FW 2506)
+- MTP playlist write rejected across **all six** tried variants
+  (`docs/playlists.md`). Working hypothesis: FR165 firmware does not
+  expose the MTP playlist code path at all. Pending confirmation against
+  a borrowed older watch.
+- Vendor opcode probe to completion **wedges** the device's MTP session;
+  `usb_reset` does not clear it; physical replug is required.
+- Filename collisions during upload corrupt **both** files (existing +
+  new) instead of cleanly overwriting. Pre-write collision check is
+  tracked as a follow-up.
+
 ### Security
 - Dropped `egui_extras` (unused; pulled in `ureq` + `rustls` + `ring` +
   `webpki-roots` + ~40 transitive crates — a full HTTP/TLS stack in a tool

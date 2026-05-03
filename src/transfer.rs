@@ -125,16 +125,25 @@ fn walk(path: &Path, remote_dir: &str, flatten: bool, out: &mut Vec<Job>) -> Res
     Ok(())
 }
 
-/// Garmin firmware is picky about a handful of characters in filenames.
-/// Strip the worst offenders; keep unicode letters/numbers/spaces/.-_.
+/// Garmin firmware is picky about both characters AND total length: writes
+/// to `/Music` whose `remote_name` exceeds ~60 chars or contains exotic
+/// punctuation are silently rejected (broken stub). The transcode path
+/// applies `sanitize_filename_stem` already; this is the same treatment for
+/// the `--no-transcode` path so direct uploads of MP3/M4A/AAC/WAV are safe.
 fn sanitize_name(name: &str) -> String {
-    name.chars()
-        .map(|c| match c {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-            c if c.is_control() => '_',
-            c => c,
-        })
-        .collect()
+    let path = std::path::Path::new(name);
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| name.to_string());
+    let ext = path
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy().to_ascii_lowercase()));
+    let cleaned = crate::transcode::sanitize_filename_stem(&stem);
+    match ext {
+        Some(e) => format!("{cleaned}{e}"),
+        None => cleaned,
+    }
 }
 
 fn ext_supported(p: &Path) -> bool {
@@ -327,4 +336,100 @@ fn run_worker(backend: &mut dyn Backend, jobs: Vec<Job>, opts: &Options, tx: Sen
         drop(transcoded_holder);
     }
     drop(tx);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_name_caps_long_filenames() {
+        let raw = "11 - Iva Davies, Christopher Gordon, Richard Tognetti - Ghost of Time - Tognetti Into the Fog.flac";
+        let out = sanitize_name(raw);
+        let stem_len = out
+            .rsplit_once('.')
+            .map(|(s, _)| s.len())
+            .unwrap_or(out.len());
+        assert!(
+            stem_len <= 56,
+            "stem must be ≤56 chars, got {stem_len}: {out}"
+        );
+        assert!(
+            out.ends_with(".flac"),
+            "extension preserved (lowercased): {out}"
+        );
+    }
+
+    #[test]
+    fn sanitize_name_strips_fat_hostile_chars() {
+        let out = sanitize_name("a/b\\c:d*e?f\"g<h>i|j.mp3");
+        assert!(!out.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|']));
+        assert!(out.ends_with(".mp3"));
+    }
+
+    #[test]
+    fn sanitize_name_keeps_short_names() {
+        assert_eq!(sanitize_name("track-01.mp3"), "track-01.mp3");
+    }
+
+    #[test]
+    fn sanitize_name_lowercases_extension() {
+        // Garmin firmware accepts mixed case, but normalizing avoids a
+        // surprise "TRACK.MP3 vs track.mp3" duplicate-detection miss in
+        // the watch's library indexer.
+        assert!(sanitize_name("track.MP3").ends_with(".mp3"));
+        assert!(sanitize_name("song.FLAC").ends_with(".flac"));
+    }
+
+    #[test]
+    fn ext_supported_matches_garmin_formats() {
+        for ok in ["x.mp3", "x.M4A", "x.m4b", "x.aac", "x.WAV"] {
+            assert!(ext_supported(Path::new(ok)), "{ok} should be supported");
+        }
+        for ko in ["x.flac", "x.ogg", "x.opus", "x.wma", "x.txt", "x"] {
+            assert!(
+                !ext_supported(Path::new(ko)),
+                "{ko} should NOT be supported"
+            );
+        }
+    }
+
+    #[test]
+    fn expand_inputs_flattens_directory_tree() {
+        let tmp = tempdir_with_layout(&[
+            "album/01-track.mp3",
+            "album/disc2/02-track.mp3",
+            "album/cover.jpg",
+        ]);
+        let jobs = expand_inputs_with(&[tmp.path().to_path_buf()], "Music", true).unwrap();
+        let names: std::collections::HashSet<&str> =
+            jobs.iter().map(|j| j.remote_name.as_str()).collect();
+        for j in &jobs {
+            assert_eq!(j.remote_dir, "Music", "flatten should keep dir==Music");
+        }
+        assert!(names.contains("01-track.mp3"));
+        assert!(names.contains("02-track.mp3"));
+    }
+
+    #[test]
+    fn expand_inputs_preserves_subfolders_when_not_flat() {
+        let tmp = tempdir_with_layout(&["album/01.mp3", "album/disc2/02.mp3"]);
+        let jobs = expand_inputs_with(&[tmp.path().to_path_buf()], "Music", false).unwrap();
+        let dirs: std::collections::HashSet<&str> =
+            jobs.iter().map(|j| j.remote_dir.as_str()).collect();
+        assert!(dirs.iter().any(|d| d.starts_with("Music/")));
+        assert!(dirs.iter().any(|d| d.contains("disc2")));
+    }
+
+    fn tempdir_with_layout(paths: &[&str]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        for p in paths {
+            let full = dir.path().join(p);
+            if let Some(parent) = full.parent() {
+                std::fs::create_dir_all(parent).unwrap();
+            }
+            std::fs::write(&full, b"x").unwrap();
+        }
+        dir
+    }
 }

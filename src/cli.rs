@@ -103,7 +103,10 @@ pub fn run_headless(args: Cli) -> anyhow::Result<()> {
             "-",
         );
         let filename = format!("{safe_name}.{}", crate::playlist::EXT);
-        let bytes = crate::playlist::serialize(&args.track);
+        let bytes = crate::playlist::serialize_for_device(
+            &args.track,
+            crate::playlist::PathStyle::BareCasePreserved,
+        );
         backend.write_raw("Music", &filename, &bytes)?;
         println!(
             "✓ wrote /Music/{filename} ({} tracks, {} bytes)",

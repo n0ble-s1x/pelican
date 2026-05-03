@@ -169,7 +169,7 @@ fn extract_safe_tags(src: &Path) -> Vec<(&'static str, String)> {
 /// contains certain punctuation. We keep ASCII letters/digits, spaces,
 /// dashes, dots, and underscores; collapse runs of unsafe chars into a
 /// single dash; truncate to 56 characters (leaving room for ".mp3").
-fn sanitize_filename_stem(raw: &str) -> String {
+pub fn sanitize_filename_stem(raw: &str) -> String {
     let cleaned: String = raw
         .chars()
         .map(|c| match c {
@@ -295,4 +295,84 @@ pub fn normalize(src: &Path) -> Result<Transcoded> {
         path: tmp,
         mp3_name,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filename_stem_caps_at_56() {
+        let raw = "11 - Iva Davies, Christopher Gordon, Richard Tognetti - Ghost of Time - Tognetti Into the Fog";
+        let out = sanitize_filename_stem(raw);
+        assert!(out.len() <= 56, "got {} chars: {out}", out.len());
+    }
+
+    #[test]
+    fn filename_stem_replaces_unsafe_chars() {
+        let out = sanitize_filename_stem("Track #3: <Live!> @ Some/Place");
+        for ch in ['#', ':', '<', '>', '@', '/', '!'] {
+            assert!(!out.contains(ch), "char {ch:?} survived in {out:?}");
+        }
+    }
+
+    #[test]
+    fn filename_stem_collapses_dash_runs() {
+        let out = sanitize_filename_stem("a !@#$%^&* b");
+        assert!(
+            !out.contains("--"),
+            "consecutive dashes not collapsed: {out:?}"
+        );
+    }
+
+    #[test]
+    fn filename_stem_trims_outer_dashes_dots_spaces() {
+        for raw in [".track.", "-track-", " track ", "...---track---..."] {
+            let out = sanitize_filename_stem(raw);
+            assert!(
+                !out.starts_with(['-', '.', ' ']) && !out.ends_with(['-', '.', ' ']),
+                "outer trim missed in {out:?} (from {raw:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn filename_stem_never_returns_empty() {
+        for raw in ["", "@@@", "///", "   "] {
+            let out = sanitize_filename_stem(raw);
+            assert!(!out.is_empty(), "empty result for input {raw:?}");
+        }
+    }
+
+    #[test]
+    fn tag_value_strips_copyright_glyphs() {
+        for glyph in ["\u{2117}", "\u{00A9}", "\u{2122}", "\u{00AE}"] {
+            let out = sanitize_tag_value(&format!("Foo {glyph}2024 Bar"));
+            assert!(!out.contains(glyph), "glyph {glyph:?} survived: {out:?}");
+        }
+    }
+
+    #[test]
+    fn tag_value_strips_control_bytes_and_trims() {
+        let out = sanitize_tag_value("  Track\x07Name\n  ");
+        assert_eq!(out, "TrackName");
+    }
+
+    #[test]
+    fn tag_value_keeps_accented_letters() {
+        let out = sanitize_tag_value("Café Tacvba — Olé");
+        assert!(out.contains("Café"));
+        assert!(out.contains("Tacvba"));
+        assert!(out.contains("Olé"));
+    }
+
+    #[test]
+    fn is_audio_covers_known_extensions() {
+        for ok in ["a.mp3", "a.flac", "a.OPUS", "a.M4B"] {
+            assert!(is_audio(Path::new(ok)));
+        }
+        for ko in ["a.txt", "a.jpg", "a"] {
+            assert!(!is_audio(Path::new(ko)));
+        }
+    }
 }

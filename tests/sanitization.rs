@@ -1,7 +1,7 @@
 //! End-to-end logic tests for the Garmin-quirk workarounds. These are the
 //! parts of the pipeline most likely to regress silently — they encode hard-
 //! won knowledge about what the watch firmware accepts. If any of these
-//! ever fails, double-check against `docs/garmin-mtp-notes.md` before
+//! ever fails, double-check against `docs/garmin-mtp.md` before
 //! "fixing" the test.
 
 // Integration tests live in their own crate; they can only see the public

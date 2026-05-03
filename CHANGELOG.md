@@ -6,8 +6,39 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Security
+- Dropped `egui_extras` (unused; pulled in `ureq` + `rustls` + `ring` +
+  `webpki-roots` + ~40 transitive crates — a full HTTP/TLS stack in a tool
+  with no network surface). Dependency count: 497 → 449.
+- `transcode::cache_dir()` now writes to `$XDG_CACHE_HOME/pelican` (fallback
+  `$HOME/.cache/pelican`) instead of `$TMPDIR/pelican`. The previous form
+  ignored `create_dir_all` errors and could be subverted by a hostile symlink
+  pre-planted in `/tmp` on a shared multi-user host.
+- `cargo audit` allowlist for RUSTSEC-2024-0436 (`paste`, unmaintained,
+  transitive via `eframe → wgpu → metal`) moved to `audit.toml` with rationale.
+- Tightened SPDX license allowlist in `deny.toml` (removed unused
+  `CC0-1.0`, `OpenSSL`, `Unicode-DFS-2016`, `MPL-2.0`).
+
+### Changed
+- MSRV bumped from 1.78 → 1.85 (transitive deps require `edition2024`).
+- Dependabot cooldown set to 48 h: no PR opens for any release younger than
+  two days, so a poisoned upstream has time to surface before it reaches us.
+- Repository hardening (server-side, not in source diff):
+  - GitHub Actions disabled at repo level — local-CI contract via
+    `scripts/check.sh`.
+  - Branch protection on `main`: PRs required, no force-push, no deletion,
+    conversation resolution required, admins enforced.
+  - Auto-merge disabled. Squash-only merges. Web commit sign-off required.
+  - Secret scanning + push protection + Dependabot security updates enabled.
+- `SECURITY.md`, `CONTRIBUTING.md`, and PR template rewritten around the
+  local-CI contract and explicit ban on adding network-capable dependencies
+  without prior discussion.
+
 ### Added
-- Initial public release.
+- `scripts/check.sh` — local QA gate (fmt, clippy, build, test, audit, deny).
+- Flatpak packaging recipe in `packaging/flatpak/`.
+- `unsafe_code = "deny"` lint at crate root (one documented exception in
+  `src/gvfs.rs` for a `geteuid` syscall).
 
 ## [0.1.0] - 2026-05-02
 

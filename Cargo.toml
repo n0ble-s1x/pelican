@@ -2,7 +2,7 @@
 name = "pelican"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.78"
+rust-version = "1.85"
 description = "Pelican — sync your music to a Garmin watch on Linux. A Krypteia tool. No telemetry, no cloud."
 license = "MIT OR Apache-2.0"
 readme = "README.md"

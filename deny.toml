@@ -5,10 +5,9 @@ all-features = true
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-# `cargo audit` (run separately by scripts/check.sh) emits a soft warning for
-# RUSTSEC-2024-0436 (paste, unmaintained, transitive via eframe → wgpu →
-# metal → paste). It is not a vulnerability — no exploit path. Revisit when
-# upstream wgpu replaces paste.
+# RUSTSEC-2024-0436 (paste, unmaintained, transitive via wgpu) is allowlisted
+# in audit.toml — `cargo audit` flags informational advisories, `cargo deny`
+# does not by default, so the ignore lives where it actually does work.
 
 [licenses]
 confidence-threshold = 0.93
@@ -21,7 +20,6 @@ allow = [
     "ISC",
     "Unicode-3.0",
     "Zlib",
-    "MPL-2.0",
     "BSL-1.0",
     # Font licenses required by epaint_default_fonts (default eframe fonts).
     # Both are permissive free font licenses; OFL-1.1 is OSI-approved, UFL-1.0

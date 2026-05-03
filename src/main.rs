@@ -24,7 +24,12 @@ fn main() -> anyhow::Result<()> {
 
     let args = cli::Cli::parse();
 
-    if args.headless || !args.copy.is_empty() {
+    let headless = args.headless
+        || !args.copy.is_empty()
+        || !args.delete.is_empty()
+        || args.list_playlists
+        || args.create_playlist.is_some();
+    if headless {
         cli::run_headless(args)
     } else {
         app::run()

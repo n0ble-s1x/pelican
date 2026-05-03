@@ -14,10 +14,15 @@ use crate::garmin::GARMIN_VENDOR_ID;
 /// Returns Some(path) if a gvfs MTP mount appears to belong to a Garmin
 /// device. The caller should warn the user and offer to `gio mount -u` it.
 pub fn detect_garmin_gvfs_mount() -> Option<String> {
+    // SAFETY: geteuid is a side-effect-free POSIX syscall returning the
+    // effective uid. The only reason it's `unsafe` in libc is FFI-by-default;
+    // there's nothing to misuse. We localize the unsafe so the rest of the
+    // crate keeps `unsafe_code = "forbid"`.
+    #[allow(unsafe_code)]
     let uid = unsafe { libc::geteuid() };
     let base = format!("/run/user/{uid}/gvfs");
     let entries = fs::read_dir(&base).ok()?;
-    let needle = format!("mtp:host=");
+    let needle = "mtp:host=".to_string();
     let vendor = format!("{GARMIN_VENDOR_ID:04X}");
     for ent in entries.flatten() {
         let name = ent.file_name().to_string_lossy().to_string();
@@ -41,11 +46,4 @@ pub fn warn_if_holding_garmin() -> Result<()> {
         );
     }
     Ok(())
-}
-
-// Tiny libc shim so we don't pull the libc crate just for geteuid.
-mod libc {
-    extern "C" {
-        pub fn geteuid() -> u32;
-    }
 }

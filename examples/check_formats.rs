@@ -5,7 +5,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let device = MtpDevice::open_first().await?;
     let info = device.device_info();
     println!("vendor_ext: {}", info.vendor_extension_desc);
-    println!("operations_supported ({}):", info.operations_supported.len());
+    println!(
+        "operations_supported ({}):",
+        info.operations_supported.len()
+    );
     for op in &info.operations_supported {
         println!("  {:?}", op);
     }

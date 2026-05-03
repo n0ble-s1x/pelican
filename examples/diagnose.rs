@@ -71,20 +71,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // One level deeper for any subfolders we just listed (only first
             // 5 to keep output bounded).
             // We have to re-list because we didn't keep ObjectInfo.
-            let infos = storage.list_objects(Some(top.handle)).await.unwrap_or_default();
+            let infos = storage
+                .list_objects(Some(top.handle))
+                .await
+                .unwrap_or_default();
             for sub in infos.iter().filter(|o| o.is_folder()).take(5) {
                 println!("  --- /{}/{} ---", top.filename, sub.filename);
-                let mut sub_stream =
-                    storage.list_objects_stream(Some(sub.handle)).await?;
+                let mut sub_stream = storage.list_objects_stream(Some(sub.handle)).await?;
                 let mut sub_shown = 0;
                 while let Some(r) = sub_stream.next().await {
                     if let Ok(info) = r {
                         if sub_shown < 10 {
                             let kind = if info.is_folder() { "DIR " } else { "FILE" };
-                            println!(
-                                "    {kind} {} ({} bytes)",
-                                info.filename, info.size
-                            );
+                            println!("    {kind} {} ({} bytes)", info.filename, info.size);
                         }
                         sub_shown += 1;
                     }

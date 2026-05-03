@@ -22,10 +22,11 @@ allow = [
     "Zlib",
     "BSL-1.0",
     # Font licenses required by epaint_default_fonts (default eframe fonts).
-    # Both are permissive free font licenses; OFL-1.1 is OSI-approved, UFL-1.0
-    # is the Ubuntu Font License (no SPDX id, referenced via LicenseRef).
+    # Both are permissive free font licenses; OFL-1.1 is OSI-approved.
+    # Ubuntu-font-1.0 is the SPDX id added in 0.34 (was LicenseRef-UFL-1.0
+    # in older epaint_default_fonts).
     "OFL-1.1",
-    "LicenseRef-UFL-1.0",
+    "Ubuntu-font-1.0",
 ]
 
 [bans]

@@ -1,3 +1,13 @@
+// egui 0.34 deprecated the `Panel`/`SidePanel`/`TopBottomPanel` constructors
+// and the per-axis sizing helpers (`min_width`, `default_height`, etc.) in
+// favour of a unified `Panel` API. The full migration is invasive (every
+// panel construction site changes shape) and orthogonal to the dep-bump it
+// would land in — we'll do it as a focused follow-up. Same story for the
+// `eframe::App::update()` method (now `App::ui` + `App::logic`). Suppressing
+// the deprecation warnings here keeps `clippy -D warnings` green without
+// pretending we've done the migration.
+#![allow(deprecated)]
+
 //! Krypteia · MTP Sync — three-column file browser with drag-drop.
 //!
 //! Layout:
@@ -860,11 +870,11 @@ impl App {
                     resp.context_menu(|ui| {
                         if ui.button("Send to watch").clicked() {
                             send_one = Some(entry_path_for_menu.clone());
-                            ui.close_menu();
+                            ui.close();
                         }
                         if entry_is_dir_for_menu && ui.button("Open").clicked() {
                             to_navigate = Some(entry_path_for_menu.clone());
-                            ui.close_menu();
+                            ui.close();
                         }
                     });
                 }
@@ -1037,7 +1047,7 @@ impl App {
                     resp.context_menu(|ui| {
                         if ui.button("Delete from watch").clicked() {
                             delete_one = Some(p.clone());
-                            ui.close_menu();
+                            ui.close();
                         }
                     });
                 }
@@ -1773,6 +1783,13 @@ impl App {
 }
 
 impl eframe::App for App {
+    // Required by eframe 0.34's `App` trait but unused: we drive the whole
+    // window from `update()` (deprecated but still wired), giving us a single
+    // entry point for both state mutation and UI rendering. Migrating to the
+    // split `logic()` + `ui()` API is tracked as a follow-up; touching it
+    // here would balloon the scope of a dep-bump PR.
+    fn ui(&mut self, _ui: &mut egui::Ui, _frame: &mut eframe::Frame) {}
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // First-frame device discovery, then keep refreshing periodically so
         // a hot-plug picks up without the user touching anything.
@@ -1975,7 +1992,7 @@ impl eframe::App for App {
             });
 
         // Three-column main area
-        let total_w = ctx.screen_rect().width();
+        let total_w = ctx.content_rect().width();
         let action_w = 130.0;
         let pane_w = ((total_w - action_w) / 2.0).max(300.0);
 
@@ -2101,11 +2118,11 @@ fn badge(ui: &mut egui::Ui, label: &str, accent: egui::Color32, fill: egui::Colo
         .size(10.5)
         .strong()
         .extra_letter_spacing(1.4);
-    let frame = egui::Frame::none()
+    let frame = egui::Frame::new()
         .fill(fill)
         .stroke(egui::Stroke::new(1.0, accent.linear_multiply(0.5)))
-        .inner_margin(egui::Margin::symmetric(8.0, 3.0))
-        .rounding(egui::Rounding::same(3.0));
+        .inner_margin(egui::Margin::symmetric(8, 3))
+        .corner_radius(egui::CornerRadius::same(3));
     frame.show(ui, |ui| {
         ui.label(text);
     });
@@ -2178,6 +2195,7 @@ fn watch_row<P: Send + Sync + Clone + 'static>(
             rect.shrink(1.0),
             0.0,
             egui::Stroke::new(1.0, theme::SCARLET_BRIGHT),
+            egui::StrokeKind::Inside,
         );
     }
 
@@ -2267,6 +2285,7 @@ fn drag_row<P: Send + Sync + Clone + 'static>(
             rect.shrink(1.0),
             0.0,
             egui::Stroke::new(1.0, theme::SCARLET_BRIGHT),
+            egui::StrokeKind::Inside,
         );
     }
 

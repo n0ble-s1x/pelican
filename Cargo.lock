@@ -2610,6 +2610,7 @@ dependencies = [
  "egui_extras",
  "futures",
  "id3",
+ "libc",
  "mp4ameta",
  "mtp-rs",
  "nusb",

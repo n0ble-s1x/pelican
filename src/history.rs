@@ -110,11 +110,6 @@ pub fn record(serial: &str, name: &str, bytes: u64) {
     save(&h);
 }
 
-pub fn forget_all(serial: &str) {
-    let path = file_for(serial);
-    let _ = std::fs::remove_file(path);
-}
-
 pub fn add_playlist(serial: &str, name: String, tracks: Vec<std::path::PathBuf>) {
     let mut h = load(serial);
     let now = std::time::SystemTime::now()
@@ -122,7 +117,11 @@ pub fn add_playlist(serial: &str, name: String, tracks: Vec<std::path::PathBuf>)
         .map(|d| d.as_secs())
         .unwrap_or(0);
     h.playlists.retain(|p| p.name != name);
-    h.playlists.push(LocalPlaylist { name, tracks, created_at: now });
+    h.playlists.push(LocalPlaylist {
+        name,
+        tracks,
+        created_at: now,
+    });
     save(&h);
 }
 

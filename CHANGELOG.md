@@ -30,6 +30,10 @@ All notable changes to this project are documented here. Format follows
     conversation resolution required, admins enforced.
   - Auto-merge disabled. Squash-only merges. Web commit sign-off required.
   - Secret scanning + push protection + Dependabot security updates enabled.
+  - **Signed commits enforced on `main`** — `required_signatures=true` in
+    branch protection. Maintainer signs from a dedicated, passphrase-
+    protected ssh-ed25519 key (separate from any authentication key);
+    GitHub displays a green "Verified" badge on each commit.
 - `SECURITY.md`, `CONTRIBUTING.md`, and PR template rewritten around the
   local-CI contract and explicit ban on adding network-capable dependencies
   without prior discussion.

@@ -60,6 +60,17 @@ Out of scope:
   no force-pushes, no branch deletion, conversation must be resolved before
   merge, admins are subject to all rules. The maintainer is the sole
   collaborator with merge access; external contributors PR from forks.
+- **Signed commits enforced on `main`.** Every commit that lands on `main`
+  must carry a valid SSH signature from a key registered to the maintainer's
+  GitHub account. GitHub displays a green "Verified" badge on each commit;
+  unsigned commits are rejected at push time. The maintainer signs from a
+  dedicated, passphrase-protected ed25519 key kept separate from any
+  authentication key — a leak of one does not compromise the other.
+- **Squash-only merges.** Web UI does not offer rebase or merge-commit;
+  every PR collapses into a single signed commit on `main`, keeping a
+  linear, attributable history.
+- **Web commit sign-off required** — any commit authored through GitHub's
+  web UI must include a DCO sign-off line.
 - **Minimum-required permissions** on the udev rule we ship
   (`MODE="0660" TAG+="uaccess"` — grants ACL to the active session user only;
   no `root:root` daemon, no setuid binary).
@@ -80,13 +91,16 @@ Out of scope:
 
 ## Future hardening (tracked, not yet shipped)
 
-- Signed commits + signed git tags (currently unsigned; will enable when a
-  long-lived signing key is provisioned for the maintainer identity)
 - `cargo-vet` for an explicit per-dependency audit ledger — every transitive
   crate signed off in `supply-chain/` instead of trusting the SPDX-license
-  allowlist alone
+  allowlist alone. Surveyed during the security-hardening pass: of 449
+  crates, 93 are covered by community audits (Mozilla / Bytecode Alliance /
+  Google / Embark / ISRG / Zcash / Fermyon); the remaining 354 would need
+  to be exempted at adoption and audited incrementally.
 - Reproducible-build verification (deterministic `cargo build --release`
-  output across machines)
+  output across machines).
+- Per-account secret-scanning extras (non-provider patterns, validity
+  checks) — repo-level toggle is API-gated behind an account-level opt-in.
 
 ## Acknowledgements
 

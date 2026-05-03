@@ -5,7 +5,7 @@
 //! sans for chrome/labels. No gradients, no animations beyond progress.
 
 use eframe::egui;
-use egui::{Color32, FontFamily, FontId, Rounding, Stroke, TextStyle};
+use egui::{Color32, CornerRadius, FontFamily, FontId, Stroke, TextStyle};
 
 // ── palette ────────────────────────────────────────────────────────────
 // Calibrated for macOS-class restraint: deep void background, gently warmed
@@ -33,7 +33,7 @@ pub const SUCCESS: Color32 = Color32::from_rgb(0x6c, 0xb3, 0x7e);
 pub const WARN: Color32 = Color32::from_rgb(0xd0, 0xa3, 0x4e);
 
 pub fn install(ctx: &egui::Context) {
-    let mut style = (*ctx.style()).clone();
+    let mut style = (*ctx.global_style()).clone();
 
     // Typography — proportional primary (chrome, labels, file names),
     // monospace reserved for paths and byte counts. macOS-class hierarchy:
@@ -74,57 +74,57 @@ pub fn install(ctx: &egui::Context) {
 
     // Widgets — soft pill shapes, no hard borders by default. Hover lifts to
     // a slightly brighter fill, no border flash. Active is a quiet scarlet.
-    let r = Rounding::same(5.0);
+    let r = CornerRadius::same(5);
 
     v.widgets.noninteractive.bg_fill = PANEL;
     v.widgets.noninteractive.weak_bg_fill = PANEL;
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, HAIRLINE_FAINT);
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, BONE);
-    v.widgets.noninteractive.rounding = r;
+    v.widgets.noninteractive.corner_radius = r;
 
     v.widgets.inactive.bg_fill = ELEVATED;
     v.widgets.inactive.weak_bg_fill = ELEVATED;
     v.widgets.inactive.bg_stroke = Stroke::new(1.0, HAIRLINE_FAINT);
     v.widgets.inactive.fg_stroke = Stroke::new(1.0, BONE_DIM);
-    v.widgets.inactive.rounding = r;
+    v.widgets.inactive.corner_radius = r;
     v.widgets.inactive.expansion = 0.0;
 
     v.widgets.hovered.bg_fill = HOVER;
     v.widgets.hovered.weak_bg_fill = HOVER;
     v.widgets.hovered.bg_stroke = Stroke::new(1.0, HAIRLINE);
     v.widgets.hovered.fg_stroke = Stroke::new(1.0, BONE);
-    v.widgets.hovered.rounding = r;
+    v.widgets.hovered.corner_radius = r;
     v.widgets.hovered.expansion = 0.0;
 
     v.widgets.active.bg_fill = SCARLET_DEEP;
     v.widgets.active.weak_bg_fill = SCARLET_DEEP;
     v.widgets.active.bg_stroke = Stroke::new(1.0, SCARLET);
     v.widgets.active.fg_stroke = Stroke::new(1.0, BONE);
-    v.widgets.active.rounding = r;
+    v.widgets.active.corner_radius = r;
     v.widgets.active.expansion = 0.0;
 
     v.widgets.open.bg_fill = ELEVATED;
     v.widgets.open.bg_stroke = Stroke::new(1.0, SCARLET);
     v.widgets.open.fg_stroke = Stroke::new(1.0, BONE);
-    v.widgets.open.rounding = r;
+    v.widgets.open.corner_radius = r;
 
-    v.menu_rounding = Rounding::same(6.0);
-    v.window_rounding = Rounding::same(0.0);
+    v.menu_corner_radius = CornerRadius::same(6);
+    v.window_corner_radius = CornerRadius::same(0);
     v.window_shadow.color = Color32::TRANSPARENT;
     v.popup_shadow.color = Color32::from_black_alpha(80);
-    v.popup_shadow.offset = egui::vec2(0.0, 4.0);
-    v.popup_shadow.blur = 16.0;
-    v.popup_shadow.spread = 0.0;
+    v.popup_shadow.offset = [0, 4];
+    v.popup_shadow.blur = 16;
+    v.popup_shadow.spread = 0;
 
     style.spacing.item_spacing = egui::vec2(10.0, 6.0);
     style.spacing.button_padding = egui::vec2(14.0, 7.0);
-    style.spacing.window_margin = egui::Margin::same(0.0);
-    style.spacing.menu_margin = egui::Margin::same(6.0);
+    style.spacing.window_margin = egui::Margin::same(0);
+    style.spacing.menu_margin = egui::Margin::same(6);
     style.spacing.indent = 16.0;
     style.spacing.scroll.bar_width = 6.0;
     style.spacing.scroll.handle_min_length = 12.0;
 
-    ctx.set_style(style);
+    ctx.set_global_style(style);
 }
 
 pub fn hairline(ui: &mut egui::Ui) {

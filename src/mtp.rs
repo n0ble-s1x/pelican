@@ -198,15 +198,27 @@ mod mtp_rs_impl {
         ) -> Result<u64> {
             const CHUNK: usize = 256 * 1024;
             let parent = self.resolve_folder(remote_dir)?;
-            let bytes =
-                std::fs::read(local).with_context(|| format!("reading {}", local.display()))?;
-            let len = bytes.len() as u64;
+            let mut file = std::fs::File::open(local)
+                .with_context(|| format!("opening {}", local.display()))?;
+            let len = file
+                .metadata()
+                .with_context(|| format!("statting {}", local.display()))?
+                .len();
+            // Stream chunks lazily from disk — avoids holding the full file +
+            // a parallel chunked Vec in memory (was 2× the file size).
+            let stream = futures::stream::poll_fn(move |_cx| {
+                use std::io::Read;
+                let mut buf = vec![0u8; CHUNK];
+                match file.read(&mut buf) {
+                    Ok(0) => std::task::Poll::Ready(None),
+                    Ok(n) => {
+                        buf.truncate(n);
+                        std::task::Poll::Ready(Some(Ok(Bytes::from(buf))))
+                    }
+                    Err(e) => std::task::Poll::Ready(Some(Err(e))),
+                }
+            });
             let info = NewObjectInfo::file(remote_name, len);
-            let chunks: Vec<_> = bytes
-                .chunks(CHUNK)
-                .map(|c| Ok::<_, std::io::Error>(Bytes::copy_from_slice(c)))
-                .collect();
-            let stream = futures::stream::iter(chunks);
             let storage = &self.storage;
             on_progress(0, len);
             self.rt
@@ -380,16 +392,13 @@ mod mtp_rs_impl {
             use mtp::ObjectFormatCode;
             let parent = self.resolve_folder(remote_dir)?;
             let len = bytes.len() as u64;
-            // Pick the right MTP format code by extension. M3U/M3U8 → Abstract
-            // Audio Playlist (0xBA10), which Garmin firmware actually expects
-            // for playlist files in /Music. Without the right format code,
-            // the watch silently drops the write.
+            // M3U/M3U8 → MTP_FORMAT_ABSTRACT_AV_PLAYLIST (0xBA05). Verified
+            // working path per `better-sync` (Schachte) on FR family + Venu;
+            // Garmin firmware silently rejects playlist writes with any
+            // other format code. See docs/playlists.md.
             let lower = remote_name.to_ascii_lowercase();
             let format = if lower.ends_with(".m3u8") || lower.ends_with(".m3u") {
-                // M3U files are plain text. Try standard MTP `Text` format
-                // (0x3004) — Garmin firmware seems to silently drop writes
-                // with playlist-specific format codes (0xBA11 etc).
-                ObjectFormatCode::Text
+                ObjectFormatCode::Unknown(0xBA05)
             } else {
                 ObjectFormatCode::Undefined
             };

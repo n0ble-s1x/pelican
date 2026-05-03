@@ -7,20 +7,13 @@ updates:
       day: monday
       time: "06:00"
     open-pull-requests-limit: 5
+    # 48h cooldown: don't open a PR for any release younger than 2 days. Gives
+    # the world time to flag a poisoned release before it shows up here. We
+    # never auto-merge regardless; this just avoids surfacing risky deltas
+    # the moment they hit crates.io.
+    cooldown:
+      default-days: 2
     commit-message:
       prefix: "deps"
     labels:
-      - dependencies
-
-  - package-ecosystem: github-actions
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "ci"
-    labels:
-      - ci
       - dependencies

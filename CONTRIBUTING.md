@@ -9,13 +9,16 @@ area is well-defined; getting a PR through review is usually quick.
 git clone https://github.com/n0ble-s1x/pelican
 cd pelican
 cargo build --release
-cargo test
-cargo clippy --all-targets -- -D warnings
-cargo fmt --check
+
+# Run the full local QA gate (same checks the maintainer runs before merge):
+./scripts/check.sh --full
 ```
 
-CI runs all of the above plus `cargo audit` and `cargo deny`. Anything that
-breaks CI won't merge.
+Optionally, install the git hooks so `check.sh` runs on every commit/push:
+
+```sh
+./scripts/install-hooks.sh
+```
 
 ## What we want
 
@@ -41,16 +44,30 @@ breaks CI won't merge.
   and stays that way.
 - **Cloud-tied features** (Spotify auth, etc.). Garmin Connect IQ apps already
   exist for those; we are explicitly building the local-files alternative.
+- **Network-capable dependencies** (HTTP clients, TLS stacks) unless there's
+  a feature requirement we've explicitly agreed to. The dep tree is audited
+  to remain network-free; PRs that pull in `reqwest`/`ureq`/`hyper`/etc. will
+  be rejected unless the feature has been discussed first.
 
 ## Pull request process
 
+We do **not** run third-party CI. **You run the checks; the maintainer
+re-runs them locally before merge.** This is intentional — see
+[SECURITY.md](SECURITY.md) for the rationale.
+
 1. Fork & branch from `main` (`feature/xyz`, `fix/abc`)
 2. Keep PRs focused — one feature / one fix per PR
-3. Include a brief test plan in the PR description; if you tested on real
-   hardware, say which model + firmware
-4. We review for **security, correctness, and maintainability** (in that order).
-   We're not pedantic about style — just run `cargo fmt`
-5. Merge requires one approving review from a maintainer + green CI
+3. Run `./scripts/check.sh --full` on your branch — it must pass clean
+   (rustfmt, clippy with `-D warnings`, build, tests, `cargo audit`,
+   `cargo deny`)
+4. Open a PR. In the description, confirm `scripts/check.sh --full` passed.
+   If you tested on real hardware, list the model + firmware
+5. The maintainer pulls your branch, re-runs `./scripts/check.sh --full`,
+   reads the diff (especially: any new `Cargo.toml` deps, any new `unsafe`
+   block, any new `Command::new` / network code), and merges if happy
+
+For Dependabot PRs: a 48h cooldown is enforced before the PR even opens.
+Maintainer reviews + merges manually. **Nothing is ever auto-merged.**
 
 If you're sending a bigger change, open a discussion issue first so we don't
 waste your time on something we'd reject.

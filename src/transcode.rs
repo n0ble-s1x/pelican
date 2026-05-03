@@ -13,11 +13,21 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, Context, Result};
 
-/// Where transcoded MP3s live during their brief life. We use a dedicated
-/// subdir under the system tmp so a startup sweep can reliably find leftovers
-/// from a prior crash without touching unrelated /tmp content.
+/// Where transcoded MP3s live during their brief life. Per-user cache dir
+/// (`$XDG_CACHE_HOME/pelican`, fallback `$HOME/.cache/pelican`) — a startup
+/// sweep can reliably find leftovers from a prior crash without touching
+/// unrelated content. Per-user (not `/tmp`) so a hostile local user on a
+/// shared box can't pre-create the dir as a symlink to redirect our writes.
 pub fn cache_dir() -> PathBuf {
-    let mut p = std::env::temp_dir();
+    let mut p = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let mut h = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir);
+            h.push(".cache");
+            h
+        });
     p.push("pelican");
     let _ = std::fs::create_dir_all(&p);
     p

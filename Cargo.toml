@@ -23,15 +23,14 @@ exclude = [
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
-eframe = { version = "0.29", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
-egui = "0.29"
+eframe = { version = "0.34", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+egui = "0.34"
 anyhow = "1"
-thiserror = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 nusb = "0.2"
 id3 = "1.14"
-mp4ameta = "0.11"
+mp4ameta = "0.13"
 rfd = "0.14"
 crossbeam-channel = "0.5"
 percent-encoding = "2"

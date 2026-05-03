@@ -31,7 +31,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 nusb = "0.2"
 id3 = "1.14"
 mp4ameta = "0.13"
-rfd = "0.14"
 crossbeam-channel = "0.5"
 percent-encoding = "2"
 libc = "0.2"

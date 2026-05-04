@@ -33,7 +33,6 @@ use crate::{garmin, gvfs, history, mtp, theme, transfer};
 
 const ROOT_FOLDERS: &[&str] = &["Music", "Audiobooks", "Podcasts"];
 const PRODUCT_NAME: &str = "PELICAN";
-const BRAND: &str = "KRYPTEIA";
 
 pub fn run() -> anyhow::Result<()> {
     let opts = eframe::NativeOptions {
@@ -89,6 +88,9 @@ struct App {
     new_playlist_name: String,
     show_new_playlist_dialog: bool,
 
+    // Floating Options popover (gear icon in topbar).
+    show_options_popover: bool,
+
     local_rect: egui::Rect,
     watch_rect: egui::Rect,
 
@@ -129,6 +131,7 @@ impl Default for App {
             history_serial: None,
             new_playlist_name: String::new(),
             show_new_playlist_dialog: false,
+            show_options_popover: false,
         }
     }
 }
@@ -811,18 +814,18 @@ impl App {
     // ── pane bodies ──
     fn local_pane_body(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_wrapped(|ui| {
-            if chip(ui, "Home").clicked() {
+            if theme::chip(ui, "Home").clicked() {
                 self.local.navigate(home_dir());
             }
-            if chip(ui, "Music").clicked() {
+            if theme::chip(ui, "Music").clicked() {
                 self.local.navigate(home_music());
             }
-            if chip(ui, "Downloads").clicked() {
+            if theme::chip(ui, "Downloads").clicked() {
                 let mut p = home_dir();
                 p.push("Downloads");
                 self.local.navigate(p);
             }
-            if chip(ui, "↑ Up").clicked() {
+            if theme::chip(ui, "↑ Up").clicked() {
                 self.local.up();
             }
         });
@@ -888,7 +891,7 @@ impl App {
                             self.local.selected.len()
                         ),
                     );
-                    if !self.local.selected.is_empty() && chip(ui, "Clear").clicked() {
+                    if !self.local.selected.is_empty() && theme::chip(ui, "Clear").clicked() {
                         self.local.selected.clear();
                     }
                 });
@@ -932,14 +935,14 @@ impl App {
     fn watch_pane_body(&mut self, ui: &mut egui::Ui) {
         // Top row: navigation chips + refresh on the right
         ui.horizontal(|ui| {
-            if chip(ui, "↑ Up").clicked() {
+            if theme::chip(ui, "↑ Up").clicked() {
                 self.watch.up();
                 if self.backend.is_some() {
                     self.refresh_watch();
                 }
             }
             for f in ROOT_FOLDERS {
-                if chip(ui, f).clicked() {
+                if theme::chip(ui, f).clicked() {
                     self.watch.navigate((*f).into());
                     if self.try_connect() {
                         self.refresh_watch();
@@ -948,7 +951,7 @@ impl App {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(4.0);
-                if chip(ui, "↻  Refresh")
+                if theme::chip(ui, "↻  Refresh")
                     .on_hover_text("Re-list /Music. The watch's library updates separately.")
                     .clicked()
                     && self.try_connect()
@@ -1061,7 +1064,7 @@ impl App {
                             self.watch.selected.len()
                         ),
                     );
-                    if !self.watch.selected.is_empty() && chip(ui, "Clear").clicked() {
+                    if !self.watch.selected.is_empty() && theme::chip(ui, "Clear").clicked() {
                         self.watch.selected.clear();
                     }
                 });
@@ -1130,11 +1133,11 @@ impl App {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     ui.add_space(20.0);
-                                    if chip(ui, "Delete").clicked() {
+                                    if theme::chip(ui, "Delete").clicked() {
                                         to_delete = Some(pl.name.clone());
                                     }
                                     ui.add_space(4.0);
-                                    if chip(ui, "Send →").clicked() {
+                                    if theme::chip(ui, "Send →").clicked() {
                                         to_send = Some(pl.tracks.clone());
                                     }
                                 },
@@ -1279,74 +1282,42 @@ impl App {
     // ── chrome ──
     fn topbar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.add_space(20.0);
-            // brand bar accent
+            ui.add_space(22.0);
+            // Wordmark: strong PELICAN with a thin vertical accent bar at
+            // the leading edge — UNSC stencil, no dot, no "by Krypteia".
             let cur = ui.cursor().left_top();
-            let bar_rect =
-                egui::Rect::from_min_size(cur + egui::vec2(0.0, 2.0), egui::vec2(3.0, 28.0));
-            ui.painter().rect_filled(bar_rect, 1.0, theme::SCARLET);
-            ui.add_space(14.0);
+            let bar = egui::Rect::from_min_size(cur + egui::vec2(0.0, 5.0), egui::vec2(2.5, 18.0));
+            ui.painter().rect_filled(bar, 0.0, theme::ACCENT);
+            ui.add_space(12.0);
+            ui.label(
+                egui::RichText::new(PRODUCT_NAME)
+                    .color(theme::BONE)
+                    .family(theme::font_display(0.0).family.clone())
+                    .size(15.5)
+                    .extra_letter_spacing(0.6),
+            );
 
-            ui.vertical(|ui| {
-                ui.add_space(2.0);
-                ui.label(
-                    egui::RichText::new(BRAND)
-                        .color(theme::BONE)
-                        .strong()
-                        .size(13.5)
-                        .extra_letter_spacing(2.0),
-                );
-                ui.label(
-                    egui::RichText::new(PRODUCT_NAME)
-                        .color(theme::ASH)
-                        .size(10.0)
-                        .extra_letter_spacing(1.5),
-                );
-            });
+            ui.add_space(28.0);
 
-            ui.add_space(36.0);
-
-            // Connection state dot — always visible. Self-explaining.
-            // During busy/transfer the dot gently pulses; on idle it's static.
-            let (dot_base, dot_state, animate) = if self.backend.is_some() {
+            // Status indicator — small pulsing dot + label.
+            let (accent, label, animate) = if self.backend.is_some() {
                 if self.busy.is_some() || self.op_rx.is_some() {
-                    (theme::WARN, "Busy", true)
+                    (theme::AMBER, "Busy", true)
                 } else {
-                    (theme::SUCCESS, "Connected", false)
+                    (theme::TEAL, "Connected", false)
                 }
             } else if self.devices.is_empty() {
-                (theme::ASH_DIM, "Searching for watch", false)
+                (theme::ASH_DIM, "Searching", false)
             } else if self.last_link_failed {
-                (theme::SCARLET, "Cannot link", false)
+                (theme::ACCENT, "Cannot link", false)
             } else {
-                (theme::WARN, "Connecting…", true)
+                (theme::AMBER, "Connecting", true)
             };
-            let dot_color = if animate {
-                let t = ui.ctx().input(|i| i.time);
-                // 1.4-second sine pulse, range 0.55..1.0
-                let pulse = ((t * std::f64::consts::TAU / 1.4).sin() * 0.5 + 0.5) as f32;
-                let factor = 0.55 + pulse * 0.45;
-                dot_base.linear_multiply(factor)
-            } else {
-                dot_base
-            };
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
-            ui.painter().circle_filled(rect.center(), 4.0, dot_color);
-            if animate {
-                ui.ctx()
-                    .request_repaint_after(std::time::Duration::from_millis(50));
-            }
-            ui.add_space(8.0);
-            ui.label(
-                egui::RichText::new(dot_state)
-                    .color(theme::BONE_DIM)
-                    .size(11.5),
-            );
-            ui.add_space(12.0);
+            theme::status_indicator(ui, label, accent, animate);
 
-            // Device selection — only show as a control when there's a real
-            // choice to make. Single device auto-selects, no UI noise.
+            // Device selector — only when there's a choice.
             if self.devices.len() > 1 {
+                ui.add_space(14.0);
                 let dev_label = self
                     .selected_device
                     .and_then(|i| self.devices.get(i))
@@ -1354,44 +1325,33 @@ impl App {
                     .unwrap_or_else(|| "Select device".into());
                 egui::ComboBox::from_id_salt("dev")
                     .selected_text(dev_label)
-                    .width(280.0)
+                    .width(220.0)
                     .show_ui(ui, |ui| {
                         for (i, d) in self.devices.iter().enumerate() {
                             ui.selectable_value(&mut self.selected_device, Some(i), d.label());
                         }
                     });
-            } else if let Some(d) = self.selected_device.and_then(|i| self.devices.get(i)) {
-                ui.label(egui::RichText::new(d.label()).color(theme::BONE).size(12.0));
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(20.0);
-                if !self.show_onboarding && chip(ui, "?").on_hover_text("Show onboarding").clicked()
+                if !self.show_onboarding
+                    && theme::chip(ui, "?")
+                        .on_hover_text("Show onboarding")
+                        .clicked()
                 {
                     self.show_onboarding = true;
                 }
-                ui.add_space(8.0);
+                ui.add_space(6.0);
+                if theme::chip(ui, "⚙")
+                    .on_hover_text("Options · transcode + tag rules")
+                    .clicked()
+                {
+                    self.show_options_popover = !self.show_options_popover;
+                }
+                ui.add_space(14.0);
                 if let Some((free, total)) = self.free_space {
-                    let pct = (free as f64 / total as f64) * 100.0;
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "{} of {}  ·  {:.0}% free",
-                            human_bytes(free),
-                            human_bytes(total),
-                            pct
-                        ))
-                        .color(theme::BONE_DIM)
-                        .size(11.5),
-                    );
-                    ui.add_space(10.0);
-                    let bar_w = 100.0_f32;
-                    let (rect, _) =
-                        ui.allocate_exact_size(egui::vec2(bar_w, 4.0), egui::Sense::hover());
-                    ui.painter().rect_filled(rect, 2.0, theme::ELEVATED);
-                    let used = ((1.0 - free as f32 / total as f32) * bar_w).clamp(0.0, bar_w);
-                    let used_rect =
-                        egui::Rect::from_min_size(rect.left_top(), egui::vec2(used, rect.height()));
-                    ui.painter().rect_filled(used_rect, 2.0, theme::SCARLET);
+                    storage_hud(ui, free, total);
                 }
             });
         });
@@ -1413,7 +1373,7 @@ impl App {
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(12.0);
-                if chip(ui, "Dismiss").clicked() {
+                if theme::chip(ui, "Dismiss").clicked() {
                     self.show_onboarding = false;
                 }
             });
@@ -1556,147 +1516,134 @@ impl App {
             });
     }
 
-    fn action_column(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(48.0);
-        ui.vertical_centered(|ui| {
-            let send_enabled =
-                !self.local.selected.is_empty() && self.busy.is_none() && !self.devices.is_empty();
-            if action_button(ui, "Send  →", send_enabled).clicked() {
-                self.start_send_selected();
-            }
-            ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new(format!("{} selected", self.local.selected.len()))
-                    .color(theme::ASH_DIM)
-                    .size(10.5),
-            );
-
-            ui.add_space(26.0);
-
-            let del_enabled =
-                !self.watch.selected.is_empty() && self.busy.is_none() && self.backend.is_some();
-            if action_button_danger(ui, "Delete", del_enabled).clicked() {
-                self.start_delete_selected();
-            }
-            ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new(format!("{} selected", self.watch.selected.len()))
-                    .color(theme::ASH_DIM)
-                    .size(10.5),
-            );
-
-            ui.add_space(22.0);
-
-            // Save current LOCAL selection as a named playlist.
-            let can_save_playlist = !self.local.selected.is_empty();
-            if action_button(ui, "Save Group", can_save_playlist).clicked() {
-                self.show_new_playlist_dialog = true;
-                self.new_playlist_name.clear();
-            }
-            ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new("local playlist")
-                    .color(theme::ASH_DIM)
-                    .size(10.5),
-            );
-
-            ui.add_space(28.0);
-            // Hairline divider, centered, narrow.
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(40.0, 1.0), egui::Sense::hover());
-            ui.painter().rect_filled(rect, 0.0, theme::HAIRLINE);
-
+    /// Contextual bottom action bar — Finder-style. Adapts to state:
+    ///   - empty:     hint text ("Drag music here · or select tracks")
+    ///   - selection: summary + Save Group / Send → buttons
+    ///   - watch sel: summary + Delete button
+    ///
+    /// Replaces the old middle action column entirely. This is the macOS-
+    /// class pattern: actions appear where the *result* of the action is.
+    fn bottom_action_bar(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
             ui.add_space(20.0);
 
-            // Options
-            ui.label(
-                egui::RichText::new("OPTIONS")
+            let local_n = self.local.selected.len();
+            let watch_n = self.watch.selected.len();
+            let local_bytes: u64 = self
+                .local
+                .selected
+                .iter()
+                .filter_map(|p| std::fs::metadata(p).ok())
+                .filter(|m| m.is_file())
+                .map(|m| m.len())
+                .sum();
+
+            if local_n == 0 && watch_n == 0 {
+                ui.label(
+                    egui::RichText::new(
+                        "Drag music files onto WATCH to send  ·  or select tracks above",
+                    )
                     .color(theme::ASH)
-                    .size(9.5)
-                    .extra_letter_spacing(1.5),
-            );
-            ui.add_space(8.0);
-
-            let mut transcode = self.transcode_enabled;
-            let xcode_label = if self.ffmpeg_present {
-                "Transcode FLAC"
-            } else {
-                "Transcode (no ffmpeg)"
-            };
-            let resp = ui
-                .add_enabled(
-                    self.ffmpeg_present,
-                    egui::Checkbox::new(
-                        &mut transcode,
-                        egui::RichText::new(xcode_label)
-                            .color(theme::BONE_DIM)
-                            .size(11.0),
-                    ),
-                )
-                .on_hover_text(
-                    "Auto-convert FLAC/OGG/Opus/WMA/AIFF to MP3 (VBR ~190 kbps)\n\
-                     before upload. Tags preserved. Garmin can't play these natively.",
+                    .size(11.5),
                 );
-            if resp.changed() {
-                self.transcode_enabled = transcode;
+            } else if local_n > 0 {
+                let summary = if local_bytes > 0 {
+                    format!("{} selected  ·  {}", local_n, human_bytes(local_bytes))
+                } else {
+                    format!("{} selected", local_n)
+                };
+                ui.label(egui::RichText::new(summary).color(theme::BONE).size(11.5));
+                ui.add_space(8.0);
+                if theme::chip(ui, "Clear").clicked() {
+                    self.local.selected.clear();
+                }
+            } else {
+                ui.label(
+                    egui::RichText::new(format!("{} on watch selected", watch_n))
+                        .color(theme::BONE)
+                        .size(11.5),
+                );
+                ui.add_space(8.0);
+                if theme::chip(ui, "Clear").clicked() {
+                    self.watch.selected.clear();
+                }
             }
 
-            ui.add_space(6.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(20.0);
 
-            let mut require_tags = !self.skip_tag_check;
-            if ui
-                .checkbox(
-                    &mut require_tags,
-                    egui::RichText::new("Require tags")
-                        .color(theme::BONE_DIM)
-                        .size(11.0),
-                )
-                .on_hover_text(
-                    "When on, files without ID3 title + artist are skipped.\n\
-                     When off (default), they upload anyway — but Garmin's music\n\
-                     app will hide them from its library view.",
-                )
-                .changed()
-            {
-                self.skip_tag_check = !require_tags;
-            }
+                if local_n > 0 {
+                    let send_enabled = self.busy.is_none() && !self.devices.is_empty();
+                    if theme::button(
+                        ui,
+                        "Send →",
+                        theme::BtnKind::Primary,
+                        send_enabled,
+                        egui::vec2(96.0, 28.0),
+                    )
+                    .clicked()
+                    {
+                        self.start_send_selected();
+                    }
+                    ui.add_space(8.0);
+                    if theme::button(
+                        ui,
+                        "Save group",
+                        theme::BtnKind::Quiet,
+                        true,
+                        egui::vec2(98.0, 28.0),
+                    )
+                    .clicked()
+                    {
+                        self.show_new_playlist_dialog = true;
+                        self.new_playlist_name.clear();
+                    }
+                }
 
-            ui.add_space(20.0);
-            ui.label(
-                egui::RichText::new("drag rows between panes")
-                    .color(theme::ASH_DIM)
-                    .size(10.0),
-            );
-            ui.label(
-                egui::RichText::new("shift-click for range")
-                    .color(theme::ASH_DIM)
-                    .size(10.0),
-            );
+                if watch_n > 0 && local_n == 0 {
+                    let del_enabled = self.busy.is_none() && self.backend.is_some();
+                    if theme::button(
+                        ui,
+                        "Delete",
+                        theme::BtnKind::Danger,
+                        del_enabled,
+                        egui::vec2(96.0, 28.0),
+                    )
+                    .clicked()
+                    {
+                        self.start_delete_selected();
+                    }
+                }
+            });
         });
+        ui.add_space(8.0);
     }
 
     fn progress_strip(&mut self, ui: &mut egui::Ui, time: f64) {
-        let avail = ui.available_width() - 40.0;
+        let avail = ui.available_width() - 44.0;
         ui.add_space(8.0);
 
-        // Line 1 — stage badge + label + counts.
+        // Single-line: stage label · file label · bytes/files counters.
         ui.horizontal(|ui| {
-            ui.add_space(20.0);
-            match self.progress.as_ref().map(|p| p.stage) {
-                Some(Stage::Transcoding) => {
-                    badge(ui, "Transcoding", theme::WARN, theme::ELEVATED);
-                }
-                Some(Stage::Uploading) => {
-                    badge(ui, "Uploading", theme::SCARLET, theme::SCARLET_DEEP);
-                }
-                None => {
-                    badge(ui, "Ready", theme::ASH, theme::ELEVATED);
-                }
-            }
+            ui.add_space(22.0);
+            let (stage_label, accent) = match self.progress.as_ref().map(|p| p.stage) {
+                Some(Stage::Transcoding) => ("TRANSCODE", theme::AMBER),
+                Some(Stage::Uploading) => ("TRANSMIT", theme::ACCENT_BRIGHT),
+                None => ("STANDBY", theme::ASH),
+            };
+            ui.label(
+                egui::RichText::new(stage_label)
+                    .color(accent)
+                    .family(egui::FontFamily::Name("display".into()))
+                    .size(10.0)
+                    .extra_letter_spacing(2.0),
+            );
             ui.add_space(12.0);
             if let Some(p) = self.progress.as_ref() {
-                ui.label(egui::RichText::new(&p.label).color(theme::BONE).size(13.0));
+                ui.label(egui::RichText::new(&p.label).color(theme::BONE).size(11.5));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(20.0);
+                    ui.add_space(22.0);
                     if p.stage == Stage::Uploading && p.file_total > 0 {
                         ui.label(
                             egui::RichText::new(format!(
@@ -1706,79 +1653,140 @@ impl App {
                             ))
                             .color(theme::ASH)
                             .monospace()
-                            .size(11.5),
+                            .size(10.5),
                         );
                         ui.add_space(14.0);
                     }
                     if p.files_total > 0 {
                         ui.label(
                             egui::RichText::new(format!(
-                                "File {} of {}",
+                                "{}/{}",
                                 (p.files_done + 1).min(p.files_total),
                                 p.files_total
                             ))
                             .color(theme::BONE_DIM)
-                            .size(11.5),
+                            .size(10.5)
+                            .monospace(),
                         );
                     }
                 });
             } else {
-                ui.colored_label(theme::ASH_DIM, "Awaiting transmission");
+                ui.label(egui::RichText::new("Idle").color(theme::ASH_DIM).size(11.5));
             }
         });
 
         ui.add_space(6.0);
 
-        // Line 2 — progress bar (determinate for upload, marquee for transcode).
+        // Thin progress bar (rounded), determinate for upload / marquee
+        // for transcode.
         ui.horizontal(|ui| {
-            ui.add_space(20.0);
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(avail, 4.0), egui::Sense::hover());
-            ui.painter().rect_filled(rect, 2.0, theme::ELEVATED);
-            match self
+            ui.add_space(22.0);
+            let (fill, accent) = match self
                 .progress
                 .as_ref()
                 .map(|p| (p.stage, p.file_done, p.file_total))
             {
                 Some((Stage::Uploading, done, total)) if total > 0 => {
                     let target = (done as f32 / total as f32).clamp(0.0, 1.0);
-                    // Smoothly interpolate the displayed fill so chunk-to-chunk
-                    // jumps look like a continuous bar instead of staircase.
                     let smooth = ui.ctx().animate_value_with_time(
                         egui::Id::new("progress-bar-fill"),
                         target,
                         0.18,
                     );
-                    let fill_w = (smooth * avail).max(2.0);
-                    let fill = egui::Rect::from_min_size(
-                        rect.left_top(),
-                        egui::vec2(fill_w, rect.height()),
-                    );
-                    ui.painter().rect_filled(fill, 2.0, theme::SCARLET);
+                    (Some(smooth), theme::ACCENT)
                 }
-                Some((Stage::Transcoding, _, _)) => {
-                    // Indeterminate marquee — a 22%-width slug oscillates back
-                    // and forth so the user knows ffmpeg is still working.
-                    let cycle = 1.6_f64; // seconds round-trip
-                    let phase = ((time % cycle) / cycle) as f32; // 0..1
-                    let slug_w = avail * 0.22;
-                    let max_x = avail - slug_w;
-                    // Triangle wave 0..1..0
-                    let tri = if phase < 0.5 {
-                        phase * 2.0
-                    } else {
-                        (1.0 - phase) * 2.0
-                    };
-                    let x = tri * max_x;
-                    let fill = egui::Rect::from_min_size(
-                        rect.left_top() + egui::vec2(x, 0.0),
-                        egui::vec2(slug_w, rect.height()),
-                    );
-                    ui.painter().rect_filled(fill, 2.0, theme::WARN);
-                }
-                _ => {}
-            }
+                Some((Stage::Transcoding, _, _)) => (None, theme::AMBER),
+                _ => (Some(0.0), theme::ASH_DIM),
+            };
+            theme::progress_bar(ui, avail, fill, accent, time);
         });
         ui.add_space(8.0);
+    }
+
+    /// Floating Options popover anchored near the gear icon.
+    fn options_popover(&mut self, ctx: &egui::Context) {
+        egui::Window::new("options")
+            .title_bar(false)
+            .collapsible(false)
+            .resizable(false)
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::PANEL)
+                    .stroke(egui::Stroke::new(1.0, theme::HAIRLINE))
+                    .corner_radius(theme::R_CARD)
+                    .inner_margin(egui::Margin::symmetric(18, 14))
+                    .shadow(egui::epaint::Shadow {
+                        offset: [0, 8],
+                        blur: 22,
+                        spread: 0,
+                        color: egui::Color32::from_black_alpha(140),
+                    }),
+            )
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-86.0, 60.0))
+            .show(ctx, |ui| {
+                ui.set_min_width(220.0);
+                ui.label(
+                    egui::RichText::new("OPTIONS")
+                        .color(theme::BONE)
+                        .family(egui::FontFamily::Name("display".into()))
+                        .size(10.0)
+                        .extra_letter_spacing(2.4),
+                );
+                ui.add_space(10.0);
+
+                let mut transcode = self.transcode_enabled;
+                let xcode_label = if self.ffmpeg_present {
+                    "Transcode FLAC / OGG / Opus"
+                } else {
+                    "Transcode (no ffmpeg)"
+                };
+                let resp = ui
+                    .add_enabled(
+                        self.ffmpeg_present,
+                        egui::Checkbox::new(
+                            &mut transcode,
+                            egui::RichText::new(xcode_label)
+                                .color(theme::BONE_DIM)
+                                .size(11.0),
+                        ),
+                    )
+                    .on_hover_text(
+                        "Auto-convert FLAC/OGG/Opus/WMA/AIFF to MP3 (VBR ~190 kbps)\n\
+                         before upload. Tags preserved. Garmin can't play these natively.",
+                    );
+                if resp.changed() {
+                    self.transcode_enabled = transcode;
+                }
+
+                ui.add_space(4.0);
+
+                let mut require_tags = !self.skip_tag_check;
+                if ui
+                    .checkbox(
+                        &mut require_tags,
+                        egui::RichText::new("Require ID3 tags")
+                            .color(theme::BONE_DIM)
+                            .size(11.0),
+                    )
+                    .on_hover_text(
+                        "When on, files without ID3 title + artist are skipped.\n\
+                         When off (default), they upload anyway — but Garmin's music\n\
+                         app will hide them from its library view.",
+                    )
+                    .changed()
+                {
+                    self.skip_tag_check = !require_tags;
+                }
+
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if theme::chip(ui, "Close").clicked() {
+                            self.show_options_popover = false;
+                        }
+                    });
+                });
+            });
     }
 }
 
@@ -1911,72 +1919,87 @@ impl eframe::App for App {
         if self.show_log {
             egui::TopBottomPanel::bottom("log")
                 .resizable(true)
-                .default_height(140.0)
-                .min_height(40.0)
+                .default_height(150.0)
+                .min_height(48.0)
                 .show(ctx, |ui| {
                     theme::hairline(ui);
-                    ui.add_space(4.0);
+                    ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         ui.add_space(20.0);
-                        let (rect, _) =
-                            ui.allocate_exact_size(egui::vec2(2.0, 11.0), egui::Sense::hover());
-                        ui.painter().rect_filled(rect, 1.0, theme::SCARLET);
+                        theme::section_header(ui, "ACTIVITY", theme::ACCENT);
                         ui.add_space(8.0);
-                        ui.label(
-                            egui::RichText::new("ACTIVITY")
-                                .color(theme::BONE)
-                                .strong()
-                                .size(11.5)
-                                .extra_letter_spacing(1.8),
-                        );
-                        ui.add_space(10.0);
                         ui.label(
                             egui::RichText::new(format!("{}", self.log.len()))
                                 .color(theme::ASH)
-                                .size(11.0),
+                                .size(10.5)
+                                .monospace(),
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.add_space(20.0);
-                            if chip(ui, "Hide").clicked() {
+                            if theme::chip(ui, "Hide").clicked() {
                                 self.show_log = false;
                             }
-                            if chip(ui, "Clear").clicked() {
+                            ui.add_space(4.0);
+                            if theme::chip(ui, "Clear").clicked() {
                                 self.log.clear();
                             }
                         });
                     });
-                    ui.add_space(2.0);
+                    ui.add_space(6.0);
                     theme::faint_line(ui);
                     egui::ScrollArea::vertical()
                         .stick_to_bottom(true)
                         .show(ui, |ui| {
                             ui.add_space(4.0);
                             for line in &self.log {
-                                let color = match line.kind {
-                                    LogKind::Info => theme::BONE_DIM,
-                                    LogKind::Warn => theme::WARN,
-                                    LogKind::Error => theme::SCARLET_BRIGHT,
-                                    LogKind::Ok => theme::SUCCESS,
-                                };
+                                let color = log_color(line.kind);
                                 ui.horizontal(|ui| {
-                                    ui.add_space(16.0);
+                                    ui.add_space(20.0);
                                     ui.label(
-                                        egui::RichText::new(&line.text).color(color).monospace(),
+                                        egui::RichText::new(log_kind_glyph(line.kind))
+                                            .color(color)
+                                            .monospace()
+                                            .size(11.0),
+                                    );
+                                    ui.add_space(8.0);
+                                    ui.label(
+                                        egui::RichText::new(&line.text)
+                                            .color(color)
+                                            .monospace()
+                                            .size(11.0),
                                     );
                                 });
                             }
+                            ui.add_space(4.0);
                         });
                 });
         } else {
             egui::TopBottomPanel::bottom("log_collapsed")
-                .exact_height(30.0)
+                .exact_height(32.0)
                 .show(ctx, |ui| {
                     theme::hairline(ui);
-                    ui.add_space(4.0);
+                    ui.add_space(6.0);
                     ui.horizontal(|ui| {
                         ui.add_space(20.0);
-                        if chip(ui, "Show activity").clicked() {
+                        if theme::chip(ui, "↥  Activity").clicked() {
                             self.show_log = true;
+                        }
+                        ui.add_space(10.0);
+                        if let Some(line) = self.log.last() {
+                            let color = log_color(line.kind);
+                            ui.label(
+                                egui::RichText::new(log_kind_glyph(line.kind))
+                                    .color(color)
+                                    .monospace()
+                                    .size(10.5),
+                            );
+                            ui.add_space(6.0);
+                            ui.label(
+                                egui::RichText::new(&line.text)
+                                    .color(color.linear_multiply(0.85))
+                                    .monospace()
+                                    .size(10.5),
+                            );
                         }
                     });
                 });
@@ -1991,51 +2014,59 @@ impl eframe::App for App {
                 self.progress_strip(ui, now);
             });
 
-        // Three-column main area
-        let total_w = ctx.content_rect().width();
-        let action_w = 130.0;
-        let pane_w = ((total_w - action_w) / 2.0).max(300.0);
+        // Bottom contextual action bar — replaces the old middle column.
+        // Lives just above the progress strip so actions are nearest the
+        // status output.
+        egui::TopBottomPanel::bottom("action_bar")
+            .exact_height(46.0)
+            .show(ctx, |ui| {
+                theme::hairline(ui);
+                self.bottom_action_bar(ui);
+            });
 
-        // Onboarding panel — right side, dismissible.
+        // Onboarding drawer (right). Slim, dismissible.
         if self.show_onboarding {
             egui::SidePanel::right("onboarding")
                 .resizable(false)
                 .show_separator_line(false)
-                .default_width(290.0)
-                .min_width(290.0)
-                .max_width(320.0)
+                .default_width(280.0)
+                .min_width(280.0)
+                .max_width(300.0)
                 .show(ctx, |ui| {
                     self.onboarding_panel(ui);
                 });
         }
 
-        egui::SidePanel::left("local_pane")
-            .resizable(true)
-            .show_separator_line(false)
-            .default_width(pane_w)
-            .min_width(300.0)
-            .show(ctx, |ui| {
-                pane_header(ui, "LOCAL", theme::SCARLET);
-                ui.add_space(4.0);
-                self.local_rect = ui.available_rect_before_wrap();
-                self.local_pane_body(ui);
-            });
-
+        // WATCH pane on the right — narrow info column. Hosts the file
+        // listing, upload journal, and saved playlists.
         egui::SidePanel::right("watch_pane")
             .resizable(true)
             .show_separator_line(false)
-            .default_width(pane_w)
-            .min_width(300.0)
+            .default_width(320.0)
+            .min_width(280.0)
+            .max_width(440.0)
             .show(ctx, |ui| {
-                pane_header(ui, "WATCH", theme::SCARLET);
-                ui.add_space(4.0);
+                ui.add_space(14.0);
+                theme::section_header(ui, "WATCH", theme::ACCENT);
+                ui.add_space(8.0);
                 self.watch_rect = ui.available_rect_before_wrap();
                 self.watch_pane_body(ui);
             });
 
+        // LOCAL pane fills the remainder — the wide hero. This is where
+        // the user lives most of the time, browsing & selecting tracks.
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.action_column(ui);
+            ui.add_space(14.0);
+            theme::section_header(ui, "LOCAL", theme::ACCENT);
+            ui.add_space(8.0);
+            self.local_rect = ui.available_rect_before_wrap();
+            self.local_pane_body(ui);
         });
+
+        // Floating Options popover (gear icon).
+        if self.show_options_popover {
+            self.options_popover(ctx);
+        }
 
         self.collect_external_drops(ctx);
         // Manual intra-app drop detection — bypassing dnd_drop_zone which was
@@ -2056,106 +2087,53 @@ impl eframe::App for App {
 
 // ─────────────────────────── widgets ───────────────────────────
 
-fn chip(ui: &mut egui::Ui, label: &str) -> egui::Response {
-    let btn = egui::Button::new(egui::RichText::new(label).color(theme::BONE_DIM).size(11.5))
-        .fill(theme::ELEVATED)
-        .stroke(egui::Stroke::new(1.0, theme::HAIRLINE_FAINT))
-        .min_size(egui::vec2(0.0, 22.0));
-    ui.add(btn)
-}
-
-fn action_button(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Response {
-    let bg = if enabled {
-        theme::SCARLET_DEEP
-    } else {
-        theme::ELEVATED
-    };
-    let stroke_col = if enabled {
-        theme::SCARLET
-    } else {
-        theme::HAIRLINE_FAINT
-    };
-    let text_col = if enabled { theme::BONE } else { theme::ASH_DIM };
-    let btn = egui::Button::new(
-        egui::RichText::new(label)
-            .strong()
-            .color(text_col)
-            .size(12.5),
-    )
-    .fill(bg)
-    .stroke(egui::Stroke::new(1.0, stroke_col))
-    .min_size(egui::vec2(108.0, 34.0));
-    ui.add_enabled(enabled, btn)
-}
-
-fn action_button_danger(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Response {
-    let stroke_col = if enabled {
-        theme::SCARLET
-    } else {
-        theme::HAIRLINE_FAINT
-    };
-    let text_col = if enabled {
-        theme::SCARLET_BRIGHT
-    } else {
-        theme::ASH_DIM
-    };
-    let btn = egui::Button::new(
-        egui::RichText::new(label)
-            .strong()
-            .color(text_col)
-            .size(12.5),
-    )
-    .fill(theme::PANEL)
-    .stroke(egui::Stroke::new(1.0, stroke_col))
-    .min_size(egui::vec2(108.0, 34.0));
-    ui.add_enabled(enabled, btn)
-}
-
-/// Small uppercase badge used for stage indicators in the status strip.
-fn badge(ui: &mut egui::Ui, label: &str, accent: egui::Color32, fill: egui::Color32) {
-    let text = egui::RichText::new(label)
-        .color(accent)
-        .size(10.5)
-        .strong()
-        .extra_letter_spacing(1.4);
-    let frame = egui::Frame::new()
-        .fill(fill)
-        .stroke(egui::Stroke::new(1.0, accent.linear_multiply(0.5)))
-        .inner_margin(egui::Margin::symmetric(8, 3))
-        .corner_radius(egui::CornerRadius::same(3));
-    frame.show(ui, |ui| {
-        ui.label(text);
-    });
-}
-
-fn pane_header(ui: &mut egui::Ui, label: &str, accent: egui::Color32) {
-    ui.add_space(12.0);
-    ui.horizontal(|ui| {
-        ui.add_space(12.0);
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(2.0, 11.0), egui::Sense::hover());
-        ui.painter().rect_filled(rect, 1.0, accent);
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new(label)
-                .color(theme::BONE)
-                .strong()
-                .size(11.5)
-                .extra_letter_spacing(1.8),
-        );
-    });
-    ui.add_space(2.0);
+/// Topbar storage indicator — capacity figures + thin used bar.
+fn storage_hud(ui: &mut egui::Ui, free: u64, total: u64) {
+    let used = total.saturating_sub(free);
+    let pct = (used as f64 / total.max(1) as f64) * 100.0;
+    ui.label(
+        egui::RichText::new(format!("{}  free  ·  {:.0}%  used", human_bytes(free), pct))
+            .color(theme::BONE_DIM)
+            .size(11.0),
+    );
+    ui.add_space(10.0);
+    let bar_w = 100.0_f32;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(bar_w, 3.0), egui::Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, egui::CornerRadius::same(2), theme::ELEVATED);
+    let used_w = ((used as f32 / total.max(1) as f32) * bar_w).clamp(0.0, bar_w);
+    let used_rect = egui::Rect::from_min_size(rect.left_top(), egui::vec2(used_w, rect.height()));
+    painter.rect_filled(used_rect, egui::CornerRadius::same(2), theme::ACCENT);
 }
 
 fn path_breadcrumb(ui: &mut egui::Ui, path: &str) {
     ui.horizontal(|ui| {
-        ui.add_space(12.0);
+        ui.add_space(14.0);
         ui.label(
             egui::RichText::new(path)
                 .color(theme::BONE_DIM)
                 .monospace()
-                .size(11.5),
+                .size(11.0),
         );
     });
+}
+
+fn log_color(kind: LogKind) -> egui::Color32 {
+    match kind {
+        LogKind::Info => theme::BONE_DIM,
+        LogKind::Warn => theme::WARN,
+        LogKind::Error => theme::ACCENT_BRIGHT,
+        LogKind::Ok => theme::TEAL,
+    }
+}
+
+fn log_kind_glyph(kind: LogKind) -> &'static str {
+    match kind {
+        LogKind::Info => "·",
+        LogKind::Warn => "!",
+        LogKind::Error => "✕",
+        LogKind::Ok => "✓",
+    }
 }
 
 /// Watch-pane row variant that knows about `is_broken` — renders a scarlet ✕

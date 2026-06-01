@@ -29,7 +29,7 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 nusb = "0.2"
-id3 = "1.14"
+id3 = "1.17"
 mp4ameta = "0.13"
 crossbeam-channel = "0.5"
 percent-encoding = "2"

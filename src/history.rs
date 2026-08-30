@@ -40,34 +40,47 @@ pub struct DeviceHistory {
     pub playlists: Vec<LocalPlaylist>,
 }
 
-fn data_dir() -> PathBuf {
-    let mut p = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            let mut p = std::env::var_os("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("/tmp"));
+/// Per-user data directory, or None when neither `$XDG_DATA_HOME` nor `$HOME`
+/// resolves.
+///
+/// This deliberately fails closed rather than falling back to `/tmp`. On a
+/// shared host `/tmp` is world-writable and `/tmp/.local` does not normally
+/// exist, so any local user could pre-create the chain and own our store —
+/// and `load()` feeds `LocalPlaylist.tracks` straight back into the uploader.
+/// Losing history persistence is the strictly better failure.
+fn data_dir() -> Option<PathBuf> {
+    let mut p = match std::env::var_os("XDG_DATA_HOME") {
+        Some(x) => PathBuf::from(x),
+        None => {
+            let mut p = PathBuf::from(std::env::var_os("HOME")?);
             p.push(".local");
             p.push("share");
             p
-        });
+        }
+    };
     p.push("pelican");
-    let _ = std::fs::create_dir_all(&p);
-    p
+    std::fs::create_dir_all(&p).ok()?;
+    Some(p)
 }
 
-fn file_for(serial: &str) -> PathBuf {
+fn file_for(serial: &str) -> Option<PathBuf> {
     let safe: String = serial
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
-    let mut p = data_dir();
+    let mut p = data_dir()?;
     p.push(format!("uploads-{safe}.json"));
-    p
+    Some(p)
 }
 
 pub fn load(serial: &str) -> DeviceHistory {
-    let path = file_for(serial);
+    let Some(path) = file_for(serial) else {
+        return DeviceHistory {
+            serial: serial.to_string(),
+            uploads: Vec::new(),
+            playlists: Vec::new(),
+        };
+    };
     let Ok(bytes) = std::fs::read(&path) else {
         return DeviceHistory {
             serial: serial.to_string(),
@@ -83,7 +96,9 @@ pub fn load(serial: &str) -> DeviceHistory {
 }
 
 pub fn save(history: &DeviceHistory) {
-    let path = file_for(&history.serial);
+    let Some(path) = file_for(&history.serial) else {
+        return;
+    };
     if let Ok(bytes) = serde_json::to_vec_pretty(history) {
         let _ = std::fs::write(path, bytes);
     }

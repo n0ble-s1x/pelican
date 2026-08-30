@@ -120,10 +120,28 @@ mod mtp_rs_impl {
             })
         }
 
+        /// Resolve a folder path, creating any missing components.
         fn resolve_folder(&mut self, path: &str) -> Result<Option<ObjectHandle>> {
+            Ok(self.resolve_folder_inner(path, true)?.flatten())
+        }
+
+        /// Resolve a folder path without creating anything.
+        ///
+        /// `Ok(None)` means the folder is not on the device. Read-only callers
+        /// must use this: routing them through the creating variant made
+        /// listing a nonexistent folder silently create it on the watch.
+        fn resolve_folder_existing(&mut self, path: &str) -> Result<Option<Option<ObjectHandle>>> {
+            self.resolve_folder_inner(path, false)
+        }
+
+        fn resolve_folder_inner(
+            &mut self,
+            path: &str,
+            create: bool,
+        ) -> Result<Option<Option<ObjectHandle>>> {
             let key = normalize(path);
             if let Some(h) = self.folder_cache.get(&key) {
-                return Ok(*h);
+                return Ok(Some(*h));
             }
             let mut parent: Option<ObjectHandle> = None;
             let mut acc = String::new();
@@ -155,15 +173,19 @@ mod mtp_rs_impl {
                     .with_context(|| format!("listing {acc}"))?;
                 let handle = match found {
                     Some(h) => h,
-                    None => self
-                        .rt
-                        .block_on(storage.create_folder(parent, component))
-                        .with_context(|| format!("creating folder {acc}"))?,
+                    None => {
+                        if !create {
+                            return Ok(None);
+                        }
+                        self.rt
+                            .block_on(storage.create_folder(parent, component))
+                            .with_context(|| format!("creating folder {acc}"))?
+                    }
                 };
                 self.folder_cache.insert(acc.clone(), Some(handle));
                 parent = Some(handle);
             }
-            Ok(parent)
+            Ok(Some(parent))
         }
 
         fn invalidate_path(&mut self, path: &str) {
@@ -206,22 +228,37 @@ mod mtp_rs_impl {
                 .len();
             // Stream chunks lazily from disk — avoids holding the full file +
             // a parallel chunked Vec in memory (was 2× the file size).
+            //
+            // `sent` counts what the stream actually yielded. mtp-rs writes the
+            // PTP data-container header from the declared `len` *before* pulling
+            // a chunk, so a stream that ends short leaves the device holding a
+            // truncated object. We must not report that as success.
+            let sent = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+            let sent_w = std::sync::Arc::clone(&sent);
             let stream = futures::stream::poll_fn(move |_cx| {
                 use std::io::Read;
                 let mut buf = vec![0u8; CHUNK];
-                match file.read(&mut buf) {
-                    Ok(0) => std::task::Poll::Ready(None),
-                    Ok(n) => {
-                        buf.truncate(n);
-                        std::task::Poll::Ready(Some(Ok(Bytes::from(buf))))
+                let n = loop {
+                    match file.read(&mut buf) {
+                        Ok(n) => break n,
+                        // EINTR is not a transfer failure. Abandoning the stream
+                        // here would strand the device mid-data-phase.
+                        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                        Err(e) => return std::task::Poll::Ready(Some(Err(e))),
                     }
-                    Err(e) => std::task::Poll::Ready(Some(Err(e))),
+                };
+                if n == 0 {
+                    return std::task::Poll::Ready(None);
                 }
+                buf.truncate(n);
+                sent_w.fetch_add(n as u64, std::sync::atomic::Ordering::Relaxed);
+                std::task::Poll::Ready(Some(Ok(Bytes::from(buf))))
             });
             let info = NewObjectInfo::file(remote_name, len);
             let storage = &self.storage;
             on_progress(0, len);
-            self.rt
+            let new_handle = self
+                .rt
                 .block_on(
                     storage.upload_with_progress(parent, info, Box::pin(stream), |p| {
                         on_progress(p.bytes_transferred, len);
@@ -229,12 +266,40 @@ mod mtp_rs_impl {
                     }),
                 )
                 .with_context(|| format!("uploading {}", local.display()))?;
-            on_progress(len, len);
-            Ok(len)
+            let sent = sent.load(std::sync::atomic::Ordering::Relaxed);
+            if sent != len {
+                // The object already exists on the device — mtp-rs returned Ok
+                // and the data phase is closed. Leaving it would be exactly the
+                // broken stub this codebase exists to avoid, and MTP has no
+                // overwrite, so a retry would land a second object beside it.
+                // Best-effort removal, and say which way it went so the user
+                // knows whether retrying is safe.
+                // Delete by the handle this upload just produced, never by
+                // name: MTP has no overwrite, so a same-named object from an
+                // earlier sync may sit beside it and a name lookup could remove
+                // that one instead.
+                let storage = &self.storage;
+                let cleanup = self.rt.block_on(storage.delete(new_handle));
+                self.invalidate_path(&normalize(&format!("{remote_dir}/{remote_name}")));
+                let cleanup_note = match cleanup {
+                    Ok(()) => "the partial object was removed from the watch",
+                    Err(_) => "the partial object could NOT be removed — delete it before retrying",
+                };
+                anyhow::bail!(
+                    "{} changed while uploading: declared {len} bytes to the device \
+                     but streamed {sent}. The object on the watch is not intact; \
+                     {cleanup_note}.",
+                    local.display()
+                );
+            }
+            on_progress(sent, len);
+            Ok(sent)
         }
 
         fn remote_size(&mut self, remote_dir: &str, remote_name: &str) -> Result<Option<u64>> {
-            let parent = self.resolve_folder(remote_dir)?;
+            let Some(parent) = self.resolve_folder_existing(remote_dir)? else {
+                return Ok(None);
+            };
             let storage = &self.storage;
             self.rt
                 .block_on(async {
@@ -252,7 +317,9 @@ mod mtp_rs_impl {
         }
 
         fn list_dir(&mut self, path: &str) -> Result<Vec<RemoteEntry>> {
-            let parent = self.resolve_folder(path)?;
+            let Some(parent) = self.resolve_folder_existing(path)? else {
+                return Ok(Vec::new());
+            };
             let storage_id = self.storage.id();
             let session = self.device.session();
 

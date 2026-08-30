@@ -54,7 +54,9 @@ if [[ "$MODE" == "full" ]]; then
 
     step "audit (RUSTSEC advisories)"
     require cargo-audit "cargo install cargo-audit --locked"
-    cargo audit
+    # --deny warnings so unmaintained/unsound/yanked advisories fail the gate
+    # too, which is what SECURITY.md already promises.
+    cargo audit --deny warnings
 
     step "deny (license + supply-chain)"
     require cargo-deny "cargo install cargo-deny --locked"

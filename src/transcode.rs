@@ -18,25 +18,29 @@ use anyhow::{anyhow, Context, Result};
 /// sweep can reliably find leftovers from a prior crash without touching
 /// unrelated content. Per-user (not `/tmp`) so a hostile local user on a
 /// shared box can't pre-create the dir as a symlink to redirect our writes.
-pub fn cache_dir() -> PathBuf {
-    let mut p = std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            let mut h = std::env::var_os("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(std::env::temp_dir);
+pub fn cache_dir() -> Option<PathBuf> {
+    let mut p = match std::env::var_os("XDG_CACHE_HOME") {
+        Some(x) => PathBuf::from(x),
+        // Fail closed. The previous `temp_dir()` fallback landed in
+        // /tmp/.cache/pelican and broke the symlink-safety promise in this
+        // module's doc comment above.
+        None => {
+            let mut h = PathBuf::from(std::env::var_os("HOME")?);
             h.push(".cache");
             h
-        });
+        }
+    };
     p.push("pelican");
-    let _ = std::fs::create_dir_all(&p);
-    p
+    std::fs::create_dir_all(&p).ok()?;
+    Some(p)
 }
 
 /// Remove transcode artifacts older than `max_age` from the cache dir.
 /// Called once at app startup to clean up after a crashed previous session.
 pub fn sweep(max_age: Duration) {
-    let dir = cache_dir();
+    let Some(dir) = cache_dir() else {
+        return;
+    };
     let Ok(rd) = std::fs::read_dir(&dir) else {
         return;
     };
@@ -77,7 +81,18 @@ pub fn is_mp3(p: &Path) -> bool {
 }
 
 pub fn ffmpeg_available() -> bool {
-    Command::new("ffmpeg")
+    binary_available("ffmpeg")
+}
+
+/// `normalize` shells out to ffprobe as well as ffmpeg, so both must be present
+/// before transcoding is offered — ffprobe alone missing used to degrade into
+/// silently untagged output.
+pub fn ffprobe_available() -> bool {
+    binary_available("ffprobe")
+}
+
+fn binary_available(bin: &str) -> bool {
+    Command::new(bin)
         .arg("-version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -106,7 +121,12 @@ impl Drop for Transcoded {
 /// Lookup is case-insensitive — FLAC vorbis comments are uppercase by
 /// convention, ID3v2 frames are mixed-case, and ffprobe normalizes to the
 /// source's case. Map all to lowercase before matching.
-fn extract_safe_tags(src: &Path) -> Vec<(&'static str, String)> {
+fn extract_safe_tags(src: &Path) -> Result<Vec<(&'static str, String)>> {
+    // `-i` rather than a bare positional: ffmpeg-family tools have no `--`
+    // terminator, so a path starting with '-' would be parsed as options.
+    // `-of json` rather than the line-oriented default writer: the default
+    // writer emits tag values verbatim and unescaped, so a tag containing a
+    // newline forges additional `TAG:` lines.
     let res = Command::new("ffprobe")
         .args([
             "-v",
@@ -114,25 +134,37 @@ fn extract_safe_tags(src: &Path) -> Vec<(&'static str, String)> {
             "-show_entries",
             "format_tags",
             "-of",
-            "default=noprint_wrappers=1",
+            "json",
+            "-i",
         ])
         .arg(src)
         .output();
-    let Ok(o) = res else {
-        return Vec::new();
-    };
-    let text = String::from_utf8_lossy(&o.stdout);
-    let mut all = std::collections::HashMap::<String, String>::new();
-    for line in text.lines() {
-        let line = line.trim();
-        let Some(rest) = line.strip_prefix("TAG:") else {
-            continue;
-        };
-        let Some((k, v)) = rest.split_once('=') else {
-            continue;
-        };
-        all.insert(k.to_ascii_lowercase(), v.to_string());
+    let o = res.context("running ffprobe (is it installed?)")?;
+    if !o.status.success() {
+        return Err(anyhow!(
+            "ffprobe failed on {} ({})",
+            src.display(),
+            o.status
+        ));
     }
+    #[derive(serde::Deserialize)]
+    struct Format {
+        #[serde(default)]
+        tags: std::collections::HashMap<String, String>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Probe {
+        #[serde(default)]
+        format: Option<Format>,
+    }
+    let probe: Probe = serde_json::from_slice(&o.stdout).context("parsing ffprobe JSON output")?;
+    let all: std::collections::HashMap<String, String> = probe
+        .format
+        .map(|f| f.tags)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(k, v)| (k.to_ascii_lowercase(), v))
+        .collect();
     // Prefer `album_artist` as the ARTIST we write — Garmin's library groups
     // tracks by ARTIST+ALBUM, so per-track composer credits ("Iva Davies"
     // vs "Richard Tognetti") fragment a single album into multiple albums.
@@ -161,7 +193,7 @@ fn extract_safe_tags(src: &Path) -> Vec<(&'static str, String)> {
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// Truncate + sanitize a filename stem for Garmin's `/Music` folder.
@@ -192,7 +224,13 @@ pub fn sanitize_filename_stem(raw: &str) -> String {
         out.push(ch);
     }
     let trimmed = out.trim_matches(|c: char| c == '-' || c == ' ' || c == '.');
-    let mut s: String = trimmed.chars().take(56).collect();
+    // Truncate first, then trim again: cutting at 56 chars can re-expose a
+    // trailing '-', ' ' or '.' that the first trim removed, and Garmin's
+    // firmware rejects those.
+    let cut: String = trimmed.chars().take(56).collect();
+    let mut s = cut
+        .trim_matches(|c: char| c == '-' || c == ' ' || c == '.')
+        .to_string();
     if s.is_empty() {
         s = "audio".into();
     }
@@ -225,11 +263,15 @@ fn sanitize_tag_value(v: &str) -> String {
 /// In both cases the output is a temp file in `cache_dir()` that auto-cleans
 /// on `Transcoded::Drop`. Garmin firmware verified to accept the result on
 /// Forerunner 165 Music (firmware 2506).
-pub fn normalize(src: &Path) -> Result<Transcoded> {
-    let raw_stem = src
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "audio".into());
+/// `planned_stem` is the collision-free stem chosen at plan time by
+/// `transfer::dedupe_remote_names`. Deriving the name from `src` here instead
+/// would reintroduce the collision the planner just resolved.
+pub fn normalize(src: &Path, planned_stem: Option<&str>) -> Result<Transcoded> {
+    let raw_stem = planned_stem.map(str::to_string).unwrap_or_else(|| {
+        src.file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "audio".into())
+    });
     // Garmin firmware silently rejects writes whose filename is too long or
     // contains exotic characters — observed cap on FR165 is around 60 chars
     // including the ".mp3" suffix. We truncate to 56 stem chars and replace
@@ -242,10 +284,11 @@ pub fn normalize(src: &Path) -> Result<Transcoded> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let mut tmp = cache_dir();
+    let mut tmp = cache_dir()
+        .ok_or_else(|| anyhow!("no per-user cache dir ($XDG_CACHE_HOME/$HOME unset)"))?;
     tmp.push(format!("pelican-{pid}-{nanos}.mp3"));
 
-    let tags = extract_safe_tags(src);
+    let tags = extract_safe_tags(src)?;
     let mp3_source = is_mp3(src);
 
     let mut cmd = Command::new("ffmpeg");
@@ -299,6 +342,18 @@ pub fn normalize(src: &Path) -> Result<Transcoded> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn filename_stem_has_no_trailing_punctuation_after_truncation() {
+        // 56th char is a '-', so truncating re-exposes what the first trim removed.
+        let raw = format!("{}-tail", "a".repeat(55));
+        let out = sanitize_filename_stem(&raw);
+        assert!(out.chars().count() <= 56);
+        assert!(
+            !out.ends_with('-') && !out.ends_with(' ') && !out.ends_with('.'),
+            "stem {out:?} ends in punctuation Garmin rejects"
+        );
+    }
+
     use super::*;
 
     #[test]

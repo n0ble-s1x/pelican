@@ -65,8 +65,8 @@ pub fn channel() -> (Sender<Event>, Receiver<Event>) {
 
 const SUPPORTED_EXTS: &[&str] = &["mp3", "m4a", "m4b", "aac", "wav"];
 
-pub fn expand_inputs(inputs: &[PathBuf]) -> Result<Vec<Job>> {
-    expand_inputs_into(inputs, MUSIC_FOLDER)
+pub fn expand_inputs(inputs: &[PathBuf], transcode: bool) -> Result<Vec<Job>> {
+    expand_inputs_into(inputs, MUSIC_FOLDER, transcode)
 }
 
 /// Plan jobs that target a specific remote folder rather than the default
@@ -75,20 +75,98 @@ pub fn expand_inputs(inputs: &[PathBuf]) -> Result<Vec<Job>> {
 /// is unreliable when listing newly-created subfolders inside Music/, and
 /// the watch's library view is built from ID3 tags anyway, so a flat layout
 /// is both more robust and what Garmin's docs recommend.
-pub fn expand_inputs_into(inputs: &[PathBuf], remote_root: &str) -> Result<Vec<Job>> {
-    expand_inputs_with(inputs, remote_root, true)
+pub fn expand_inputs_into(
+    inputs: &[PathBuf],
+    remote_root: &str,
+    transcode: bool,
+) -> Result<Vec<Job>> {
+    expand_inputs_with(inputs, remote_root, true, transcode)
 }
 
 pub fn expand_inputs_with(
     inputs: &[PathBuf],
     remote_root: &str,
     flatten: bool,
+    transcode: bool,
 ) -> Result<Vec<Job>> {
+    // Sort the inputs, not just each directory's entries. The GUI builds this
+    // slice by iterating a HashSet, whose order is seeded per process — without
+    // this, the same selection could hand the unsuffixed name to a different
+    // file on each run, so `intro.mp3` and `intro-2.mp3` would swap tracks
+    // between syncs and any playlist referencing them by name would follow.
+    let mut inputs: Vec<&PathBuf> = inputs.iter().collect();
+    inputs.sort();
     let mut jobs = Vec::new();
     for input in inputs {
         walk(input, remote_root, flatten, &mut jobs)?;
     }
+    dedupe_remote_names(&mut jobs, transcode);
     Ok(jobs)
+}
+
+/// Make `(remote_dir, stem)` unique across the plan.
+///
+/// Two things conspire to collide names: the walk flattens every source
+/// subfolder into one remote folder, and `sanitize_filename_stem` truncates to
+/// 56 chars. Two tracks agreeing on their first 56 sanitized characters — or
+/// simply sharing a basename in different albums — produce identical remote
+/// names, and MTP has no overwrite semantics, so the second upload either
+/// clobbers the first or lands as a duplicate the user cannot tell apart.
+///
+/// Dedup is on the *stem*, not the full name, so `track.m4a` (which becomes
+/// `track.mp3` after transcoding) still cannot collide with a real `track.mp3`.
+fn dedupe_remote_names(jobs: &mut [Job], transcode: bool) {
+    let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    for job in jobs.iter_mut() {
+        // walk() emits a Job for every file it sees, but the workers skip some
+        // of them at upload time. A file that never reaches the device must not
+        // reserve a name, or the real track gets pushed to "-2" — an
+        // `Album.cue` beside `Album.flac` is the common case.
+        //
+        // The predicate has to track the transcode setting: with transcoding on
+        // anything is_audio() will be normalized and uploaded, but with it off
+        // only Garmin-native containers survive. Using is_audio() in both modes
+        // let `Album.flac` reserve the name under --no-transcode, shipping
+        // `Album.mp3` as `Album-2.mp3`; drop the FLAC from the source later and
+        // the next sync uploads `Album.mp3` too, leaving two copies on a device
+        // that has no overwrite.
+        let uploadable = if transcode {
+            crate::transcode::is_audio(&job.src)
+        } else {
+            ext_supported(&job.src)
+        };
+        if !uploadable {
+            continue;
+        }
+        let path = Path::new(&job.remote_name);
+        let stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let ext = path
+            .extension()
+            .map(|e| format!(".{}", e.to_string_lossy()))
+            .unwrap_or_default();
+        let dir_key = job.remote_dir.to_ascii_lowercase();
+        // Key on the *sanitized* stem, because that is the name that will
+        // actually be written: transcode::normalize re-runs
+        // sanitize_filename_stem on whatever it is handed, and that collapses
+        // repeated dashes and trims. Deduping the raw stem would let
+        // "foo-" + "-2" -> "foo--2" -> "foo-2" collide with a real "foo-2".
+        let mut candidate = crate::transcode::sanitize_filename_stem(&stem);
+        let mut n = 1u32;
+        while !seen.insert((dir_key.clone(), candidate.to_ascii_lowercase())) {
+            n += 1;
+            let suffix = format!("-{n}");
+            // Keep the disambiguated name inside Garmin's 56-char stem budget.
+            let budget = 56usize.saturating_sub(suffix.len());
+            let base: String = stem.chars().take(budget).collect();
+            candidate = crate::transcode::sanitize_filename_stem(&format!("{base}{suffix}"));
+        }
+        if candidate != stem {
+            job.remote_name = format!("{candidate}{ext}");
+        }
+    }
 }
 
 fn walk(path: &Path, remote_dir: &str, flatten: bool, out: &mut Vec<Job>) -> Result<()> {
@@ -117,9 +195,18 @@ fn walk(path: &Path, remote_dir: &str, flatten: bool, out: &mut Vec<Job>) -> Res
                 format!("{remote_dir}/{dir_name}")
             }
         };
+        // read_dir order is unspecified. Sort so a given source tree always
+        // produces the same plan — and therefore the same disambiguating
+        // suffixes — across runs, machines and filesystems.
+        let mut entries: Vec<PathBuf> = Vec::new();
         for entry in std::fs::read_dir(path)? {
-            let entry = entry?;
-            walk(&entry.path(), &next_dir, flatten, out)?;
+            // Propagate, don't swallow: a directory entry we cannot read means
+            // files would be silently missing from the sync.
+            entries.push(entry?.path());
+        }
+        entries.sort();
+        for entry in entries {
+            walk(&entry, &next_dir, flatten, out)?;
         }
     }
     Ok(())
@@ -180,7 +267,7 @@ pub fn run_jobs_per_file(
     inputs: &[PathBuf],
     opts: &Options,
 ) -> Result<Report> {
-    let jobs = expand_inputs(inputs)?;
+    let jobs = expand_inputs(inputs, opts.transcode)?;
     let (tx, rx) = channel();
     std::thread::scope(|s| {
         s.spawn(|| {
@@ -239,7 +326,10 @@ fn run_worker(backend: &mut dyn Backend, jobs: Vec<Job>, opts: &Options, tx: Sen
         // strict allowlist on the way out.
         let mut transcoded_holder: Option<crate::transcode::Transcoded> = None;
         let (upload_path, upload_name) = if opts.transcode {
-            match crate::transcode::normalize(&job.src) {
+            let planned_stem = Path::new(&job.remote_name)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned());
+            match crate::transcode::normalize(&job.src, planned_stem.as_deref()) {
                 Ok(t) => {
                     let p = t.path.clone();
                     let n = t.mp3_name.clone();
@@ -343,6 +433,160 @@ mod tests {
     use super::*;
 
     #[test]
+    fn dedupe_disambiguates_colliding_remote_stems() {
+        let mut jobs = vec![
+            Job {
+                src: PathBuf::from("/a/track.mp3"),
+                remote_dir: "Music".into(),
+                remote_name: "track.mp3".into(),
+            },
+            Job {
+                src: PathBuf::from("/b/track.mp3"),
+                remote_dir: "Music".into(),
+                remote_name: "track.mp3".into(),
+            },
+            Job {
+                src: PathBuf::from("/c/track.m4a"),
+                remote_dir: "Music".into(),
+                remote_name: "track.m4a".into(),
+            },
+        ];
+        dedupe_remote_names(&mut jobs, true);
+        let names: Vec<&str> = jobs.iter().map(|j| j.remote_name.as_str()).collect();
+        assert_eq!(names, vec!["track.mp3", "track-2.mp3", "track-3.m4a"]);
+    }
+
+    #[test]
+    fn dedupe_keeps_disambiguated_stem_within_budget() {
+        let long = "x".repeat(56);
+        let mut jobs: Vec<Job> = (0..3)
+            .map(|i| Job {
+                src: PathBuf::from(format!("/{i}/{long}.mp3")),
+                remote_dir: "Music".into(),
+                remote_name: format!("{long}.mp3"),
+            })
+            .collect();
+        dedupe_remote_names(&mut jobs, true);
+        for j in &jobs {
+            let stem_len = j
+                .remote_name
+                .rsplit_once('.')
+                .map(|(s, _)| s.len())
+                .unwrap();
+            assert!(stem_len <= 56, "{} stem is {stem_len}", j.remote_name);
+        }
+        let unique: std::collections::HashSet<_> = jobs.iter().map(|j| &j.remote_name).collect();
+        assert_eq!(unique.len(), 3, "names must stay distinct");
+    }
+
+    #[test]
+    fn dedupe_survives_stem_sanitization() {
+        // "foo-" sanitizes to "foo"; the disambiguated "foo--2" collapses to
+        // "foo-2", which must not collide with a genuine "foo-2".
+        let mut jobs = vec![
+            Job {
+                src: PathBuf::from("/a/foo-.mp3"),
+                remote_dir: "Music".into(),
+                remote_name: "foo-.mp3".into(),
+            },
+            Job {
+                src: PathBuf::from("/b/foo.mp3"),
+                remote_dir: "Music".into(),
+                remote_name: "foo.mp3".into(),
+            },
+            Job {
+                src: PathBuf::from("/c/foo-2.mp3"),
+                remote_dir: "Music".into(),
+                remote_name: "foo-2.mp3".into(),
+            },
+        ];
+        dedupe_remote_names(&mut jobs, true);
+        let finals: Vec<String> = jobs
+            .iter()
+            .map(|j| {
+                let stem = Path::new(&j.remote_name)
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                crate::transcode::sanitize_filename_stem(&stem)
+            })
+            .collect();
+        let unique: std::collections::HashSet<&String> = finals.iter().collect();
+        assert_eq!(
+            unique.len(),
+            finals.len(),
+            "post-sanitization names collide: {finals:?}"
+        );
+    }
+
+    #[test]
+    fn dedupe_ignores_files_that_are_never_uploaded() {
+        // Album.cue is skipped as non-audio at upload time, so it must not
+        // reserve "Album" and push the real track to "Album-2".
+        let mut jobs = vec![
+            Job {
+                src: PathBuf::from("/a/Album.cue"),
+                remote_dir: "Music".into(),
+                remote_name: "Album.cue".into(),
+            },
+            Job {
+                src: PathBuf::from("/a/Album.flac"),
+                remote_dir: "Music".into(),
+                remote_name: "Album.flac".into(),
+            },
+        ];
+        dedupe_remote_names(&mut jobs, true);
+        assert_eq!(jobs[1].remote_name, "Album.flac");
+    }
+
+    #[test]
+    fn dedupe_predicate_follows_the_transcode_setting() {
+        let build = || {
+            vec![
+                Job {
+                    src: PathBuf::from("/a/Album.flac"),
+                    remote_dir: "Music".into(),
+                    remote_name: "Album.flac".into(),
+                },
+                Job {
+                    src: PathBuf::from("/a/Album.mp3"),
+                    remote_dir: "Music".into(),
+                    remote_name: "Album.mp3".into(),
+                },
+            ]
+        };
+        // --no-transcode: the FLAC is skipped, so it must not hold the name.
+        let mut off = build();
+        dedupe_remote_names(&mut off, false);
+        assert_eq!(off[1].remote_name, "Album.mp3");
+        // Transcoding on: the FLAC really does upload, so the collision is real.
+        let mut on = build();
+        dedupe_remote_names(&mut on, true);
+        assert_eq!(on[1].remote_name, "Album-2.mp3");
+    }
+
+    #[test]
+    fn dedupe_is_scoped_per_remote_dir() {
+        let mut jobs = vec![
+            Job {
+                src: PathBuf::from("/a/track.mp3"),
+                remote_dir: "Music".into(),
+                remote_name: "track.mp3".into(),
+            },
+            Job {
+                src: PathBuf::from("/b/track.mp3"),
+                remote_dir: "Music/Other".into(),
+                remote_name: "track.mp3".into(),
+            },
+        ];
+        dedupe_remote_names(&mut jobs, true);
+        assert_eq!(
+            jobs[1].remote_name, "track.mp3",
+            "different dirs may share a name"
+        );
+    }
+
+    #[test]
     fn sanitize_name_caps_long_filenames() {
         let raw = "11 - Iva Davies, Christopher Gordon, Richard Tognetti - Ghost of Time - Tognetti Into the Fog.flac";
         let out = sanitize_name(raw);
@@ -401,7 +645,7 @@ mod tests {
             "album/disc2/02-track.mp3",
             "album/cover.jpg",
         ]);
-        let jobs = expand_inputs_with(&[tmp.path().to_path_buf()], "Music", true).unwrap();
+        let jobs = expand_inputs_with(&[tmp.path().to_path_buf()], "Music", true, true).unwrap();
         let names: std::collections::HashSet<&str> =
             jobs.iter().map(|j| j.remote_name.as_str()).collect();
         for j in &jobs {
@@ -414,7 +658,7 @@ mod tests {
     #[test]
     fn expand_inputs_preserves_subfolders_when_not_flat() {
         let tmp = tempdir_with_layout(&["album/01.mp3", "album/disc2/02.mp3"]);
-        let jobs = expand_inputs_with(&[tmp.path().to_path_buf()], "Music", false).unwrap();
+        let jobs = expand_inputs_with(&[tmp.path().to_path_buf()], "Music", false, true).unwrap();
         let dirs: std::collections::HashSet<&str> =
             jobs.iter().map(|j| j.remote_dir.as_str()).collect();
         assert!(dirs.iter().any(|d| d.starts_with("Music/")));

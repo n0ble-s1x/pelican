@@ -84,7 +84,12 @@ pub fn run_headless(args: Cli) -> anyhow::Result<()> {
             println!("(no playlists in /Music)");
         }
         for p in playlists {
-            println!("▸ {} ({} bytes)", p.name, p.size);
+            // Name comes off the device: strip control bytes before printing.
+            println!(
+                "▸ {} ({} bytes)",
+                crate::playlist::strip_control(&p.name),
+                p.size
+            );
             match backend.download_file(&p.path) {
                 Ok(bytes) => {
                     for t in crate::playlist::parse(&bytes) {

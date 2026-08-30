@@ -76,6 +76,7 @@ struct App {
     skip_tag_check: bool,
     transcode_enabled: bool,
     ffmpeg_present: bool,
+    ffprobe_present: bool,
 
     // Persistent record of every successful upload to the linked watch.
     // Garmin doesn't expose the indexed library via MTP, so this is the only
@@ -121,8 +122,12 @@ impl Default for App {
             // just hides them in the music-app screen view. We warn but don't
             // block. Users who want strict mode toggle it on.
             skip_tag_check: true,
-            transcode_enabled: crate::transcode::ffmpeg_available(),
+            // normalize() needs ffprobe as well as ffmpeg; gating on ffmpeg
+            // alone let a missing ffprobe degrade into untagged uploads.
+            transcode_enabled: crate::transcode::ffmpeg_available()
+                && crate::transcode::ffprobe_available(),
             ffmpeg_present: crate::transcode::ffmpeg_available(),
+            ffprobe_present: crate::transcode::ffprobe_available(),
             local_rect: egui::Rect::NOTHING,
             watch_rect: egui::Rect::NOTHING,
             last_reconnect_at: None,
@@ -414,7 +419,8 @@ impl App {
             }
             Err(e) => self.push_log(LogKind::Error, format!("scan failed · {e}")),
         }
-        self.gvfs_warning = gvfs::detect_garmin_gvfs_mount().map(|p| {
+        self.gvfs_warning = gvfs::detect_garmin_gvfs_mount().map(|m| {
+            let p = m.path;
             format!("GVFS holds device at {p} — direct link blocked. Unmount in Files first.")
         });
     }
@@ -427,7 +433,12 @@ impl App {
         let listed = backend.list_dir(&cwd);
         let fs = backend.free_space().ok();
         match listed {
-            Ok(entries) => self.watch.entries = entries,
+            Ok(entries) => {
+                self.watch.entries = entries;
+                // The listing was replaced wholesale, so any shift-click anchor
+                // into the old Vec is now a stale index.
+                self.watch.last_clicked = None;
+            }
             Err(e) => self.push_log(LogKind::Error, format!("listing /{cwd} · {e:#}")),
         }
         if let Some(fs) = fs {
@@ -457,7 +468,13 @@ impl App {
         if self.watch_rect.contains(pt) {
             if let Some(payload) = egui::DragAndDrop::take_payload::<DragLocal>(ctx) {
                 let paths = payload.0.clone();
-                self.start_send_paths(paths);
+                if !self.start_send_paths(paths.clone()) {
+                    // The drag payload is consumed either way, so park the
+                    // paths back in the local selection rather than losing them.
+                    for p in paths {
+                        self.local.selected.insert(p);
+                    }
+                }
                 return;
             }
         }
@@ -478,11 +495,19 @@ impl App {
         let mut paths: Vec<PathBuf> = dropped.into_iter().filter_map(|f| f.path).collect();
         if let Some(pt) = pointer {
             if self.watch_rect.contains(pt) {
-                self.start_send_paths(paths.clone());
-                self.push_log(
-                    LogKind::Info,
-                    format!("queued {} dropped item(s) for upload", paths.len()),
-                );
+                let n = paths.len();
+                if self.start_send_paths(paths.clone()) {
+                    self.push_log(
+                        LogKind::Info,
+                        format!("queued {n} dropped item(s) for upload"),
+                    );
+                } else {
+                    // Refused (no link, or a transfer already running). Keep the
+                    // files in the local selection so the drop is retryable.
+                    for p in paths.drain(..) {
+                        self.local.selected.insert(p);
+                    }
+                }
                 return;
             }
             if self.local_rect.contains(pt) {
@@ -598,7 +623,6 @@ impl App {
                     // starts from 0 instead of animating down from 100%.
                     let ctx = std::sync::OnceLock::<()>::new();
                     let _ = ctx;
-                    self.refresh_watch();
                 }
             }
         }
@@ -606,22 +630,59 @@ impl App {
             self.op_rx = None;
             self.busy = None;
             self.progress = None;
+            // Workers consume the GUI's session, so reconnect before listing.
+            // try_connect() refuses while op_rx/busy are set, which is why this
+            // runs here rather than in the JobFinished arm, and it refreshes the
+            // listing itself once the session is open — so this is the whole
+            // reconnect. A failed reconnect deliberately leaves the stale
+            // listing rather than blanking it.
+            self.try_connect();
         }
     }
 
-    fn start_send_paths(&mut self, paths: Vec<PathBuf>) {
+    /// Returns false if nothing was queued, so the caller can keep the user's
+    /// selection instead of silently discarding it.
+    fn start_send_paths(&mut self, paths: Vec<PathBuf>) -> bool {
         if paths.is_empty() {
-            return;
+            return false;
+        }
+        // try_connect() also refuses while a job is in flight, so check that
+        // first — reporting "not linked" mid-transfer sends the user off to
+        // replug a device that is connected and busy.
+        if self.busy.is_some() || self.op_rx.is_some() {
+            self.push_log(
+                LogKind::Warn,
+                "a transfer is already running — selection kept",
+            );
+            return false;
         }
         if !self.try_connect() {
-            return;
+            self.push_log(LogKind::Warn, "not linked — selection kept");
+            return false;
         }
-        let Some(mut backend) = self.backend.take() else {
-            return;
+        let Some(device) = self
+            .selected_device
+            .and_then(|i| self.devices.get(i))
+            .cloned()
+        else {
+            self.push_log(LogKind::Warn, "no device selected — selection kept");
+            return false;
         };
+        // Release the GUI's session for the duration of the transfer. The
+        // worker opens one session per file (see below) and two open sessions
+        // contend for the same USB device.
+        self.backend = None;
         let target_dir = self.watch.cwd.clone();
         let skip_tag_check = self.skip_tag_check;
         let transcode_enabled = self.transcode_enabled;
+        // Name the missing binary in the skip reason too. "toggle Transcode on"
+        // is a dead end when the checkbox is disabled because a binary is gone.
+        let xcode_hint: &'static str = match (self.ffmpeg_present, self.ffprobe_present) {
+            (true, true) => "needs normalization (toggle Transcode on)",
+            (true, false) => "needs normalization (install ffprobe)",
+            (false, true) => "needs normalization (install ffmpeg)",
+            (false, false) => "needs normalization (install ffmpeg + ffprobe)",
+        };
         self.busy = Some("transmitting");
         self.progress = Some(Progress {
             stage: Stage::Uploading,
@@ -633,7 +694,7 @@ impl App {
         });
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let jobs = match transfer::expand_inputs_into(&paths, &target_dir) {
+            let jobs = match transfer::expand_inputs_into(&paths, &target_dir, transcode_enabled) {
                 Ok(j) => j,
                 Err(e) => {
                     let _ = tx.send(OpMsg::Failed {
@@ -674,7 +735,10 @@ impl App {
                         files_done: done,
                         files_total: total,
                     });
-                    match crate::transcode::normalize(&job.src) {
+                    let planned_stem = std::path::Path::new(&job.remote_name)
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().into_owned());
+                    match crate::transcode::normalize(&job.src, planned_stem.as_deref()) {
                         Ok(t) => {
                             let p = t.path.clone();
                             let n = t.mp3_name.clone();
@@ -693,7 +757,7 @@ impl App {
                     if !is_supported_ext(&job.src) {
                         let _ = tx.send(OpMsg::Skipped {
                             src: job.src.clone(),
-                            reason: "needs normalization (toggle Transcode on)".into(),
+                            reason: xcode_hint.into(),
                         });
                         done += 1;
                         continue;
@@ -721,6 +785,21 @@ impl App {
                         );
                     }
                 }
+                // Per-file session, exactly as transfer::run_jobs_per_file
+                // does: Garmin firmware on the FR165 silently rejects most
+                // uploads (leaving a broken metadata stub) when many files go
+                // over a single session. The backend is dropped at the end of
+                // this iteration, closing the session.
+                let mut backend = match mtp::open(&device) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        let _ = tx.send(OpMsg::Failed {
+                            src: job.src.clone(),
+                            error: format!("opening session · {e:#}"),
+                        });
+                        continue;
+                    }
+                };
                 if let Err(e) = backend.ensure_folder(&job.remote_dir) {
                     let _ = tx.send(OpMsg::Failed {
                         src: job.src.clone(),
@@ -752,13 +831,30 @@ impl App {
                     &mut on_progress,
                 ) {
                     Ok(bytes) => {
-                        done += 1;
-                        let _ = tx.send(OpMsg::Done {
-                            src: job.src.clone(),
-                            bytes,
-                            files_done: done,
-                            files_total: total,
-                        });
+                        // Soft verify, mirroring transfer::run_worker. Garmin's
+                        // GetObjectInfo errors on freshly-written files until
+                        // the indexer settles, so a missing size or a listing
+                        // error is normal here — only a confirmed mismatch is a
+                        // failure. Runs while this file's session is still open.
+                        match backend.remote_size(&job.remote_dir, &upload_name) {
+                            Ok(Some(actual)) if actual != bytes => {
+                                let _ = tx.send(OpMsg::Failed {
+                                    src: job.src.clone(),
+                                    error: format!(
+                                        "post-write size mismatch: expected {bytes}, watch reports {actual}"
+                                    ),
+                                });
+                            }
+                            _ => {
+                                done += 1;
+                                let _ = tx.send(OpMsg::Done {
+                                    src: job.src.clone(),
+                                    bytes,
+                                    files_done: done,
+                                    files_total: total,
+                                });
+                            }
+                        }
                     }
                     Err(e) => {
                         let _ = tx.send(OpMsg::Failed {
@@ -772,12 +868,16 @@ impl App {
             let _ = tx.send(OpMsg::JobFinished);
         });
         self.op_rx = Some(rx);
+        true
     }
 
     fn start_send_selected(&mut self) {
         let paths: Vec<PathBuf> = self.local.selected.iter().cloned().collect();
-        self.local.selected.clear();
-        self.start_send_paths(paths);
+        // Only clear once the send is actually queued — the old order threw the
+        // selection away even when start_send_paths bailed on a down link.
+        if self.start_send_paths(paths) {
+            self.local.selected.clear();
+        }
     }
 
     fn start_delete_selected(&mut self) {
@@ -1145,7 +1245,9 @@ impl App {
                         });
                     }
                     if let Some(paths) = to_send {
-                        self.start_send_paths(paths);
+                        // Refusal is already logged, and the playlist still
+                        // holds the tracks, so there is nothing to preserve.
+                        let _ = self.start_send_paths(paths);
                     }
                     if let Some(name) = to_delete {
                         if let Some(serial) = self.history_serial.clone() {
@@ -1267,6 +1369,9 @@ impl App {
                 } else {
                     (idx, anchor)
                 };
+                // Defensive clamp: refresh_watch clears the anchor, but a stale
+                // index must never be able to slice out of bounds.
+                let b = b.min(self.watch.entries.len().saturating_sub(1));
                 for e in &self.watch.entries[a..=b] {
                     self.watch.selected.insert(e.path.clone());
                 }
@@ -1735,14 +1840,18 @@ impl App {
                 ui.add_space(10.0);
 
                 let mut transcode = self.transcode_enabled;
-                let xcode_label = if self.ffmpeg_present {
-                    "Transcode FLAC / OGG / Opus"
-                } else {
-                    "Transcode (no ffmpeg)"
+                // Name the binary that is actually missing — "no ffmpeg" sent
+                // users with a trimmed build off to reinstall what they had.
+                let xcode_ready = self.ffmpeg_present && self.ffprobe_present;
+                let xcode_label = match (self.ffmpeg_present, self.ffprobe_present) {
+                    (true, true) => "Transcode FLAC / OGG / Opus",
+                    (true, false) => "Transcode (no ffprobe)",
+                    (false, true) => "Transcode (no ffmpeg)",
+                    (false, false) => "Transcode (needs ffmpeg + ffprobe)",
                 };
                 let resp = ui
                     .add_enabled(
-                        self.ffmpeg_present,
+                        xcode_ready,
                         egui::Checkbox::new(
                             &mut transcode,
                             egui::RichText::new(xcode_label)

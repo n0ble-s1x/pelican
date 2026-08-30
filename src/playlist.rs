@@ -52,10 +52,18 @@ pub fn serialize_for_device(tracks: &[String], style: PathStyle) -> Vec<u8> {
 pub fn parse(bytes: &[u8]) -> Vec<String> {
     let text = String::from_utf8_lossy(bytes);
     text.lines()
-        .map(|l| l.trim())
+        .map(|l| strip_control(l.trim()))
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(|l| l.to_string())
         .collect()
+}
+
+/// Drop control characters from a string that came off the device.
+///
+/// Playlist bodies and remote filenames are device-controlled and get printed
+/// straight to a terminal by the CLI. ESC is not whitespace, so without this a
+/// crafted playlist could emit ANSI escape sequences into the user's terminal.
+pub fn strip_control(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
 }
 
 /// File extension we'll write. M3U8 vs M3U: the only difference is the
@@ -72,6 +80,14 @@ pub fn is_playlist(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_strips_terminal_control_sequences() {
+        let body = b"track-one.mp3\n\x1b[31mred\x07.mp3\n";
+        let got = parse(body);
+        assert_eq!(got, vec!["track-one.mp3", "[31mred.mp3"]);
+        assert!(got.iter().all(|t| !t.chars().any(char::is_control)));
+    }
 
     #[test]
     fn parse_strips_extm3u() {

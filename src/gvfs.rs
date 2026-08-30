@@ -11,9 +11,24 @@ use anyhow::Result;
 
 use crate::garmin::GARMIN_VENDOR_ID;
 
-/// Returns Some(path) if a gvfs MTP mount appears to belong to a Garmin
+/// A gvfs-mtp mount that appears to belong to a Garmin device.
+pub struct GvfsMount {
+    /// Full mount directory, e.g. `/run/user/1000/gvfs/mtp:host=091E_4CA1_0123456789`.
+    pub path: String,
+    /// Device id lifted out of the directory name, e.g. `091E_4CA1_0123456789`.
+    /// This comes from USB descriptors the device controls, so it is untrusted:
+    /// quote it before it goes anywhere near a shell.
+    pub host: String,
+}
+
+/// Wrap an untrusted string in single quotes for safe shell pasting.
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', r"'\''"))
+}
+
+/// Returns Some(mount) if a gvfs MTP mount appears to belong to a Garmin
 /// device. The caller should warn the user and offer to `gio mount -u` it.
-pub fn detect_garmin_gvfs_mount() -> Option<String> {
+pub fn detect_garmin_gvfs_mount() -> Option<GvfsMount> {
     // SAFETY: geteuid is a side-effect-free POSIX syscall returning the
     // effective uid. The only reason it's `unsafe` in libc is FFI-by-default;
     // there's nothing to misuse. We localize the unsafe so the rest of the
@@ -31,17 +46,28 @@ pub fn detect_garmin_gvfs_mount() -> Option<String> {
         if name.starts_with(&needle)
             && (name.contains(&vendor) || name.contains(&vendor.to_lowercase()))
         {
-            return Some(format!("{base}/{name}"));
+            // Strip the whole `mtp:host=` prefix — leaving the `host=` behind
+            // produces `mtp://host=...`, which gio does not accept.
+            let host = name.strip_prefix(&needle).unwrap_or(&name).to_string();
+            return Some(GvfsMount {
+                path: format!("{base}/{name}"),
+                host,
+            });
         }
     }
     None
 }
 
 pub fn warn_if_holding_garmin() -> Result<()> {
-    if let Some(path) = detect_garmin_gvfs_mount() {
+    if let Some(mount) = detect_garmin_gvfs_mount() {
+        // The URI is built here rather than in a shell substitution: the old
+        // `basename | sed 's/^mtp://'` pipeline emitted `mtp://host=...`, which
+        // gio rejects, and it interpolated device-controlled text unquoted.
+        let uri = shell_quote(&format!("mtp://{}", mount.host));
+        let path = &mount.path;
         eprintln!(
             "warning: GVFS appears to have mounted your Garmin device at:\n  {path}\n\
-             This will block direct USB access. Unmount with:\n  gio mount -u \"mtp://$(basename '{path}' | sed 's/^mtp://')\"\n\
+             This will block direct USB access. Unmount with:\n  gio mount -u {uri}\n\
              …then re-run garmin-music."
         );
     }

@@ -1,0 +1,415 @@
+/* Pelican — The Fjord.
+   Depth is the one spatial idea: --air above the waterline, --d1..--d4 below.
+   Deeper is colder, darker, denser. One warm value, brass, on the active
+   state and the primary action alone. No applied ornament anywhere. */
+
+:root {
+  --air:#0d1622; --air-2:#111c2a; --ground:#070c13;
+  --d1:#16283a; --d2:#101f2e; --d3:#0a1622; --d4:#060e17;
+  --line:#4a8cbe;
+  --surface:rgba(226,236,247,.048); --surface-2:rgba(226,236,247,.078);
+  --hairline:rgba(226,236,247,.105); --hairline-2:rgba(226,236,247,.058);
+  --ink:#e3eaf2; --ink-dim:#8b9bab;
+  --ink-faint:#7d8c9b;   /* 5.28:1 on --air. was #5a6875 = 3.18:1, failing AA */
+  --sun:#d8963f; --sun-ink:#160f06;
+  --ok:#5aa8a0; --alert:#d0574a;
+
+  /* Type: the macOS system stack. This is the face the approved comp was
+     authored and approved in, it is the right register for a native Mac
+     utility, and it needs no bundled asset — which matters for an app that
+     makes a no-network promise. font-match ranked catalog faces from a
+     fingerprint of a screenshot of this stack and reported that its browser
+     ranking could not run, so its suggestion is a recorded deviation. */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+
+  /* measured from the approved comp via font-match --measure */
+  --fs-hero:25px; --fs-body:13px; --fs-wall:12px; --fs-cap:26px;
+
+  --r-sm:6px; --r-md:10px; --r-lg:14px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --t-quick:120ms; --t-settle:260ms; --t-tide:900ms;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+html, body { height:100%; }
+
+body {
+  background:var(--ground); color:var(--ink);
+  font:400 var(--fs-body)/1.45 var(--font);
+  -webkit-font-smoothing:antialiased;
+}
+
+.num { font-variant-numeric:tabular-nums; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+:focus-visible { outline:2px solid var(--sun); outline-offset:2px; border-radius:3px; }
+
+/* The app is a window, not a page: its layout answers to its own width, not
+   the viewport's. Container queries make that literal and keep the
+   breakpoints honest when the window is resized rather than the display. */
+.shell { height:100%; container-type:inline-size; container-name:shell; }
+
+.app {
+  height:100%; display:grid; background:var(--air);
+  grid-template-columns:198px minmax(0,1fr) 300px;
+  grid-template-rows:46px minmax(0,1fr) 66px;
+  grid-template-areas:
+    "titlebar titlebar titlebar"
+    "rail     channel  wall"
+    "player   player   player";
+}
+
+/* ── titlebar ────────────────────────────────────────────────────────── */
+.titlebar { grid-area:titlebar; display:flex; align-items:center; gap:14px;
+  padding:0 18px; border-bottom:1px solid var(--hairline-2); }
+.device { display:flex; align-items:center; gap:9px; }
+.state { width:7px; height:7px; border-radius:50%; display:block; }
+.state--ok { background:var(--ok); }
+.device__name { font-weight:590; }
+.device__status { color:var(--ink-faint); }
+.wordmark { margin-left:auto; font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink-faint); font-weight:590; }
+
+/* ── sources rail ────────────────────────────────────────────────────── */
+.rail { grid-area:rail; display:flex; flex-direction:column; padding:16px 10px;
+  border-right:1px solid var(--hairline-2); overflow-y:auto;
+  background:linear-gradient(to bottom, var(--air-2), var(--air)); }
+.rail__list { list-style:none; }
+.rail__head { font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-faint); font-weight:590; margin:16px 10px 6px; }
+/* Playlists are local. Saying so once, where they are introduced, is the
+   difference between honest and implying the watch supports them. */
+.rail__note { margin:0 10px 8px; font-size:11px; line-height:1.4; color:var(--ink-faint); }
+.nav { display:flex; align-items:center; gap:10px; padding:7px 10px;
+  border-radius:var(--r-sm); color:var(--ink-dim); text-decoration:none; font-size:12.5px; }
+.nav:hover { background:var(--surface); color:var(--ink); }
+.nav.is-current { background:var(--surface-2); color:var(--ink); font-weight:590; }
+.nav__n { margin-left:auto; font-size:10.5px; color:var(--ink-faint); }
+.rail__new { margin-top:auto; text-align:left; padding:8px 10px; font:inherit;
+  font-size:12px; color:var(--ink-faint); background:none; border:0; border-radius:var(--r-sm); }
+.rail__new:hover { color:var(--ink); background:var(--surface); }
+
+/* ── album channel ───────────────────────────────────────────────────── */
+.channel { grid-area:channel; display:flex; flex-direction:column;
+  min-height:0; overflow-y:auto; }
+.hero { display:flex; gap:20px; align-items:flex-end; padding:22px 24px 18px;
+  border-bottom:1px solid var(--hairline-2); }
+.cover { flex:none; border-radius:5px; overflow:hidden;
+  background:linear-gradient(155deg,#24455f,#142838 55%,#0d1c28);
+  border:1px solid rgba(226,236,247,.09);
+  box-shadow:inset 0 1px 0 rgba(226,236,247,.05); }
+.cover--lg { width:132px; height:132px; border-radius:8px;
+  box-shadow:0 18px 44px rgba(0,0,0,.55), inset 0 1px 0 rgba(226,236,247,.06); }
+.cover--sm { width:38px; height:38px; }
+.cover--xs { width:24px; height:24px; }
+/* Natural width: the title sets the hero's measure and the actions take what
+   is left, which is what the approved comp does. */
+.hero__meta { min-width:0; flex:0 1 auto; }
+.hero__title { font-size:var(--fs-hero); font-weight:660; letter-spacing:-.022em;
+  margin:0 0 5px; line-height:1.1; white-space:nowrap; }
+/* Wraps, as the comp does: the credits line gives the hero its measure and
+   sits the block against the cover's baseline. */
+.hero__by { font-size:13px; color:var(--ink-dim); max-width:34ch; }
+.hero__facts { font-size:11.5px; color:var(--ink-faint); margin-top:9px; white-space:nowrap; }
+.hero__actions { margin-left:auto; display:flex; gap:9px; flex:none; }
+.hero__actions .btn { white-space:nowrap; }
+
+.btn { font:inherit; font-weight:590; font-size:12.5px; padding:8px 16px;
+  border-radius:var(--r-sm); color:var(--ink);
+  border:1px solid var(--hairline); background:var(--surface-2); }
+.btn:hover:not(:disabled) { background:var(--surface); }
+.btn--primary { background:var(--sun); border-color:var(--sun); color:var(--sun-ink); }
+.btn--primary:hover:not(:disabled) { filter:brightness(1.08); }
+.btn--sm { padding:5px 11px; font-size:11.5px; }
+/* A disabled control keeps its cursor and its reason; pointer-events:none
+   would hide the explanation from a mouse as well as from a screen reader. */
+.btn:disabled { opacity:.45; cursor:default; }
+
+/* The untagged-file warning, at selection time — the brief requires it
+   before sending, not once the transfer is already running. */
+.prewarn { margin:0 24px 12px; padding:10px 12px; border-radius:var(--r-sm);
+  border:1px solid rgba(208,87,74,.32); background:rgba(208,87,74,.07);
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 14px; align-items:center; }
+.prewarn__tag { grid-column:1/-1; font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; font-weight:640; color:var(--alert); }
+.prewarn__body { font-size:11.5px; color:var(--ink-dim); }
+.prewarn__body strong { color:var(--ink); font-weight:590; }
+.prewarn[hidden] { display:none; }
+
+.sendwhy { margin:0 24px 10px; font-size:11.5px; color:var(--alert); }
+.sendwhy[hidden] { display:none; }
+
+.tracks { width:100%; border-collapse:collapse; margin:8px 0 0; }
+.tracks tbody tr { border-bottom:1px solid var(--hairline-2); }
+.tracks tbody tr:hover { background:var(--surface); }
+.tracks td, .tracks th { padding:7px 10px; text-align:left; font-weight:400; }
+.tracks__play { width:36px; }
+.tracks__play .iconbtn { margin:0 auto; }
+.tracks__title .t { display:block; font-size:13px; }
+.tracks__title .s { display:block; font-size:11.5px; color:var(--ink-dim); }
+.tracks__fmt { width:96px; font-size:10.5px; color:var(--ink-faint); letter-spacing:.05em; }
+.tracks__pick { width:40px; }
+.is-playing .t { color:var(--sun); }
+.is-playing .iconbtn { color:var(--sun); }
+
+.iconbtn { background:none; border:0; color:var(--ink-faint);
+  display:grid; place-items:center; padding:2px; border-radius:4px; }
+.iconbtn:hover { color:var(--ink); }
+
+input[type=checkbox] { appearance:none; width:15px; height:15px; border-radius:4px;
+  border:1px solid var(--hairline); background:var(--surface); }
+input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
+
+/* ── the watch wall ──────────────────────────────────────────────────── */
+.wall { grid-area:wall; position:relative; display:flex; flex-direction:column;
+  min-height:0; overflow:hidden; border-left:1px solid var(--hairline-2);
+  /* A step deeper than the channel beside it: the brief's mapping is that the
+     library is open air and the watch is under water, and the wall read as a
+     plain panel until the water started. */
+  background:linear-gradient(to bottom, var(--d3), var(--d2)); }
+.wall__head { padding:16px 18px 8px; position:relative; z-index:2; }
+.wall__head h2 { font-size:14px; font-weight:640; }
+.wall__count { font-size:11.5px; color:var(--ink-faint); margin-top:1px; }
+.wall__list { list-style:none; flex:1; overflow-y:auto; padding:0 10px;
+  position:relative; z-index:2; font-size:var(--fs-wall); }
+.wall__list li { display:grid; grid-template-columns:24px minmax(0,1fr) auto;
+  grid-template-areas:"art title size" "art album size"; gap:0 11px;
+  align-items:center; padding:6px 8px; }
+.wall__list .cover { grid-area:art; }
+.wall__list .t { grid-area:title; }
+.wall__list .s { grid-area:album; font-size:11px; color:var(--ink-dim); }
+.wall__list .z { grid-area:size; font-size:11px; color:var(--ink-faint); }
+.wall__more { position:relative; z-index:2; padding:2px 18px 0; font-size:11.5px; }
+.wall__more a { color:var(--ink-dim); }
+
+.wall__empty { display:none; padding:22px 18px; font-size:12px;
+  color:var(--ink-dim); position:relative; z-index:2; max-width:34ch; }
+.wall__empty-h { display:block; font-size:14px; font-weight:640;
+  color:var(--ink); margin-bottom:6px; }
+[data-device="none"] .wall__list,
+[data-device="none"] .wall__count,
+[data-device="none"] .wall__more,
+[data-device="none"] .water,
+[data-device="none"] .water__pending,
+[data-device="none"] .capacity { display:none; }
+[data-device="none"] .wall__empty { display:block; }
+[data-device="none"] .state--ok { background:var(--ink-faint); }
+
+/* the waterline — the one structural rule, and the strongest value change */
+.water { position:absolute; inset:auto 0 0 0; height:var(--used,50%); z-index:0;
+  background:linear-gradient(to bottom, var(--d1), var(--d3) 60%, var(--d4)); }
+.water::before { content:""; position:absolute; inset:0 0 auto 0; height:1px;
+  background:linear-gradient(90deg, rgba(74,140,190,.2), var(--line) 25%, var(--line));
+  box-shadow:0 0 15px rgba(74,140,190,.32); }
+/* Sibling of .water, not a child: as a child its percentage height resolved
+   against the water's own height, so the band shrank as the watch emptied.
+   It is a fraction of total capacity, so it measures against the wall. */
+.water__pending { position:absolute; left:0; right:0; z-index:1;
+  bottom:var(--used,0%); height:var(--pending,0%);
+  background:repeating-linear-gradient(-45deg,
+    rgba(74,140,190,.20) 0 4px, rgba(74,140,190,.07) 4px 8px);
+  border-top:1px dashed rgba(74,140,190,.5); }
+
+.capacity { position:relative; z-index:2; padding:12px 18px 16px; }
+.capacity__big { display:block; font-size:var(--fs-cap); font-weight:640;
+  letter-spacing:-.024em; line-height:1; }
+.capacity__unit { font-size:12px; color:var(--ink-dim); font-weight:400; }
+.capacity__sm { display:block; font-size:11px; color:var(--ink-dim); margin-top:4px; }
+/* Brass is reserved for the active state and the primary action, so the
+   ordinary case is ink; only over-capacity earns the alert colour. */
+.capacity__sel { display:block; font-size:11px; color:var(--ink-dim); margin-top:5px; }
+.capacity__sel[data-fits="no"] { color:var(--alert); }
+
+/* ── player ──────────────────────────────────────────────────────────── */
+.player { grid-area:player; display:flex; align-items:center; gap:16px;
+  padding:0 20px; background:var(--d4); border-top:1px solid var(--hairline-2); }
+.player__transport { display:flex; align-items:center; gap:13px; }
+/* Was a filled white disc — the brightest object on screen, outshouting the
+   brass primary it is meant to sit beneath. */
+.playpause { width:31px; height:31px; border-radius:50%; font:inherit;
+  background:var(--surface-2); color:var(--ink); border:1px solid var(--hairline);
+  display:grid; place-items:center; }
+.playpause:hover { background:var(--surface); }
+/* Proportional rather than fixed: at 1440 a 250px block left the bar looking
+   sparse and pushed the scrubber off the composition's measure. */
+.player__now { display:flex; align-items:center; gap:11px; min-width:0;
+  width:clamp(220px, 21%, 340px); }
+.player__meta { min-width:0; }
+.player__meta .t { display:block; font-size:12.5px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.player__meta .s { display:block; font-size:11px; color:var(--ink-dim);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.player__scrub { flex:1; display:flex; align-items:center; gap:11px; }
+.time { font-size:11px; color:var(--ink-faint); }
+.seek { flex:1; appearance:none; height:3px; border-radius:2px;
+  background:linear-gradient(90deg, var(--ink-dim) 31%, rgba(226,236,247,.10) 31%); }
+/* The thumb is hidden at rest: an idle player should be a quiet line, not a
+   bright dot demanding attention. It appears on hover and keyboard focus. */
+.seek::-webkit-slider-thumb { appearance:none; width:11px; height:11px;
+  border-radius:50%; background:var(--ink); opacity:0;
+  transition:opacity var(--t-quick) linear; }
+.seek:hover::-webkit-slider-thumb,
+.seek:focus-visible::-webkit-slider-thumb { opacity:1; }
+.player__fmt { font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-faint); font-weight:590; }
+
+/* ── transfer, docked over the channel while sending ─────────────────── */
+.transfer {
+  /* Stops short of the wall on purpose: capacity is the number actually
+     changing during a transfer, so the card must never cover it. */
+  position:absolute; left:210px; right:314px; bottom:80px; z-index:6;
+  padding:14px 16px; border-radius:var(--r-lg);
+  background:var(--surface);
+  backdrop-filter:blur(24px) saturate(140%);
+  -webkit-backdrop-filter:blur(24px) saturate(140%);
+  border:1px solid var(--hairline); }
+.transfer[hidden] { display:none; }
+.transfer__head { display:flex; align-items:baseline; gap:12px; }
+.transfer__head h2 { font-size:13.5px; font-weight:640; }
+.transfer__of { margin-left:auto; font-size:11.5px; color:var(--ink-dim); }
+.meter { height:3px; border-radius:2px; background:var(--surface-2);
+  margin:11px 0 6px; overflow:hidden; }
+/* scaleX rather than width: a solid fill with no gradient or border looks
+   identical scaled, and it animates on the compositor. */
+.meter i { display:block; height:100%; width:100%; background:var(--sun);
+  transform-origin:left center; transform:scaleX(0); }
+.transfer__now { display:flex; justify-content:space-between; gap:16px;
+  font-size:11.5px; color:var(--ink-dim); }
+.transfer__foot { display:flex; align-items:center; gap:14px; margin-top:11px;
+  padding-top:10px; border-top:1px solid var(--hairline-2); }
+.transfer__hint { font-size:11.5px; color:var(--ink-faint); }
+.transfer__foot .btn { margin-left:auto; }
+
+/* a failure states its name in words. Colour is never the only signal. */
+.notice { margin-top:11px; padding:10px 12px; border-radius:var(--r-sm);
+  border:1px solid rgba(208,87,74,.34); background:rgba(208,87,74,.08);
+  display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 14px; }
+.notice__tag { grid-column:1/-1; font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; font-weight:640; color:var(--alert); }
+.notice__body { font-size:11.5px; color:var(--ink-dim); }
+.notice__body strong { color:var(--ink); font-weight:590; }
+.notice__acts { display:flex; gap:8px; align-self:center; }
+
+/* ── icons ───────────────────────────────────────────────────────────── */
+.sprite { position:absolute; width:0; height:0; overflow:hidden; }
+.ic { width:15px; height:14px; fill:currentColor; stroke:currentColor;
+  stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; display:block; }
+#i-play, #i-pause { stroke:none; }
+#i-prev, #i-next { fill:none; }
+.ic--lg { width:17px; height:16px; }
+
+/* ── surfaces the browser would otherwise draw for us ────────────────── */
+::selection { background:rgba(216,150,63,.28); color:var(--ink); }
+input, .seek { caret-color:var(--sun); }
+.rail, .wall__list, .channel { scrollbar-width:thin;
+  scrollbar-color:rgba(226,236,247,.16) transparent; }
+.rail::-webkit-scrollbar, .wall__list::-webkit-scrollbar,
+.channel::-webkit-scrollbar { width:9px; height:9px; }
+.rail::-webkit-scrollbar-track, .wall__list::-webkit-scrollbar-track,
+.channel::-webkit-scrollbar-track { background:transparent; }
+.rail::-webkit-scrollbar-thumb, .wall__list::-webkit-scrollbar-thumb,
+.channel::-webkit-scrollbar-thumb { background:rgba(226,236,247,.16);
+  border-radius:5px; border:2px solid transparent; background-clip:content-box; }
+.rail::-webkit-scrollbar-thumb:hover, .wall__list::-webkit-scrollbar-thumb:hover,
+.channel::-webkit-scrollbar-thumb:hover { background-color:rgba(226,236,247,.30); }
+
+/* ══ motion ════════════════════════════════════════════════════════════
+   Scandinavian restraint applies to time as well as ink. One thing moves
+   with intent — the water — and everything else settles quickly or not at
+   all. Nothing loops or pulses while idle. */
+
+/* Height, deliberately, against the usual advice to animate transform.
+   `.water` is out of flow and childless, and this runs once when a transfer
+   completes — the layout cost is a single absolutely-positioned box, not a
+   frame budget. scaleY would squash the depth gradient and thicken the 1px
+   waterline, which is the one detail the whole design rests on.
+   `--used` carries the initial level from the markup so the panel is right
+   before script runs; script then drives `height` directly. */
+.water { transition:height var(--t-tide) var(--ease); }
+.water__pending { transition:height var(--t-settle) var(--ease); }
+
+/* A sent row travels down toward the water — comp E's gesture, surviving
+   here as behaviour rather than as a layout. */
+@keyframes sink { from { opacity:1; transform:none; }
+                  to   { opacity:0; transform:translateY(14px); } }
+.tracks tr.is-sending { animation:sink var(--t-settle) var(--ease) forwards; }
+
+.transfer { transition:opacity var(--t-settle) var(--ease),
+                       transform var(--t-settle) var(--ease); }
+@starting-style { .transfer { opacity:0; transform:translateY(10px); } }
+.meter i { transition:transform var(--t-settle) linear; }
+
+.nav, .btn, .iconbtn, .rail__new, .tracks tbody tr {
+  transition:background-color var(--t-quick) linear,
+             color var(--t-quick) linear, opacity var(--t-quick) linear; }
+.btn:active:not(:disabled) { transform:translateY(1px); }
+
+/* ── adaptation ──────────────────────────────────────────────────────── */
+
+/* Below 1020 the rail used to vanish outright, taking Albums, Artists,
+   Recently added and every playlist with it. It becomes a horizontal strip
+   instead, so nothing is unreachable at any window size. */
+@container shell (max-width: 1020px) {
+  .app {
+    grid-template-columns:minmax(0,1fr) 280px;
+    grid-template-rows:46px auto minmax(0,1fr) 66px;
+    grid-template-areas:
+      "titlebar titlebar"
+      "rail     rail"
+      "channel  wall"
+      "player   player";
+  }
+  .rail { flex-direction:row; align-items:center; gap:6px;
+    overflow-x:auto; overflow-y:hidden; padding:8px 12px;
+    border-right:0; border-bottom:1px solid var(--hairline-2);
+    background:var(--air-2); }
+  .rail__list { display:flex; gap:4px; }
+  .rail__head { margin:0 4px 0 10px; }
+  .rail__note { display:none; }        /* the hero still carries the truth */
+  .rail__new { margin-top:0; white-space:nowrap; }
+  .nav { white-space:nowrap; }
+  .transfer { left:14px; right:294px; }
+}
+
+/* One column. The wall moves below the channel, so the water becomes a band
+   behind the capacity readout rather than a fill behind the whole panel —
+   at 40vh it was rising over the track list and cutting through titles. */
+@container shell (max-width: 720px) {
+  .app {
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:46px auto minmax(0,1fr) auto 66px;
+    grid-template-areas: "titlebar" "rail" "channel" "wall" "player";
+  }
+  .wall { border-left:0; border-top:1px solid var(--hairline-2); }
+  .water { height:84px; }
+  .water__pending { bottom:84px; }
+  .wall__list { max-height:32vh; }
+
+  .hero { flex-wrap:wrap; gap:14px; }
+  .hero__meta { flex:1 1 100%; }
+  .hero__title { white-space:normal; }
+  .hero__by { max-width:none; }
+  .hero__facts { white-space:normal; }
+  .cover--lg { width:88px; height:88px; }
+  .hero__actions { margin-left:0; width:100%; }
+  .hero__actions .btn { flex:1; }
+
+  .prewarn { grid-template-columns:minmax(0,1fr); margin:0 16px 12px; }
+  .prewarn .btn { justify-self:start; }
+  .sendwhy { margin:0 16px 10px; }
+
+  .tracks__fmt { display:none; }
+  .transfer { left:12px; right:12px; bottom:76px; }
+
+  .player { gap:10px; padding:0 12px; }
+  .player__now { display:none; }       /* truncating to "G…" is worse */
+  .player__fmt { display:none; }
+  .player__transport { gap:16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* State still changes; it just arrives rather than travels. */
+  *, *::before, *::after {
+    animation-duration:1ms !important; animation-iteration-count:1 !important;
+    transition-duration:1ms !important; scroll-behavior:auto !important; }
+}

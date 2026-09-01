@@ -163,19 +163,22 @@ fn install_fonts(ctx: &egui::Context) {
 
     fonts.font_data.insert(
         "geist".to_owned(),
-        FontData::from_static(include_bytes!("../assets/fonts/Geist-Regular.otf")).into(),
+        FontData::from_static(include_bytes!("../../../assets/fonts/Geist-Regular.otf")).into(),
     );
     fonts.font_data.insert(
         "geist-medium".to_owned(),
-        FontData::from_static(include_bytes!("../assets/fonts/Geist-Medium.otf")).into(),
+        FontData::from_static(include_bytes!("../../../assets/fonts/Geist-Medium.otf")).into(),
     );
     fonts.font_data.insert(
         "geist-bold".to_owned(),
-        FontData::from_static(include_bytes!("../assets/fonts/Geist-Bold.otf")).into(),
+        FontData::from_static(include_bytes!("../../../assets/fonts/Geist-Bold.otf")).into(),
     );
     fonts.font_data.insert(
         "geist-mono".to_owned(),
-        FontData::from_static(include_bytes!("../assets/fonts/GeistMono-Regular.otf")).into(),
+        FontData::from_static(include_bytes!(
+            "../../../assets/fonts/GeistMono-Regular.otf"
+        ))
+        .into(),
     );
 
     let prop = fonts.families.entry(FontFamily::Proportional).or_default();

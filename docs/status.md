@@ -10,13 +10,15 @@ but have not been individually tested.
 | Feature                                                          | Notes                                                                                  |
 |------------------------------------------------------------------|----------------------------------------------------------------------------------------|
 | Music upload — MP3, M4A, M4B, AAC, WAV (direct)                  | Pure-Rust mtp-rs; per-file MTP session; verified large multi-file batches              |
-| Music upload — FLAC, OGG, Opus, WMA, AIFF, ALAC, APE, WV         | Auto-transcoded to CBR 192 kbps MP3 via ffmpeg, ID3v2.3, strict tag allowlist          |
+| Music upload — FLAC, OGG, Opus, WMA, AIFF, ALAC, APE, WV         | Converted to CBR 192 kbps MP3 via ffmpeg, ID3v2.3, strict tag allowlist                |
+| Native formats copied, never re-encoded                          | MP3/M4A/M4B/AAC/WAV are copied byte-for-byte; only the tag is rebuilt, with no tool     |
 | Album-artist tag rewriting                                       | `album_artist` becomes the `ARTIST` tag — multi-composer albums group as one           |
 | Filename sanitization (56-char cap, FAT-hostile chars stripped)  | Applied in **both** transcode AND `--no-transcode` paths                               |
 | `set_split_header_data(true)` for the MTP transport              | Required by Garmin firmware; auto-applied                                              |
 | Listing `/Music` with broken-stub surfacing                      | Surfaced as `‹unreadable #N›` rows; carries handle for delete                          |
 | Per-file delete, multi-delete in one CLI invocation              | `--delete Music/foo.mp3 --delete Music/bar.mp3 …`                                      |
-| GVFS-mount detection                                             | Refuses to start if a GVFS MTP mount is holding the device                             |
+| GVFS-mount detection                                             | Warns if a GVFS MTP mount is holding the device, with the `gio mount -u` fix           |
+| macOS `ptpcamerad` detection                                     | Names the holder from the IORegistry. **Cannot** self-fix — see `docs/macos-port.md`   |
 | GUI (eframe/egui) — three-pane file browser, drag-drop           | Linux-first; window title "Krypteia · Pelican"                                         |
 | Local playlists (history-stored, not pushed to watch)            | Per-device-serial JSON in `$XDG_DATA_HOME/pelican/uploads-<serial>.json`               |
 | Streaming upload from disk (no full-file buffer)                 | Memory peak now ~CHUNK (256 KB), not 2× file size                                      |
@@ -53,11 +55,12 @@ rejection is a model-specific firmware regression or a wider issue. Adding
 a borrowed FR945 / FR255 to the test matrix would resolve the ambiguity in
 ~30 minutes; see `docs/playlists.md` for the recipe to validate.
 
-## Test coverage (as of 2026-05-03)
+## Test coverage (as of 2026-08-30)
 
-29 tests pass:
+59 tests pass on both Linux and macOS:
 
-- **25 unit tests** in `src/playlist.rs` (9), `src/transcode.rs` (8), `src/transfer.rs` (8)
+- **49 unit tests** across `crates/pelican-core/src/` — playlist, transcode,
+  transfer, paths, and the platform contention detectors
   - Filename stem sanitizer: cap-at-56, replace unsafe chars, collapse dashes, trim outer, never empty
   - Tag value sanitizer: strips ©®™℗ + control bytes; preserves accented letters
   - File extension classification (audio vs not, supported-by-Garmin vs needs-transcode)
@@ -65,12 +68,17 @@ a borrowed FR945 / FR255 to the test matrix would resolve the ambiguity in
   - `playlist::parse` edge cases: CRLF, blank lines, multiple comment-line variants, empty
   - `playlist::serialize_for_device` for both `PathStyle` variants
   - `is_playlist` extension matching (case-insensitive, edge cases)
-- **4 integration tests** in `tests/sanitization.rs` — invariants tied to documented Garmin firmware quirks
+- **5 integration tests** in `crates/pelican-core/tests/sanitization.rs` — invariants tied to
+  documented Garmin firmware quirks, now bound to the real API rather than to
+  constants re-declared in the test file
+- **5 end-to-end tests** in `crates/pelican-core/tests/pipeline.rs` — real audio through the real
+  encoder selection and tag rebuild, no hardware needed
 
 What we **do not** unit-test (and why):
 
-- `mtp.rs` MTP backend — needs hardware. Covered by `examples/diagnose`, `examples/probe_playlist`, manual smoke tests.
-- `app.rs` GUI — needs an event loop. Manual end-to-end testing only.
+- `mtp.rs` MTP backend — needs hardware. Covered by `examples/diagnose`, `examples/probe_playlist`, `examples/probe_platform`, manual smoke tests.
+- `app.rs` GUI — needs an event loop. Manual end-to-end testing only. The
+  transfer loop it used to own is now `transfer::run`, which is covered.
 - `garmin::pick_device` — wraps nusb enumeration. Manual.
 - `gvfs::warn_if_holding_garmin` — POSIX-side IPC. Manual.
 - `history::record` write atomicity — best-effort JSON writes; no concurrency in practice.

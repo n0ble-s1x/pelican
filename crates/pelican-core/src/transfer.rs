@@ -11,7 +11,6 @@ use crossbeam_channel::{Receiver, Sender};
 use id3::TagLike;
 
 use crate::garmin::MUSIC_FOLDER;
-use crate::mtp::Backend;
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -28,31 +27,60 @@ pub struct Job {
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    Started(PathBuf),
-    /// Mid-upload progress. Fields are read by the GUI worker (which builds
-    /// its own equivalent payload) and ignored by headless `run_jobs_per_file`,
-    /// so they show as dead in cargo. Suppress.
-    #[allow(dead_code)]
+    /// The plan is known. Emitted once, before any file is touched, so a
+    /// front-end can size its progress bar before the first byte moves.
+    Planned {
+        total: usize,
+    },
+    Started(Progress),
+    /// Converting or copying into the cache dir, before the upload starts.
+    /// The device is idle during this — it can take seconds for a big FLAC,
+    /// and a UI that shows "uploading" here looks wedged.
+    Staging(Progress),
+    /// Mid-upload. `transferred`/`total_bytes` are this file; the counters on
+    /// [`Progress`] are the whole job.
     Progress {
-        src: PathBuf,
+        at: Progress,
         transferred: u64,
-        total: u64,
+        total_bytes: u64,
     },
     Skipped {
-        src: PathBuf,
+        at: Progress,
         reason: String,
     },
     Done {
-        src: PathBuf,
+        at: Progress,
         bytes: u64,
     },
     Failed {
-        src: PathBuf,
+        at: Progress,
         error: String,
     },
+    /// The queue is drained. Always the last event.
+    Finished(Report),
 }
 
-#[derive(Default, Debug)]
+/// Where a job is in the run: which file, and how many are behind it.
+#[derive(Debug, Clone)]
+pub struct Progress {
+    pub src: PathBuf,
+    /// Files fully accounted for before this one — the numerator for
+    /// "3 of 12". Not the index of `src` in the plan: a skip advances it too.
+    pub done: usize,
+    pub total: usize,
+}
+
+impl Progress {
+    /// Filename alone, for a UI label that has no room for a path.
+    pub fn label(&self) -> String {
+        self.src
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| self.src.display().to_string())
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Report {
     pub ok: usize,
     pub skipped: usize,
@@ -63,7 +91,8 @@ pub fn channel() -> (Sender<Event>, Receiver<Event>) {
     crossbeam_channel::unbounded()
 }
 
-const SUPPORTED_EXTS: &[&str] = &["mp3", "m4a", "m4b", "aac", "wav"];
+/// Containers Garmin firmware plays without conversion.
+pub const SUPPORTED_EXTS: &[&str] = &["mp3", "m4a", "m4b", "aac", "wav"];
 
 pub fn expand_inputs(inputs: &[PathBuf], transcode: bool) -> Result<Vec<Job>> {
     expand_inputs_into(inputs, MUSIC_FOLDER, transcode)
@@ -233,14 +262,17 @@ fn sanitize_name(name: &str) -> String {
     }
 }
 
-fn ext_supported(p: &Path) -> bool {
+/// True when the file is already in a container the watch plays.
+pub fn ext_supported(p: &Path) -> bool {
     p.extension()
         .and_then(|e| e.to_str())
         .map(|e| SUPPORTED_EXTS.iter().any(|s| s.eq_ignore_ascii_case(e)))
         .unwrap_or(false)
 }
 
-fn has_required_tags(p: &Path) -> bool {
+/// True when the file carries the title+artist Garmin's music app needs
+/// to show it. Files without them land on disk but stay invisible.
+pub fn has_required_tags(p: &Path) -> bool {
     let ext = p
         .extension()
         .and_then(|e| e.to_str())
@@ -258,11 +290,170 @@ fn has_required_tags(p: &Path) -> bool {
     }
 }
 
-/// Per-file session pattern: open a fresh MTP backend for each upload.
-/// Garmin firmware on the FR165 silently rejects most uploads (leaving a
-/// broken metadata stub) when many files are sent over a single session.
-/// Closing+reopening between files makes the pipeline reliable.
-pub fn run_jobs_per_file(
+/// Drain a plan onto the device, emitting an [`Event`] for every step.
+///
+/// **One MTP session per file.** Garmin firmware on the FR165 silently
+/// rejects most uploads — leaving a broken metadata stub — when many files
+/// are sent over a single session. Closing and reopening between files is
+/// what makes the pipeline reliable, and it is why this opens the backend
+/// itself instead of borrowing one from the caller.
+///
+/// This is the only implementation of the transfer loop. The CLI drains it
+/// synchronously through [`run_to_report`]; the GUI drains it on a worker
+/// thread and renders the events. They used to be separate copies of this
+/// function that drifted apart.
+pub fn run(device: &crate::garmin::Device, jobs: Vec<Job>, opts: &Options, tx: &Sender<Event>) {
+    let total = jobs.len();
+    let mut report = Report::default();
+    let _ = tx.send(Event::Planned { total });
+
+    for job in jobs {
+        // `done` counts outcomes, not iterations, so a skipped file still
+        // advances "3 of 12" — otherwise the counter stalls on a folder full
+        // of cover art and the run looks hung.
+        let at = Progress {
+            src: job.src.clone(),
+            done: report.ok + report.skipped + report.failed,
+            total,
+        };
+        let _ = tx.send(Event::Started(at.clone()));
+
+        if !crate::transcode::is_audio(&job.src) {
+            report.skipped += 1;
+            let _ = tx.send(Event::Skipped {
+                at,
+                reason: "not an audio file".into(),
+            });
+            continue;
+        }
+
+        // Stage the file: convert it, or copy and re-tag it. Either way the
+        // result carries only the tag allowlist Garmin accepts.
+        let mut staged: Option<crate::transcode::Transcoded> = None;
+        let (upload_path, upload_name) = if opts.transcode {
+            let _ = tx.send(Event::Staging(at.clone()));
+            let planned_stem = Path::new(&job.remote_name)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned());
+            match crate::transcode::normalize(&job.src, planned_stem.as_deref()) {
+                Ok(t) => {
+                    let (p, n) = (t.path.clone(), t.remote_name.clone());
+                    staged = Some(t);
+                    (p, n)
+                }
+                Err(e) => {
+                    report.failed += 1;
+                    let _ = tx.send(Event::Failed {
+                        at,
+                        error: format!("{e:#}"),
+                    });
+                    continue;
+                }
+            }
+        } else {
+            // Normalization off: we can't change container, so only formats
+            // the watch already plays can go.
+            if !ext_supported(&job.src) {
+                report.skipped += 1;
+                let _ = tx.send(Event::Skipped {
+                    at,
+                    reason: "not playable as-is, and normalization is off".into(),
+                });
+                continue;
+            }
+            (job.src.clone(), job.remote_name.clone())
+        };
+
+        if !has_required_tags(&upload_path) {
+            if !opts.skip_tag_check {
+                report.skipped += 1;
+                let _ = tx.send(Event::Skipped {
+                    at,
+                    reason: "missing title/artist — would be hidden on the watch".into(),
+                });
+                continue;
+            }
+            tracing::warn!(
+                file = %job.src.display(),
+                "uploading without title/artist — the file lands on the watch but stays hidden"
+            );
+        }
+
+        let mut backend = match crate::mtp::open(device) {
+            Ok(b) => b,
+            Err(e) => {
+                report.failed += 1;
+                let _ = tx.send(Event::Failed {
+                    at,
+                    error: format!("opening session: {e:#}"),
+                });
+                continue;
+            }
+        };
+        if let Err(e) = backend.ensure_folder(&job.remote_dir) {
+            report.failed += 1;
+            let _ = tx.send(Event::Failed {
+                at,
+                error: format!("ensure_folder: {e:#}"),
+            });
+            continue;
+        }
+
+        let prog_tx = tx.clone();
+        let prog_at = at.clone();
+        let mut on_progress = move |transferred: u64, total_bytes: u64| {
+            let _ = prog_tx.send(Event::Progress {
+                at: prog_at.clone(),
+                transferred,
+                total_bytes,
+            });
+        };
+
+        match backend.upload(
+            &upload_path,
+            &job.remote_dir,
+            &upload_name,
+            &mut on_progress,
+        ) {
+            Ok(bytes) => {
+                // Soft verify, while this file's session is still open.
+                // Garmin's GetObjectInfo errors on freshly-written files until
+                // the indexer settles, so a missing size or a listing error is
+                // normal here — only a confirmed mismatch is a failure.
+                match backend.remote_size(&job.remote_dir, &upload_name) {
+                    Ok(Some(actual)) if actual != bytes => {
+                        report.failed += 1;
+                        let _ = tx.send(Event::Failed {
+                            at,
+                            error: format!(
+                                "post-write size mismatch: expected {bytes}, watch reports {actual}"
+                            ),
+                        });
+                    }
+                    _ => {
+                        report.ok += 1;
+                        let _ = tx.send(Event::Done { at, bytes });
+                    }
+                }
+            }
+            Err(e) => {
+                report.failed += 1;
+                let _ = tx.send(Event::Failed {
+                    at,
+                    error: format!("{e:#}"),
+                });
+            }
+        }
+        // Drops the staged temp file, then closes the MTP session.
+        drop(staged);
+    }
+
+    let _ = tx.send(Event::Finished(report));
+}
+
+/// Plan `inputs`, run them, and log each event as it lands. Used by the CLI,
+/// which has nothing to render and just wants the tally.
+pub fn run_to_report(
     device: &crate::garmin::Device,
     inputs: &[PathBuf],
     opts: &Options,
@@ -271,161 +462,30 @@ pub fn run_jobs_per_file(
     let (tx, rx) = channel();
     std::thread::scope(|s| {
         s.spawn(|| {
-            for job in jobs {
-                let mut backend = match crate::mtp::open(device) {
-                    Ok(b) => b,
-                    Err(e) => {
-                        let _ = tx.send(Event::Failed {
-                            src: job.src.clone(),
-                            error: format!("opening session: {e:#}"),
-                        });
-                        continue;
-                    }
-                };
-                run_worker(&mut *backend, vec![job], opts, tx.clone());
-                // backend dropped here — closes the MTP session
-            }
+            run(device, jobs, opts, &tx);
             drop(tx);
         });
         let mut report = Report::default();
         for evt in rx {
             match evt {
-                Event::Started(p) => tracing::info!(file=%p.display(), "uploading"),
+                Event::Planned { total } => tracing::info!(files = total, "planned"),
+                Event::Started(at) => tracing::info!(file=%at.src.display(), "uploading"),
+                Event::Staging(at) => tracing::info!(file=%at.src.display(), "normalizing"),
                 Event::Progress { .. } => {}
-                Event::Done { src, bytes } => {
-                    report.ok += 1;
-                    tracing::info!(file=%src.display(), bytes, "ok");
+                Event::Done { at, bytes } => {
+                    tracing::info!(file=%at.src.display(), bytes, "ok")
                 }
-                Event::Skipped { src, reason } => {
-                    report.skipped += 1;
-                    tracing::warn!(file=%src.display(), %reason, "skipped");
+                Event::Skipped { at, reason } => {
+                    tracing::warn!(file=%at.src.display(), %reason, "skipped")
                 }
-                Event::Failed { src, error } => {
-                    report.failed += 1;
-                    tracing::error!(file=%src.display(), %error, "failed");
+                Event::Failed { at, error } => {
+                    tracing::error!(file=%at.src.display(), %error, "failed")
                 }
+                Event::Finished(r) => report = r,
             }
         }
         Ok(report)
     })
-}
-
-fn run_worker(backend: &mut dyn Backend, jobs: Vec<Job>, opts: &Options, tx: Sender<Event>) {
-    for job in jobs {
-        let _ = tx.send(Event::Started(job.src.clone()));
-        if !crate::transcode::is_audio(&job.src) {
-            let _ = tx.send(Event::Skipped {
-                src: job.src.clone(),
-                reason: "not an audio file".into(),
-            });
-            continue;
-        }
-        // Always normalize — re-mux MP3s for tag-strip, transcode others.
-        // Garmin's firmware rejects files with non-standard ID3 frames or
-        // exotic audio profiles, so we always rebuild the file with a
-        // strict allowlist on the way out.
-        let mut transcoded_holder: Option<crate::transcode::Transcoded> = None;
-        let (upload_path, upload_name) = if opts.transcode {
-            let planned_stem = Path::new(&job.remote_name)
-                .file_stem()
-                .map(|s| s.to_string_lossy().into_owned());
-            match crate::transcode::normalize(&job.src, planned_stem.as_deref()) {
-                Ok(t) => {
-                    let p = t.path.clone();
-                    let n = t.mp3_name.clone();
-                    transcoded_holder = Some(t);
-                    (p, n)
-                }
-                Err(e) => {
-                    let _ = tx.send(Event::Failed {
-                        src: job.src.clone(),
-                        error: format!("normalize: {e:#}"),
-                    });
-                    continue;
-                }
-            }
-        } else {
-            // User opted out of normalization. Only proceed if the source
-            // is already a Garmin-supported format; we can't change container.
-            if !ext_supported(&job.src) {
-                let _ = tx.send(Event::Skipped {
-                    src: job.src.clone(),
-                    reason: "needs transcode (--no-transcode is set)".into(),
-                });
-                continue;
-            }
-            (job.src.clone(), job.remote_name.clone())
-        };
-        if !has_required_tags(&upload_path) {
-            if !opts.skip_tag_check {
-                let _ = tx.send(Event::Skipped {
-                    src: job.src.clone(),
-                    reason: "missing ID3 title/artist (would be hidden on watch)".into(),
-                });
-                drop(transcoded_holder);
-                continue;
-            } else {
-                tracing::warn!(
-                    file = %job.src.display(),
-                    "uploading without ID3 title/artist — file will be on the watch but hidden from the music app"
-                );
-            }
-        }
-        if let Err(e) = backend.ensure_folder(&job.remote_dir) {
-            let _ = tx.send(Event::Failed {
-                src: job.src.clone(),
-                error: format!("ensure_folder: {e}"),
-            });
-            drop(transcoded_holder);
-            continue;
-        }
-        let prog_tx = tx.clone();
-        let prog_src = job.src.clone();
-        let mut on_progress = move |transferred: u64, total: u64| {
-            let _ = prog_tx.send(Event::Progress {
-                src: prog_src.clone(),
-                transferred,
-                total,
-            });
-        };
-        match backend.upload(
-            &upload_path,
-            &job.remote_dir,
-            &upload_name,
-            &mut on_progress,
-        ) {
-            Ok(bytes) => {
-                // Soft verify: Garmin's GetObjectInfo errors on freshly-
-                // written files until the watch's indexer settles, so a
-                // missing-size or listing-error result is normal here, not
-                // grounds for failure. We only fail on a confirmed mismatch.
-                match backend.remote_size(&job.remote_dir, &upload_name) {
-                    Ok(Some(actual)) if actual != bytes => {
-                        let _ = tx.send(Event::Failed {
-                            src: job.src.clone(),
-                            error: format!(
-                                "post-write size mismatch: expected {bytes}, watch reports {actual}"
-                            ),
-                        });
-                    }
-                    _ => {
-                        let _ = tx.send(Event::Done {
-                            src: job.src.clone(),
-                            bytes,
-                        });
-                    }
-                }
-            }
-            Err(e) => {
-                let _ = tx.send(Event::Failed {
-                    src: job.src.clone(),
-                    error: format!("{e:#}"),
-                });
-            }
-        }
-        drop(transcoded_holder);
-    }
-    drop(tx);
 }
 
 #[cfg(test)]

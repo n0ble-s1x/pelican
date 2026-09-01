@@ -1,0 +1,55 @@
+[package]
+name = "pelican-core"
+description = "Pelican's engine — Garmin USB/MTP transport, transcode pipeline, and transfer planner. No UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords = ["garmin", "mtp", "music", "sync"]
+categories = ["multimedia", "hardware-support"]
+exclude = ["/examples"]
+
+[dependencies]
+anyhow.workspace = true
+crossbeam-channel.workspace = true
+id3.workspace = true
+lofty.workspace = true
+mp4ameta.workspace = true
+nusb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+# POSIX geteuid() for the Linux GVFS-contention detector.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+
+[dependencies.mtp]
+workspace = true
+optional = true
+
+[dependencies.tokio]
+workspace = true
+optional = true
+
+[dependencies.futures]
+workspace = true
+optional = true
+
+[dependencies.bytes]
+workspace = true
+optional = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+
+[features]
+default = ["mtp-backend"]
+mtp-backend = ["dep:mtp", "dep:tokio", "dep:futures", "dep:bytes"]
+
+[lints]
+workspace = true

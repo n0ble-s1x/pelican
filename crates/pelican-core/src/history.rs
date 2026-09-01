@@ -40,27 +40,11 @@ pub struct DeviceHistory {
     pub playlists: Vec<LocalPlaylist>,
 }
 
-/// Per-user data directory, or None when neither `$XDG_DATA_HOME` nor `$HOME`
-/// resolves.
-///
-/// This deliberately fails closed rather than falling back to `/tmp`. On a
-/// shared host `/tmp` is world-writable and `/tmp/.local` does not normally
-/// exist, so any local user could pre-create the chain and own our store —
-/// and `load()` feeds `LocalPlaylist.tracks` straight back into the uploader.
-/// Losing history persistence is the strictly better failure.
+/// Per-user data directory. See [`crate::paths`] for the per-platform
+/// locations and the reasoning behind failing closed instead of falling
+/// back to a world-writable directory.
 fn data_dir() -> Option<PathBuf> {
-    let mut p = match std::env::var_os("XDG_DATA_HOME") {
-        Some(x) => PathBuf::from(x),
-        None => {
-            let mut p = PathBuf::from(std::env::var_os("HOME")?);
-            p.push(".local");
-            p.push("share");
-            p
-        }
-    };
-    p.push("pelican");
-    std::fs::create_dir_all(&p).ok()?;
-    Some(p)
+    crate::paths::data_dir()
 }
 
 fn file_for(serial: &str) -> Option<PathBuf> {

@@ -55,7 +55,7 @@ Out of scope:
 - **Reproducible builds** via committed `Cargo.lock`.
 - **`unsafe_code = "deny"`** in `Cargo.toml` — every `unsafe` block in our
   code requires an explicit `#[allow(unsafe_code)]` with a SAFETY comment.
-  Currently there is exactly one (a `geteuid` syscall in `src/gvfs.rs`).
+  Currently there is exactly one (a `geteuid` syscall in `crates/pelican-core/src/platform/gvfs.rs`).
 - **Branch protection on `main`**: PRs are required (no direct push to main),
   no force-pushes, no branch deletion, conversation must be resolved before
   merge, admins are subject to all rules. The maintainer is the sole

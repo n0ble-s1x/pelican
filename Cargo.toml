@@ -1,87 +1,49 @@
-[package]
-name = "pelican"
+[workspace]
+resolver = "2"
+members = ["crates/pelican-core", "crates/pelican"]
+
+# Shared package metadata. Both crates ship as one product, so version,
+# licence and provenance live here rather than being kept in sync by hand.
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
-description = "Pelican — sync your music to a Garmin watch on Linux. A Krypteia tool. No telemetry, no cloud."
 license = "MIT OR Apache-2.0"
-readme = "README.md"
 repository = "https://github.com/n0ble-s1x/pelican"
 homepage = "https://github.com/n0ble-s1x/pelican"
 # Author: maintainer of this fork; copyright remains Krypteia LLC (see LICENSE-*).
 authors = ["n0ble-s1x <krypteia.annex447@8alias.com>"]
-keywords = ["garmin", "mtp", "music", "sync", "linux"]
-categories = ["multimedia", "command-line-utilities"]
-exclude = [
-    "/target",
-    "/docs",
-    "/packaging",
-    "/.github",
-    "/examples",
-    "/Cargo.lock.bak",
-]
 
-[dependencies]
+[workspace.dependencies]
+anyhow = "1"
+bytes = "1"
 clap = { version = "4.5", features = ["derive"] }
+crossbeam-channel = "0.5"
 eframe = { version = "0.34", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 egui = "0.34"
-anyhow = "1"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-nusb = "0.2"
+futures = "0.3"
 id3 = "1.14"
-mp4ameta = "0.13"
-crossbeam-channel = "0.5"
-percent-encoding = "2"
 libc = "0.2"
+lofty = "0.25"
+mp4ameta = "0.13"
+mtp = { package = "mtp-rs", version = "0.13" }
+nusb = "0.2"
+percent-encoding = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-
-mtp = { package = "mtp-rs", version = "0.13", optional = true }
-tokio = { version = "1", features = ["rt", "macros", "time"], optional = true }
-futures = { version = "0.3", optional = true }
-bytes = { version = "1", optional = true }
-
-[dev-dependencies]
 tempfile = "3"
+tokio = { version = "1", features = ["rt", "macros", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-[features]
-default = ["mtp-backend"]
-mtp-backend = ["dep:mtp", "dep:tokio", "dep:futures", "dep:bytes"]
+# Deny `unsafe` in our own code — keeps the auditable surface tiny. We accept
+# unsafe through dependencies (audited via cargo-deny) but not in ours, with
+# the single documented exception in `pelican-core/src/platform/gvfs.rs`.
+[workspace.lints.rust]
+unsafe_code = "deny"
 
 [profile.release]
 lto = "thin"
 codegen-units = 1
 strip = true
 opt-level = 3
-
-# `cargo deb` produces a .deb for native install on Pop / Ubuntu / Debian.
-#   cargo install cargo-deb
-#   cargo deb --release
-# Output lands at target/debian/pelican_<ver>_<arch>.deb
-[package.metadata.deb]
-maintainer = "n0ble-s1x <krypteia.annex447@8alias.com>"
-copyright = "2026, Krypteia LLC"
-license-file = ["LICENSE-MIT", "4"]
-extended-description = """\
-Linux-first MTP sync for Garmin music watches. Drop music onto your watch
-without going through Garmin Express or any cloud service. No telemetry,
-no daemon, no network. A Krypteia tool."""
-depends = "$auto, ffmpeg, libudev1"
-section = "sound"
-priority = "optional"
-assets = [
-    ["target/release/pelican", "usr/bin/", "755"],
-    ["udev/99-garmin-music.rules", "usr/lib/udev/rules.d/", "644"],
-    ["packaging/desktop/pelican.desktop", "usr/share/applications/", "644"],
-    ["README.md", "usr/share/doc/pelican/README.md", "644"],
-    ["LICENSE-MIT", "usr/share/doc/pelican/LICENSE-MIT", "644"],
-    ["LICENSE-APACHE", "usr/share/doc/pelican/LICENSE-APACHE", "644"],
-]
-
-# Deny `unsafe` in our own code — keeps the auditable surface tiny. We
-# accept unsafe through dependencies (audited via cargo-deny) but not in
-# ours, with the single exception of the documented geteuid() call in
-# `src/gvfs.rs` (POSIX syscall wrapper, no soundness risk).
-[lints.rust]
-unsafe_code = "deny"

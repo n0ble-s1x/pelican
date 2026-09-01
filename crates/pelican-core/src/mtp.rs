@@ -49,7 +49,28 @@ pub trait Backend: Send {
 
 #[cfg(feature = "mtp-backend")]
 pub fn open(device: &Device) -> Result<Box<dyn Backend>> {
-    Ok(Box::new(mtp_rs_impl::MtpRsBackend::open(device)?))
+    match mtp_rs_impl::MtpRsBackend::open(device) {
+        Ok(b) => Ok(Box::new(b)),
+        // "could not open interface for exclusive access" tells the user
+        // nothing they can act on. Attach the platform's list of likely
+        // causes, led by the one that is almost always right: a session we
+        // ourselves still have open.
+        Err(e) if is_exclusive_access(&e) => {
+            Err(e.context(crate::platform::explain_exclusive_access()))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// True when a failure to open is contention rather than a real fault.
+///
+/// Matched on the message because the concrete error type differs per
+/// platform: macOS says "exclusive access", Linux reports EBUSY, Windows
+/// access-denied.
+#[cfg(feature = "mtp-backend")]
+fn is_exclusive_access(e: &anyhow::Error) -> bool {
+    let msg = format!("{e:#}").to_lowercase();
+    msg.contains("exclusive access") || msg.contains("busy") || msg.contains("access is denied")
 }
 
 #[cfg(not(feature = "mtp-backend"))]

@@ -1,0 +1,150 @@
+/* Pelican — committed world: "Quiet Utility, at the fjord."
+   The anchor is deep water: a cold blue-black drawn from fjord depth, not
+   from a UI kit's navy and not from a dashboard's slate. Structure comes
+   from the waterline; the one warm value is low sun on water, brass rather
+   than orange, reserved for the active state and the primary action and
+   spent nowhere else. Cold ground, warm light — the same axis whether the
+   water is Idaho snowmelt or the Gulf at dusk. */
+:root {
+  /* ground — cold, deep, green-biased */
+  --ground:      #070c13;
+  --ground-deep: #04070c;
+  --surface:     rgba(226, 236, 247, 0.048);
+  --surface-2:   rgba(226, 236, 247, 0.078);
+  --hairline:    rgba(226, 236, 247, 0.105);
+  --hairline-2:  rgba(226, 236, 247, 0.058);
+
+  /* the waterline — filled mass below, open field above */
+  --fill:        #101d2b;
+  --fill-edge:   #2b5578;
+
+  /* ink */
+  --ink:         #e3eaf2;
+  --ink-dim:     #8b9bab;
+  --ink-faint:   #5a6875;
+
+  /* the one warm value. active state and primary action only. */
+  --sun:         #d8963f;
+  --sun-bright:  #efb055;
+  --sun-wash:    rgba(216, 150, 63, 0.13);
+
+  /* state, always paired with a word */
+  --moss:        #5aa8a0;
+  --alert:       #d0574a;
+
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
+  --grid: 8px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* the app window, comped at its real size */
+.win {
+  width: 1180px; height: 760px;
+  position: relative; overflow: hidden;
+  border-radius: 12px;
+  background: var(--ground);
+  display: flex; flex-direction: column;
+}
+
+/* glass — real backdrop-filter, which the webview gives us and egui never could */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid var(--hairline);
+}
+
+.num { font-variant-numeric: tabular-nums; }
+
+.label {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); font-weight: 590;
+}
+
+/* traffic lights, so the comp reads as a mac window not a web page */
+.tl { display: flex; gap: 8px; align-items: center; }
+.tl i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.tl i:nth-child(1) { background: #ff5f57; }
+.tl i:nth-child(2) { background: #febc2e; }
+.tl i:nth-child(3) { background: #28c840; }
+
+.btn {
+  font: inherit; font-weight: 590; font-size: 12.5px;
+  padding: 8px 16px; border-radius: var(--r-sm);
+  border: 1px solid var(--hairline); background: var(--surface-2);
+  color: var(--ink); cursor: default;
+}
+.btn-primary {
+  background: var(--sun); border-color: var(--sun); color: #17110a;
+}
+
+.row {
+  display: grid; align-items: center; gap: 14px;
+  padding: 9px 14px; border-radius: var(--r-sm);
+}
+.row:hover { background: var(--surface); }
+.row .t { font-size: 13px; }
+.row .s { font-size: 11.5px; color: var(--ink-dim); }
+.row .z { font-size: 11.5px; color: var(--ink-faint); text-align: right; }
+
+.art {
+  width: 34px; height: 34px; border-radius: 4px; flex: none;
+  background: linear-gradient(150deg, #1d3244, #0d1622);
+  border: 1px solid var(--hairline-2);
+}
+
+/* ── fjord depth ────────────────────────────────────────────────────────
+   A fjord is understood in section: air above, an absolute waterline, and
+   cold depth below. Depth is the app's one spatial idea — surfaces sit at a
+   stated depth, and deeper means colder, darker, denser. Nothing here is
+   ornament; the tokens are structural. */
+:root {
+  --air:      #0d1622;  /* above the line — open, where you browse */
+  --air-2:    #111c2a;
+  --line:     #4a8cbe;  /* the waterline itself. one value, unmistakable */
+  --d1:       #16283a;  /* just below the surface */
+  --d2:       #101f2e;
+  --d3:       #0a1622;  /* deep */
+  --d4:       #060e17;  /* the bottom */
+}
+
+/* strata — the faintest horizontal banding, like thermoclines. Sparingly. */
+.strata {
+  background-image: repeating-linear-gradient(
+    to bottom, rgba(226,236,247,.016) 0 1px, transparent 1px 46px);
+}
+
+/* the waterline: the single strongest value change anywhere in the app */
+.wl { position:relative; }
+.wl::before {
+  content:""; position:absolute; left:0; right:0; height:1px; z-index:3;
+  background: linear-gradient(90deg,
+    rgba(74,140,190,.18), var(--line) 22%, var(--line) 82%, rgba(74,140,190,.14));
+  box-shadow: 0 0 14px rgba(74,140,190,.30);
+}
+
+/* album art — real art will fill these; the gradient is a stand-in that
+   keeps the right value and never pretends to be a photograph */
+.cover {
+  border-radius: 5px; flex: none; overflow: hidden;
+  background: linear-gradient(155deg, #24455f, #142838 55%, #0d1c28);
+  border: 1px solid rgba(226,236,247,.09);
+  box-shadow: 0 1px 0 rgba(226,236,247,.05) inset;
+}
+.cover.lg { border-radius: 8px; box-shadow: 0 18px 44px rgba(0,0,0,.55), 0 1px 0 rgba(226,236,247,.06) inset; }
+
+.label { font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-faint); font-weight:590; }

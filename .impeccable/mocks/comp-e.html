@@ -1,0 +1,173 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Comp E — Above and Below</title><link rel="stylesheet" href="tokens.css">
+<style>
+/* E — ABOVE AND BELOW. One absolute waterline across the whole window.
+   Above it your library, open and lit. Below it your watch, submerged and
+   dense. Sending is downward; removing is upward. Capacity is how far the
+   water has risen. The most committed reading of the fjord section. */
+.win { background:var(--air); }
+.top { display:flex; align-items:center; gap:14px; padding:0 20px; height:46px;
+  border-bottom:1px solid var(--hairline-2); flex:none; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--moss); }
+
+.stage { flex:1; display:flex; flex-direction:column; min-height:0; position:relative; }
+
+/* ── above the line ── */
+.above { flex:1; display:grid; grid-template-columns:186px 1fr; min-height:0;
+  background:linear-gradient(to bottom, var(--air-2), var(--air)); }
+.rail { border-right:1px solid var(--hairline-2); padding:16px 10px;
+  display:flex; flex-direction:column; gap:1px; }
+.nav { display:flex; align-items:center; gap:10px; padding:7px 10px;
+  border-radius:var(--r-sm); font-size:12.5px; color:var(--ink-dim); }
+.nav.on { background:var(--surface-2); color:var(--ink); font-weight:590; }
+.nav .n { margin-left:auto; font-size:10.5px; color:var(--ink-faint); }
+.grp { margin:16px 10px 6px; }
+
+.lib { display:flex; flex-direction:column; min-height:0; }
+.libhead { padding:16px 22px 10px; display:flex; align-items:center; gap:14px; }
+.libhead h2 { font-size:15.5px; font-weight:640; letter-spacing:-.012em; }
+.search { margin-left:auto; width:200px; padding:6px 11px; border-radius:var(--r-sm);
+  background:var(--surface); border:1px solid var(--hairline); color:var(--ink-faint); font-size:12px; }
+.tracks { flex:1; overflow:hidden; padding:0 14px; }
+.tracks .row { grid-template-columns:18px 30px 1fr 88px 16px; gap:13px; padding:6px 8px; }
+.tracks .row + .row { border-top:1px solid var(--hairline-2); }
+.cover.s { width:30px; height:30px; }
+.pl { color:var(--ink-faint); font-size:9px; text-align:center; }
+.row.on .pl, .row.on .t { color:var(--sun); }
+.fmt { font-size:10.5px; color:var(--ink-faint); letter-spacing:.05em; }
+.chk { width:15px; height:15px; border-radius:4px; border:1px solid var(--hairline); background:var(--surface); }
+.chk.on { background:var(--sun); border-color:var(--sun); }
+
+/* ── the line ── */
+.line { flex:none; height:44px; position:relative; display:flex; align-items:center;
+  justify-content:center; gap:16px; }
+.line::before { content:""; position:absolute; left:0; right:0; top:0; height:1px;
+  background:linear-gradient(90deg, rgba(74,140,190,.16), var(--line) 20%, var(--line) 80%, rgba(74,140,190,.16));
+  box-shadow:0 0 16px rgba(74,140,190,.34); }
+.send { padding:7px 20px; border-radius:100px; background:var(--sun); color:#160f06;
+  border:none; font:inherit; font-weight:640; font-size:12.5px;
+  box-shadow:0 6px 22px rgba(216,150,63,.28); }
+.linecap { position:absolute; right:22px; font-size:11px; color:var(--ink-dim); }
+
+/* ── below the line ── */
+.below { flex:none; height:246px; position:relative; overflow:hidden;
+  background:linear-gradient(to bottom, var(--d1), var(--d3) 70%, var(--d4)); }
+.below .inner { position:relative; z-index:2; padding:14px 22px 0;
+  display:grid; grid-template-columns:1fr 232px; gap:22px; height:100%; }
+.wlist { overflow:hidden; }
+.wlist .row { grid-template-columns:26px 1fr auto; gap:12px; padding:5px 8px; }
+.wlist .row + .row { border-top:1px solid rgba(226,236,247,.045); }
+.cover.xs { width:26px; height:26px; }
+.gauge { padding-top:6px; }
+.gauge .big { font-size:30px; font-weight:640; letter-spacing:-.025em; line-height:1; }
+.gauge .sm { font-size:11px; color:var(--ink-dim); margin-top:5px; }
+.bars { margin-top:16px; display:flex; flex-direction:column; gap:5px; }
+.bseg { height:5px; border-radius:2px; background:rgba(226,236,247,.07); overflow:hidden; }
+.bseg i { display:block; height:100%; background:var(--line); opacity:.55; }
+
+/* player */
+.player { height:66px; flex:none; border-top:1px solid var(--hairline-2);
+  display:flex; align-items:center; gap:16px; padding:0 20px; background:var(--d4); }
+.tr { display:flex; align-items:center; gap:13px; }
+.tr button { background:none; border:none; color:var(--ink-dim); font-size:12px; }
+.pp { width:31px; height:31px; border-radius:50%; background:var(--ink); color:var(--d4);
+  display:grid; place-items:center; font-size:11px; }
+.np { display:flex; align-items:center; gap:11px; width:250px; min-width:0; }
+.np .t { font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.np .s { font-size:11px; color:var(--ink-dim); }
+.scrub { flex:1; display:flex; align-items:center; gap:11px; }
+.track { flex:1; height:3px; border-radius:2px; background:rgba(226,236,247,.10); overflow:hidden; }
+.track i { display:block; height:100%; width:31%; background:var(--ink-dim); }
+.time { font-size:11px; color:var(--ink-faint); }
+</style></head><body>
+<div class="win">
+  <div class="top">
+    <div class="tl"><i></i><i></i><i></i></div>
+    <div style="display:flex;align-items:center;gap:9px;margin-left:6px">
+      <span class="dot"></span><span style="font-weight:590">Forerunner 165 Music</span>
+      <span style="color:var(--ink-faint)">· connected</span></div>
+    <div style="margin-left:auto" class="label">Pelican</div>
+  </div>
+
+  <div class="stage">
+    <div class="above strata">
+      <div class="rail">
+        <div class="nav on">All music<span class="n num">2,418</span></div>
+        <div class="nav">Recently added</div>
+        <div class="nav">Albums</div>
+        <div class="nav">Artists</div>
+        <div class="label grp">Playlists</div>
+        <div class="nav">Long run<span class="n num">24</span></div>
+        <div class="nav">Tempo<span class="n num">18</span></div>
+        <div class="nav">Sea legs<span class="n num">31</span></div>
+      </div>
+      <div class="lib">
+        <div class="libhead"><h2>Master and Commander</h2>
+          <div class="search">Search your library</div></div>
+        <div class="tracks">
+          <div class="row on"><span class="pl">▶</span><div class="cover s"></div>
+            <div><div class="t">Ghost of Time</div><div class="s">Iva Davies, Christopher Gordon, Richard Tognetti</div></div>
+            <div class="fmt">FLAC 24/96</div><div class="chk on"></div></div>
+          <div class="row"><span class="pl">·</span><div class="cover s"></div>
+            <div><div class="t">The Far Side of the World</div><div class="s">Iva Davies, Christopher Gordon, Richard Tognetti</div></div>
+            <div class="fmt">FLAC 24/96</div><div class="chk on"></div></div>
+          <div class="row"><span class="pl">·</span><div class="cover s"></div>
+            <div><div class="t">Into the Fog</div><div class="s">Richard Tognetti</div></div>
+            <div class="fmt">FLAC 24/96</div><div class="chk on"></div></div>
+          <div class="row"><span class="pl">·</span><div class="cover s"></div>
+            <div><div class="t">Adagio from Concerto Grosso</div><div class="s">Arcangelo Corelli</div></div>
+            <div class="fmt">FLAC 16/44</div><div class="chk"></div></div>
+          <div class="row"><span class="pl">·</span><div class="cover s"></div>
+            <div><div class="t">La Musica Notturna delle Strade di Madrid</div><div class="s">Luigi Boccherini</div></div>
+            <div class="fmt">FLAC 16/44</div><div class="chk"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="line">
+      <button class="send">Send 3 tracks down ↓</button>
+      <span class="linecap num">81.3 MB · fits easily</span>
+    </div>
+
+    <div class="below">
+      <div class="inner">
+        <div>
+          <div class="label" style="margin-bottom:9px">Aboard · 20 tracks</div>
+          <div class="wlist">
+            <div class="row"><div class="cover xs"></div>
+              <div><div class="t">Ghost of Time</div><div class="s">Master and Commander</div></div>
+              <div class="z num">13.4 MB</div></div>
+            <div class="row"><div class="cover xs"></div>
+              <div><div class="t">The Far Side of the World</div><div class="s">Master and Commander</div></div>
+              <div class="z num">7.8 MB</div></div>
+            <div class="row"><div class="cover xs"></div>
+              <div><div class="t">Into the Fog</div><div class="s">Master and Commander</div></div>
+              <div class="z num">4.9 MB</div></div>
+            <div class="row"><div class="cover xs"></div>
+              <div><div class="t">Adagio from Concerto Grosso</div><div class="s">Corelli</div></div>
+              <div class="z num">3.9 MB</div></div>
+          </div>
+        </div>
+        <div class="gauge">
+          <div class="big num">2.41</div>
+          <div class="sm num">GB free of 3.71</div>
+          <div class="bars">
+            <div class="bseg"><i style="width:35%"></i></div>
+            <div class="bseg"><i style="width:35%"></i></div>
+            <div class="bseg"><i style="width:35%"></i></div>
+          </div>
+          <div class="sm" style="margin-top:12px">Roughly 9 more hours of music will fit.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="player">
+    <div class="tr"><button>⏮</button><button class="pp">❚❚</button><button>⏭</button></div>
+    <div class="np"><div class="cover" style="width:38px;height:38px"></div>
+      <div style="min-width:0"><div class="t">Ghost of Time</div><div class="s">Iva Davies — Master and Commander</div></div></div>
+    <div class="scrub"><span class="time num">1:47</span><div class="track"><i></i></div><span class="time num">5:42</span></div>
+    <span class="label">FLAC 24/96</span>
+  </div>
+</div>
+</body></html>

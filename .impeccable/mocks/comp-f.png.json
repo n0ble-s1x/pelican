@@ -1,0 +1,26 @@
+{
+  "surface": "Pelican desktop \u2014 main window",
+  "frame": "1180x760 app window, captured at 730x467",
+  "world": "The Fjord \u2014 cold blue-black ground from fjord depth; an absolute waterline as the only structural rule; one warm value (brass, low sun on water) reserved for the active state and primary action. Scandinavian restraint: craft in the joinery, no applied ornament.",
+  "medium": "authored as HTML/CSS in the shipping medium, then rasterised with qlmanage",
+  "prompt": "Not a generated image. This machine reports no image generation (context.mjs: converters only, cwebp/sips), so the comp round was run in the medium the product actually ships \u2014 real HTML/CSS at app viewport \u2014 and rasterised for the record. The substitution was disclosed to the user before approval. Source of truth for each comp is its .html sibling.",
+  "concept": "The Sound \u2014 a channel between two walls. Full album hero with art at real size, track list as the channel, watch as the far wall whose water level is the capacity.",
+  "source": "comp-f.html",
+  "approved": true,
+  "approval": {
+    "by": "user, 2026-09-01",
+    "decided": "F as the base, with G's now-playing treatment folded into the album hero.",
+    "carry_forward": [
+      "F's three-column topology: sources/playlists rail, album channel, watch wall",
+      "F's album hero: art at real size with HiFi metadata beside it",
+      "G's now-playing treatment: large art, big title, format badge",
+      "E's downward-send gesture, kept as a behaviour rather than a layout"
+    ],
+    "do_not_literalize": [
+      "The 'bit-perfect' badge. Webview audio goes through CoreAudio's mixer and may resample; unverified, and must not ship as a claim until it is.",
+      "The .cover gradients are value stand-ins, not artwork. Real embedded art replaces them.",
+      "The 1180x760 frame is a north star for composition, not a fixed layout. The build is responsive.",
+      "Free space, track counts and file sizes are real values read off the FR165 \u2014 keep them real, never invent replacements."
+    ]
+  }
+}

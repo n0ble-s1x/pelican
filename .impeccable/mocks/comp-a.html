@@ -1,0 +1,83 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Comp A — Waterline</title><link rel="stylesheet" href="tokens.css">
+<style>
+/* A — WATERLINE. One dominant move: the window itself is the capacity gauge.
+   Filled mass rises from the bottom as the watch fills; everything else
+   floats above it and holds still. */
+.win { background:
+  linear-gradient(to top, var(--fill) 0 35%, transparent 35%),
+  radial-gradient(120% 80% at 50% 100%, rgba(111,174,143,.07), transparent 60%),
+  var(--ground); }
+.waterline { position:absolute; left:0; right:0; bottom:35%; height:1px;
+  background: linear-gradient(90deg, transparent, var(--fill-edge) 12%, var(--fill-edge) 88%, transparent); }
+.wl-tag { position:absolute; right:28px; bottom:calc(35% + 10px); text-align:right; }
+.wl-tag .big { font-size:26px; font-weight:640; letter-spacing:-.02em; }
+.wl-tag .sm { font-size:11px; color:var(--ink-dim); }
+
+.top { display:flex; align-items:center; gap:16px; padding:14px 18px;
+  border-bottom:1px solid var(--hairline-2); }
+.dev { display:flex; align-items:center; gap:9px; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--moss); }
+
+.body { flex:1; display:flex; flex-direction:column; padding:22px 28px 0; min-height:0; }
+.h1 { font-size:20px; font-weight:640; letter-spacing:-.015em; }
+.sub { color:var(--ink-dim); font-size:12.5px; margin-top:2px; }
+
+.list { margin-top:18px; overflow:hidden; border-radius:var(--r-lg); }
+.list .row { grid-template-columns:34px 1fr auto; padding:10px 12px; }
+.list .row + .row { border-top:1px solid var(--hairline-2); }
+
+.dock { position:absolute; left:28px; right:28px; bottom:26px;
+  border-radius:var(--r-lg); padding:14px 18px;
+  display:flex; align-items:center; gap:18px; }
+.dock .grow { flex:1; }
+</style></head><body>
+<div class="win">
+  <!-- THESIS: the window is the watch's capacity. Refuses the two-pane file manager. -->
+  <div class="waterline"></div>
+  <div class="wl-tag">
+    <div class="big num">2.41 <span style="font-size:14px;color:var(--ink-dim)">GB free</span></div>
+    <div class="sm num">of 3.71 GB · 20 tracks aboard</div>
+  </div>
+
+  <div class="top">
+    <div class="tl"><i></i><i></i><i></i></div>
+    <div class="dev" style="margin-left:6px">
+      <span class="dot"></span>
+      <span style="font-weight:590">Forerunner 165 Music</span>
+      <span style="color:var(--ink-faint)">· connected</span>
+    </div>
+    <div style="margin-left:auto" class="label">Pelican</div>
+  </div>
+
+  <div class="body">
+    <div>
+      <div class="h1">On your watch</div>
+      <div class="sub">Drop music anywhere in this window to add it.</div>
+    </div>
+    <div class="list glass">
+      <div class="row"><div class="art"></div>
+        <div><div class="t">Ghost of Time</div><div class="s">Iva Davies, Christopher Gordon, Richard Tognetti — Master and Commander</div></div>
+        <div class="z num">13.4 MB</div></div>
+      <div class="row"><div class="art"></div>
+        <div><div class="t">The Far Side of the World</div><div class="s">Iva Davies, Christopher Gordon, Richard Tognetti — Master and Commander</div></div>
+        <div class="z num">7.8 MB</div></div>
+      <div class="row"><div class="art"></div>
+        <div><div class="t">Into the Fog</div><div class="s">Iva Davies, Christopher Gordon, Richard Tognetti — Master and Commander</div></div>
+        <div class="z num">4.9 MB</div></div>
+      <div class="row"><div class="art"></div>
+        <div><div class="t">Adagio from Concerto Grosso</div><div class="s">Arcangelo Corelli — Master and Commander</div></div>
+        <div class="z num">3.9 MB</div></div>
+    </div>
+  </div>
+
+  <div class="dock glass">
+    <div class="grow">
+      <div class="label">Ready</div>
+      <div style="margin-top:2px">Nothing queued. Your watch is up to date.</div>
+    </div>
+    <button class="btn">Make room…</button>
+    <button class="btn btn-primary">Add music</button>
+  </div>
+</div>
+</body></html>

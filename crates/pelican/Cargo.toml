@@ -1,0 +1,57 @@
+[package]
+name = "pelican"
+description = "Pelican — sync your music to a Garmin watch. A Krypteia tool. No telemetry, no cloud."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+keywords = ["garmin", "mtp", "music", "sync", "linux"]
+categories = ["multimedia", "command-line-utilities"]
+
+[dependencies]
+pelican-core = { path = "../pelican-core", version = "0.1.0", default-features = false }
+anyhow.workspace = true
+clap.workspace = true
+crossbeam-channel.workspace = true
+eframe.workspace = true
+egui.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[features]
+default = ["mtp-backend"]
+mtp-backend = ["pelican-core/mtp-backend"]
+
+[lints]
+workspace = true
+
+# `cargo deb` produces a .deb for native install on Pop / Ubuntu / Debian.
+#   cargo install cargo-deb
+#   cargo deb --release -p pelican
+# Output lands at target/debian/pelican_<ver>_<arch>.deb
+#
+# Asset source paths are relative to THIS manifest, so they climb out of
+# crates/pelican/ to reach the repo root.
+[package.metadata.deb]
+maintainer = "n0ble-s1x <krypteia.annex447@8alias.com>"
+copyright = "2026, Krypteia LLC"
+license-file = ["../../LICENSE-MIT", "4"]
+extended-description = """\
+Linux-first MTP sync for Garmin music watches. Drop music onto your watch
+without going through Garmin Express or any cloud service. No telemetry,
+no daemon, no network. A Krypteia tool."""
+depends = "$auto, ffmpeg, libudev1"
+section = "sound"
+priority = "optional"
+assets = [
+    ["../../target/release/pelican", "usr/bin/", "755"],
+    ["../../udev/99-garmin-music.rules", "usr/lib/udev/rules.d/", "644"],
+    ["../../packaging/desktop/pelican.desktop", "usr/share/applications/", "644"],
+    ["../../README.md", "usr/share/doc/pelican/README.md", "644"],
+    ["../../LICENSE-MIT", "usr/share/doc/pelican/LICENSE-MIT", "644"],
+    ["../../LICENSE-APACHE", "usr/share/doc/pelican/LICENSE-APACHE", "644"],
+]

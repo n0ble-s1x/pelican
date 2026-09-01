@@ -22,14 +22,16 @@
 //!   │  TRANSMISSION LOG                              │
 //!   └────────────────────────────────────────────────┘
 
+use crossbeam_channel as chan;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 use std::time::Duration;
 
 use eframe::egui;
 
-use crate::{garmin, gvfs, history, mtp, theme, transfer};
+use crate::theme;
+use pelican_core::transcode::encoder;
+use pelican_core::{garmin, history, mtp, platform, transfer};
 
 const ROOT_FOLDERS: &[&str] = &["Music", "Audiobooks", "Podcasts"];
 const PRODUCT_NAME: &str = "PELICAN";
@@ -59,14 +61,14 @@ pub fn run() -> anyhow::Result<()> {
 struct App {
     devices: Vec<garmin::Device>,
     selected_device: Option<usize>,
-    gvfs_warning: Option<String>,
+    device_contention: Option<String>,
     backend: Option<Box<dyn mtp::Backend>>,
     free_space: Option<(u64, u64)>,
 
     local: LocalPane,
     watch: WatchPane,
 
-    op_rx: Option<mpsc::Receiver<OpMsg>>,
+    op_rx: Option<chan::Receiver<OpMsg>>,
     busy: Option<&'static str>,
     progress: Option<Progress>,
 
@@ -75,8 +77,10 @@ struct App {
     show_onboarding: bool,
     skip_tag_check: bool,
     transcode_enabled: bool,
-    ffmpeg_present: bool,
-    ffprobe_present: bool,
+    /// Encoders installed on this machine, best-trusted first. Empty is a
+    /// working configuration now: already-playable formats are copied and
+    /// re-tagged in process, so an MP3/WAV library syncs with no tools at all.
+    encoders: Vec<encoder::Encoder>,
 
     // Persistent record of every successful upload to the linked watch.
     // Garmin doesn't expose the indexed library via MTP, so this is the only
@@ -107,7 +111,7 @@ impl Default for App {
         Self {
             devices: Vec::new(),
             selected_device: None,
-            gvfs_warning: None,
+            device_contention: None,
             backend: None,
             free_space: None,
             local: LocalPane::new(),
@@ -124,10 +128,11 @@ impl Default for App {
             skip_tag_check: true,
             // normalize() needs ffprobe as well as ffmpeg; gating on ffmpeg
             // alone let a missing ffprobe degrade into untagged uploads.
-            transcode_enabled: crate::transcode::ffmpeg_available()
-                && crate::transcode::ffprobe_available(),
-            ffmpeg_present: crate::transcode::ffmpeg_available(),
-            ffprobe_present: crate::transcode::ffprobe_available(),
+            // Normalization no longer depends on an external binary, so it
+            // is on by default everywhere. Files that genuinely need an
+            // encoder we don't have are refused per-file, with the reason.
+            transcode_enabled: true,
+            encoders: encoder::available(),
             local_rect: egui::Rect::NOTHING,
             watch_rect: egui::Rect::NOTHING,
             last_reconnect_at: None,
@@ -275,35 +280,12 @@ enum LogKind {
 }
 
 enum OpMsg {
+    /// Anything the transfer engine reported. The GUI renders these; it does
+    /// not reimplement the loop that produces them.
+    Transfer(transfer::Event),
     Deleted(String),
     DeleteError(String, String),
-    Started(PathBuf),
-    Transcoding {
-        file: String,
-        files_done: usize,
-        files_total: usize,
-    },
-    Progress {
-        file: String,
-        transferred: u64,
-        total: u64,
-        files_done: usize,
-        files_total: usize,
-    },
-    Done {
-        src: PathBuf,
-        bytes: u64,
-        files_done: usize,
-        files_total: usize,
-    },
-    Skipped {
-        src: PathBuf,
-        reason: String,
-    },
-    Failed {
-        src: PathBuf,
-        error: String,
-    },
+    /// The worker thread is done, whatever it was doing.
     JobFinished,
 }
 
@@ -419,10 +401,9 @@ impl App {
             }
             Err(e) => self.push_log(LogKind::Error, format!("scan failed · {e}")),
         }
-        self.gvfs_warning = gvfs::detect_garmin_gvfs_mount().map(|m| {
-            let p = m.path;
-            format!("GVFS holds device at {p} — direct link blocked. Unmount in Files first.")
-        });
+        // Whatever this OS ships that grabs MTP devices — gvfs-mtp on
+        // Linux, ptpcamerad on macOS. The banner shows the remedy.
+        self.device_contention = platform::detect().map(|c| c.message());
     }
 
     fn refresh_watch(&mut self) {
@@ -522,6 +503,110 @@ impl App {
         }
     }
 
+    /// Render one engine event into log lines and the progress strip.
+    ///
+    /// This is the whole of the GUI's involvement in a transfer. The loop
+    /// itself lives in `pelican_core::transfer::run`, shared with the CLI.
+    fn apply_transfer_event(&mut self, evt: transfer::Event) {
+        use transfer::Event as E;
+        match evt {
+            E::Planned { total } => {
+                self.progress = Some(Progress {
+                    stage: Stage::Uploading,
+                    label: "queueing…".into(),
+                    file_done: 0,
+                    file_total: 0,
+                    files_done: 0,
+                    files_total: total,
+                });
+            }
+            E::Started(at) => {
+                self.push_log(LogKind::Info, format!("→ {}", short_path(&at.src)));
+            }
+            E::Staging(at) => {
+                self.progress = Some(Progress {
+                    stage: Stage::Transcoding,
+                    label: at.label(),
+                    file_done: 0,
+                    file_total: 0,
+                    files_done: at.done,
+                    files_total: at.total,
+                });
+            }
+            E::Progress {
+                at,
+                transferred,
+                total_bytes,
+            } => {
+                self.progress = Some(Progress {
+                    stage: Stage::Uploading,
+                    label: at.label(),
+                    file_done: transferred,
+                    file_total: total_bytes,
+                    files_done: at.done,
+                    files_total: at.total,
+                });
+            }
+            E::Done { at, bytes } => {
+                self.push_log(
+                    LogKind::Ok,
+                    format!("✓ {} · {}", short_path(&at.src), human_bytes(bytes)),
+                );
+                if let Some(p) = self.progress.as_mut() {
+                    p.files_done = at.done + 1;
+                    p.files_total = at.total;
+                }
+                // Track the free-space delta locally: Garmin caches the
+                // firmware figure, so only our own writes give a live signal.
+                if let Some((free, total)) = self.free_space {
+                    self.free_space = Some((free.saturating_sub(bytes), total));
+                }
+                // Record persistently — the watch's indexer eats the staging
+                // folder, so this journal is the only "what's on the watch".
+                let name = at
+                    .src
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| short_path(&at.src));
+                if let Some(serial) = self.history_serial.clone() {
+                    history::record(&serial, &name, bytes);
+                    self.history = history::load(&serial);
+                }
+            }
+            E::Skipped { at, reason } => {
+                self.push_log(
+                    LogKind::Warn,
+                    format!("· skip · {} · {reason}", short_path(&at.src)),
+                );
+                if let Some(p) = self.progress.as_mut() {
+                    p.files_done = at.done + 1;
+                }
+            }
+            E::Failed { at, error } => {
+                self.push_log(
+                    LogKind::Error,
+                    format!("✕ {} · {error}", short_path(&at.src)),
+                );
+                if let Some(p) = self.progress.as_mut() {
+                    p.files_done = at.done + 1;
+                }
+            }
+            E::Finished(report) => {
+                self.push_log(
+                    if report.failed > 0 {
+                        LogKind::Error
+                    } else {
+                        LogKind::Ok
+                    },
+                    format!(
+                        "{} ok · {} skipped · {} failed",
+                        report.ok, report.skipped, report.failed
+                    ),
+                );
+            }
+        }
+    }
+
     fn drain_op(&mut self) {
         let mut msgs = Vec::new();
         let mut closed = false;
@@ -529,8 +614,8 @@ impl App {
             loop {
                 match rx.try_recv() {
                     Ok(m) => msgs.push(m),
-                    Err(mpsc::TryRecvError::Empty) => break,
-                    Err(mpsc::TryRecvError::Disconnected) => {
+                    Err(chan::TryRecvError::Empty) => break,
+                    Err(chan::TryRecvError::Disconnected) => {
                         closed = true;
                         break;
                     }
@@ -545,84 +630,10 @@ impl App {
                 OpMsg::DeleteError(path, err) => {
                     self.push_log(LogKind::Error, format!("✕ purge /{path} · {err}"));
                 }
-                OpMsg::Started(p) => {
-                    self.push_log(LogKind::Info, format!("→ {}", short_path(&p)));
-                }
-                OpMsg::Transcoding {
-                    file,
-                    files_done,
-                    files_total,
-                } => {
-                    self.progress = Some(Progress {
-                        stage: Stage::Transcoding,
-                        label: file,
-                        file_done: 0,
-                        file_total: 0,
-                        files_done,
-                        files_total,
-                    });
-                }
-                OpMsg::Progress {
-                    file,
-                    transferred,
-                    total,
-                    files_done,
-                    files_total,
-                } => {
-                    self.progress = Some(Progress {
-                        stage: Stage::Uploading,
-                        label: file,
-                        file_done: transferred,
-                        file_total: total,
-                        files_done,
-                        files_total,
-                    });
-                }
-                OpMsg::Done {
-                    src,
-                    bytes,
-                    files_done,
-                    files_total,
-                } => {
-                    self.push_log(
-                        LogKind::Ok,
-                        format!("✓ {} · {}", short_path(&src), human_bytes(bytes)),
-                    );
-                    if let Some(p) = self.progress.as_mut() {
-                        p.files_done = files_done;
-                        p.files_total = files_total;
-                    }
-                    // Track local free-space delta (Garmin caches the firmware
-                    // figure; only our writes give an accurate signal).
-                    if let Some((free, total)) = self.free_space {
-                        self.free_space = Some((free.saturating_sub(bytes), total));
-                    }
-                    // Record persistently so the user can see it across runs.
-                    let name = src
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| short_path(&src));
-                    if let Some(serial) = self.history_serial.clone() {
-                        history::record(&serial, &name, bytes);
-                        self.history = history::load(&serial);
-                    }
-                }
-                OpMsg::Skipped { src, reason } => {
-                    self.push_log(
-                        LogKind::Warn,
-                        format!("· skip · {} · {reason}", short_path(&src)),
-                    );
-                }
-                OpMsg::Failed { src, error } => {
-                    self.push_log(LogKind::Error, format!("✕ {} · {error}", short_path(&src)));
-                }
+                OpMsg::Transfer(evt) => self.apply_transfer_event(evt),
                 OpMsg::JobFinished => {
                     self.busy = None;
                     self.progress = None;
-                    // Reset the progress-bar smoothing target so next job
-                    // starts from 0 instead of animating down from 100%.
-                    let ctx = std::sync::OnceLock::<()>::new();
-                    let _ = ctx;
                 }
             }
         }
@@ -642,18 +653,10 @@ impl App {
 
     /// Returns false if nothing was queued, so the caller can keep the user's
     /// selection instead of silently discarding it.
+    /// Returns false if nothing was queued, so the caller can keep the user's
+    /// selection instead of silently discarding it.
     fn start_send_paths(&mut self, paths: Vec<PathBuf>) -> bool {
         if paths.is_empty() {
-            return false;
-        }
-        // try_connect() also refuses while a job is in flight, so check that
-        // first — reporting "not linked" mid-transfer sends the user off to
-        // replug a device that is connected and busy.
-        if self.busy.is_some() || self.op_rx.is_some() {
-            self.push_log(
-                LogKind::Warn,
-                "a transfer is already running — selection kept",
-            );
             return false;
         }
         if !self.try_connect() {
@@ -669,19 +672,14 @@ impl App {
             return false;
         };
         // Release the GUI's session for the duration of the transfer. The
-        // worker opens one session per file (see below) and two open sessions
-        // contend for the same USB device.
+        // engine opens one session per file, and two open sessions contend
+        // for the same USB device.
         self.backend = None;
+
         let target_dir = self.watch.cwd.clone();
-        let skip_tag_check = self.skip_tag_check;
-        let transcode_enabled = self.transcode_enabled;
-        // Name the missing binary in the skip reason too. "toggle Transcode on"
-        // is a dead end when the checkbox is disabled because a binary is gone.
-        let xcode_hint: &'static str = match (self.ffmpeg_present, self.ffprobe_present) {
-            (true, true) => "needs normalization (toggle Transcode on)",
-            (true, false) => "needs normalization (install ffprobe)",
-            (false, true) => "needs normalization (install ffmpeg)",
-            (false, false) => "needs normalization (install ffmpeg + ffprobe)",
+        let opts = transfer::Options {
+            skip_tag_check: self.skip_tag_check,
+            transcode: self.transcode_enabled,
         };
         self.busy = Some("transmitting");
         self.progress = Some(Progress {
@@ -692,179 +690,36 @@ impl App {
             files_done: 0,
             files_total: 0,
         });
-        let (tx, rx) = mpsc::channel();
+
+        let (tx, rx) = chan::unbounded();
         std::thread::spawn(move || {
-            let jobs = match transfer::expand_inputs_into(&paths, &target_dir, transcode_enabled) {
+            let jobs = match transfer::expand_inputs_into(&paths, &target_dir, opts.transcode) {
                 Ok(j) => j,
                 Err(e) => {
-                    let _ = tx.send(OpMsg::Failed {
-                        src: PathBuf::new(),
+                    let _ = tx.send(OpMsg::Transfer(transfer::Event::Failed {
+                        at: transfer::Progress {
+                            src: PathBuf::new(),
+                            done: 0,
+                            total: 0,
+                        },
                         error: format!("plan · {e:#}"),
-                    });
+                    }));
                     let _ = tx.send(OpMsg::JobFinished);
                     return;
                 }
             };
-            let total = jobs.len();
-            let mut done = 0usize;
-            for job in jobs {
-                let _ = tx.send(OpMsg::Started(job.src.clone()));
-
-                if !crate::transcode::is_audio(&job.src) {
-                    let _ = tx.send(OpMsg::Skipped {
-                        src: job.src.clone(),
-                        reason: "not an audio file".into(),
-                    });
-                    done += 1;
-                    continue;
+            // The engine speaks `transfer::Event`; the GUI's channel also
+            // carries delete results, so a forwarder wraps one in the other.
+            let (etx, erx) = transfer::channel();
+            let fwd_tx = tx.clone();
+            let forward = std::thread::spawn(move || {
+                for e in erx {
+                    let _ = fwd_tx.send(OpMsg::Transfer(e));
                 }
-
-                // Always normalize — re-mux MP3 sources for tag-strip,
-                // transcode others. Garmin firmware needs both a clean
-                // audio profile and a standard-frames-only ID3 tag.
-                let mut transcoded_holder: Option<crate::transcode::Transcoded> = None;
-                let (upload_path, upload_name): (std::path::PathBuf, String) = if transcode_enabled
-                {
-                    let label = job
-                        .src
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| "audio".into());
-                    let _ = tx.send(OpMsg::Transcoding {
-                        file: label.clone(),
-                        files_done: done,
-                        files_total: total,
-                    });
-                    let planned_stem = std::path::Path::new(&job.remote_name)
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().into_owned());
-                    match crate::transcode::normalize(&job.src, planned_stem.as_deref()) {
-                        Ok(t) => {
-                            let p = t.path.clone();
-                            let n = t.mp3_name.clone();
-                            transcoded_holder = Some(t);
-                            (p, n)
-                        }
-                        Err(e) => {
-                            let _ = tx.send(OpMsg::Failed {
-                                src: job.src.clone(),
-                                error: format!("{e:#}"),
-                            });
-                            continue;
-                        }
-                    }
-                } else {
-                    if !is_supported_ext(&job.src) {
-                        let _ = tx.send(OpMsg::Skipped {
-                            src: job.src.clone(),
-                            reason: xcode_hint.into(),
-                        });
-                        done += 1;
-                        continue;
-                    }
-                    (job.src.clone(), job.remote_name.clone())
-                };
-
-                if !has_required_tags(&upload_path) {
-                    if !skip_tag_check {
-                        let _ = tx.send(OpMsg::Skipped {
-                            src: job.src.clone(),
-                            reason:
-                                "missing ID3 title/artist — uncheck 'Require tags' to send anyway"
-                                    .into(),
-                        });
-                        done += 1;
-                        continue;
-                    } else {
-                        // Permissive mode: upload anyway, but warn the file
-                        // won't show up in the watch's music app.
-                        let _ = tx.send(OpMsg::Started(job.src.clone()));
-                        tracing::warn!(
-                            file = %job.src.display(),
-                            "uploading without ID3 title/artist — file will be on the watch but hidden from the music app"
-                        );
-                    }
-                }
-                // Per-file session, exactly as transfer::run_jobs_per_file
-                // does: Garmin firmware on the FR165 silently rejects most
-                // uploads (leaving a broken metadata stub) when many files go
-                // over a single session. The backend is dropped at the end of
-                // this iteration, closing the session.
-                let mut backend = match mtp::open(&device) {
-                    Ok(b) => b,
-                    Err(e) => {
-                        let _ = tx.send(OpMsg::Failed {
-                            src: job.src.clone(),
-                            error: format!("opening session · {e:#}"),
-                        });
-                        continue;
-                    }
-                };
-                if let Err(e) = backend.ensure_folder(&job.remote_dir) {
-                    let _ = tx.send(OpMsg::Failed {
-                        src: job.src.clone(),
-                        error: format!("ensure_folder · {e:#}"),
-                    });
-                    continue;
-                }
-                let prog_tx = tx.clone();
-                let file_label = job
-                    .src
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_default();
-                let total_for_progress = total;
-                let done_snapshot = done;
-                let mut on_progress = move |transferred: u64, file_total: u64| {
-                    let _ = prog_tx.send(OpMsg::Progress {
-                        file: file_label.clone(),
-                        transferred,
-                        total: file_total,
-                        files_done: done_snapshot,
-                        files_total: total_for_progress,
-                    });
-                };
-                match backend.upload(
-                    &upload_path,
-                    &job.remote_dir,
-                    &upload_name,
-                    &mut on_progress,
-                ) {
-                    Ok(bytes) => {
-                        // Soft verify, mirroring transfer::run_worker. Garmin's
-                        // GetObjectInfo errors on freshly-written files until
-                        // the indexer settles, so a missing size or a listing
-                        // error is normal here — only a confirmed mismatch is a
-                        // failure. Runs while this file's session is still open.
-                        match backend.remote_size(&job.remote_dir, &upload_name) {
-                            Ok(Some(actual)) if actual != bytes => {
-                                let _ = tx.send(OpMsg::Failed {
-                                    src: job.src.clone(),
-                                    error: format!(
-                                        "post-write size mismatch: expected {bytes}, watch reports {actual}"
-                                    ),
-                                });
-                            }
-                            _ => {
-                                done += 1;
-                                let _ = tx.send(OpMsg::Done {
-                                    src: job.src.clone(),
-                                    bytes,
-                                    files_done: done,
-                                    files_total: total,
-                                });
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        let _ = tx.send(OpMsg::Failed {
-                            src: job.src.clone(),
-                            error: format!("{e:#}"),
-                        });
-                    }
-                }
-                drop(transcoded_holder); // delete temp
-            }
+            });
+            transfer::run(&device, jobs, &opts, &etx);
+            drop(etx);
+            let _ = forward.join();
             let _ = tx.send(OpMsg::JobFinished);
         });
         self.op_rx = Some(rx);
@@ -894,7 +749,7 @@ impl App {
             return;
         }
         self.busy = Some("purging");
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = chan::unbounded();
         std::thread::spawn(move || {
             for t in &targets {
                 match backend.delete(t) {
@@ -1840,29 +1695,33 @@ impl App {
                 ui.add_space(10.0);
 
                 let mut transcode = self.transcode_enabled;
-                // Name the binary that is actually missing — "no ffmpeg" sent
-                // users with a trimmed build off to reinstall what they had.
-                let xcode_ready = self.ffmpeg_present && self.ffprobe_present;
-                let xcode_label = match (self.ffmpeg_present, self.ffprobe_present) {
-                    (true, true) => "Transcode FLAC / OGG / Opus",
-                    (true, false) => "Transcode (no ffprobe)",
-                    (false, true) => "Transcode (no ffmpeg)",
-                    (false, false) => "Transcode (needs ffmpeg + ffprobe)",
+                // Say what this machine can actually do rather than naming a
+                // binary. With no encoder installed, MP3/WAV still sync — the
+                // audio is copied and only the tag is rebuilt.
+                let xcode_label = match self.encoders.first() {
+                    Some(e) => format!("Normalize · convert via {}", e.name()),
+                    None => "Normalize · MP3 and WAV only".to_string(),
+                };
+                let hover = match self.encoders.first() {
+                    Some(e) => format!(
+                        "Rebuild every file with the strict tag Garmin accepts.\n\
+                         Formats the watch can't play are converted with {} → .{}.",
+                        e.name(),
+                        e.output_ext()
+                    ),
+                    None => "Rebuild every file with the strict tag Garmin accepts.\n\
+                             No encoder found, so FLAC/OGG/Opus will be skipped — \
+                             install ffmpeg to convert them."
+                        .to_string(),
                 };
                 let resp = ui
-                    .add_enabled(
-                        xcode_ready,
-                        egui::Checkbox::new(
-                            &mut transcode,
-                            egui::RichText::new(xcode_label)
-                                .color(theme::BONE_DIM)
-                                .size(11.0),
-                        ),
-                    )
-                    .on_hover_text(
-                        "Auto-convert FLAC/OGG/Opus/WMA/AIFF to MP3 (VBR ~190 kbps)\n\
-                         before upload. Tags preserved. Garmin can't play these natively.",
-                    );
+                    .add(egui::Checkbox::new(
+                        &mut transcode,
+                        egui::RichText::new(xcode_label)
+                            .color(theme::BONE_DIM)
+                            .size(11.0),
+                    ))
+                    .on_hover_text(hover);
                 if resp.changed() {
                     self.transcode_enabled = transcode;
                 }
@@ -2010,8 +1869,8 @@ impl eframe::App for App {
                 theme::hairline(ui);
             });
 
-        if let Some(w) = self.gvfs_warning.clone() {
-            egui::TopBottomPanel::top("gvfs_banner").show(ctx, |ui| {
+        if let Some(w) = self.device_contention.clone() {
+            egui::TopBottomPanel::top("contention_banner").show(ctx, |ui| {
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     ui.add_space(16.0);
@@ -2459,35 +2318,3 @@ fn short_path(p: &Path) -> String {
         s
     }
 }
-
-const SUPPORTED_EXTS: &[&str] = &["mp3", "m4a", "m4b", "aac", "wav"];
-fn is_supported_ext(p: &Path) -> bool {
-    p.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| SUPPORTED_EXTS.iter().any(|s| s.eq_ignore_ascii_case(e)))
-        .unwrap_or(false)
-}
-
-fn has_required_tags(p: &Path) -> bool {
-    let ext = p
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase());
-    match ext.as_deref() {
-        Some("mp3") => match id3::Tag::read_from_path(p) {
-            Ok(tag) => {
-                use id3::TagLike;
-                tag.title().is_some() && tag.artist().is_some()
-            }
-            Err(_) => false,
-        },
-        Some("m4a") | Some("m4b") | Some("aac") => match mp4ameta::Tag::read_from_path(p) {
-            Ok(tag) => tag.title().is_some() && tag.artist().is_some(),
-            Err(_) => false,
-        },
-        _ => true,
-    }
-}
-
-#[allow(unused)]
-fn _unused_transfer_ref(_: &transfer::Event) {}

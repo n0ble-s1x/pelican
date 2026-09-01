@@ -52,9 +52,9 @@ pub struct Cli {
 }
 
 pub fn run_headless(args: Cli) -> anyhow::Result<()> {
-    use crate::{garmin, gvfs, mtp, transfer};
+    use pelican_core::{garmin, mtp, platform, transfer};
 
-    gvfs::warn_if_holding_garmin()?;
+    platform::warn_if_holding_garmin();
 
     let device = garmin::pick_device(args.serial.as_deref())?;
 
@@ -78,7 +78,9 @@ pub fn run_headless(args: Cli) -> anyhow::Result<()> {
         let entries = backend.list_dir("Music")?;
         let playlists: Vec<_> = entries
             .iter()
-            .filter(|e| !e.is_folder && !e.is_broken && crate::playlist::is_playlist(&e.name))
+            .filter(|e| {
+                !e.is_folder && !e.is_broken && pelican_core::playlist::is_playlist(&e.name)
+            })
             .collect();
         if playlists.is_empty() {
             println!("(no playlists in /Music)");
@@ -87,12 +89,12 @@ pub fn run_headless(args: Cli) -> anyhow::Result<()> {
             // Name comes off the device: strip control bytes before printing.
             println!(
                 "▸ {} ({} bytes)",
-                crate::playlist::strip_control(&p.name),
+                pelican_core::playlist::strip_control(&p.name),
                 p.size
             );
             match backend.download_file(&p.path) {
                 Ok(bytes) => {
-                    for t in crate::playlist::parse(&bytes) {
+                    for t in pelican_core::playlist::parse(&bytes) {
                         println!("    {t}");
                     }
                 }
@@ -107,10 +109,10 @@ pub fn run_headless(args: Cli) -> anyhow::Result<()> {
             |c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_' && c != ' ',
             "-",
         );
-        let filename = format!("{safe_name}.{}", crate::playlist::EXT);
-        let bytes = crate::playlist::serialize_for_device(
+        let filename = format!("{safe_name}.{}", pelican_core::playlist::EXT);
+        let bytes = pelican_core::playlist::serialize_for_device(
             &args.track,
-            crate::playlist::PathStyle::BareCasePreserved,
+            pelican_core::playlist::PathStyle::BareCasePreserved,
         );
         backend.write_raw("Music", &filename, &bytes)?;
         println!(
@@ -128,7 +130,7 @@ pub fn run_headless(args: Cli) -> anyhow::Result<()> {
         skip_tag_check: !args.require_tags,
         transcode: !args.no_transcode,
     };
-    let report = transfer::run_jobs_per_file(&device, &args.copy, &opts)?;
+    let report = transfer::run_to_report(&device, &args.copy, &opts)?;
 
     println!(
         "{} ok, {} skipped, {} failed, {} delete-failed",

@@ -1,15 +1,10 @@
 use clap::Parser;
 
+use pelican_core::transcode;
+
 mod app;
 mod cli;
-mod garmin;
-mod gvfs;
-mod history;
-mod mtp;
-mod playlist;
 mod theme;
-mod transcode;
-mod transfer;
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()

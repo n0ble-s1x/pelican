@@ -3,3 +3,12 @@ Cargo.lock.bak
 *.swp
 .DS_Store
 .claude/
+
+# Impeccable working artifacts.
+# Kept: mocks/ (the comps and their approval sidecars are the design record),
+# build/spec.json + regions.json, surfaces/, config.json.
+# Ignored: everything regenerable from those by re-running the scripts.
+.impeccable/review/
+.impeccable/questions/
+.impeccable/build/scaffold/
+.impeccable/build/comp-grid.png

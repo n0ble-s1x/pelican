@@ -176,7 +176,7 @@ pelican --serial 0000d221c983 --copy ~/Music/Album
 | Persistence           | `serde_json` (per-device upload journal)            |
 | Build outputs         | static-ish binary, single-file install              |
 
-`unsafe` is denied at the crate level (`#![deny(unsafe_code)]`); the only carve-out is a documented `geteuid()` POSIX wrapper in `src/gvfs.rs`.
+`unsafe` is denied at the crate level (`#![deny(unsafe_code)]`); the only carve-out is a documented `geteuid()` POSIX wrapper in `crates/pelican-core/src/platform/gvfs.rs`.
 
 ---
 
@@ -186,21 +186,21 @@ pelican --serial 0000d221c983 --copy ~/Music/Album
 flowchart LR
 
   subgraph ui["UI layer"]
-    gui["src/app.rs<br/>egui three-pane GUI"]
-    cli["src/cli.rs<br/>headless CLI"]
+    gui["crates/pelican/src/app.rs<br/>egui three-pane GUI"]
+    cli["crates/pelican/src/cli.rs<br/>headless CLI"]
   end
 
   subgraph pipeline["Transfer pipeline"]
-    transfer["src/transfer.rs<br/>job queue + per-file session"]
-    transcode["src/transcode.rs<br/>ffmpeg normalize + tag rewrite"]
-    playlist["src/playlist.rs<br/>M3U8 serialize/parse"]
+    transfer["crates/pelican-core/src/transfer.rs<br/>job queue + per-file session"]
+    transcode["crates/pelican-core/src/transcode/<br/>ffmpeg normalize + tag rewrite"]
+    playlist["crates/pelican-core/src/playlist.rs<br/>M3U8 serialize/parse"]
   end
 
   subgraph backend["MTP backend"]
-    mtp["src/mtp.rs<br/>Backend trait · MtpRsBackend"]
-    garmin["src/garmin.rs<br/>USB device discovery"]
-    gvfs["src/gvfs.rs<br/>conflicting-mount guard"]
-    history["src/history.rs<br/>per-device upload journal"]
+    mtp["crates/pelican-core/src/mtp.rs<br/>Backend trait · MtpRsBackend"]
+    garmin["crates/pelican-core/src/garmin.rs<br/>USB device discovery"]
+    gvfs["crates/pelican-core/src/platform/gvfs.rs<br/>conflicting-mount guard"]
+    history["crates/pelican-core/src/history.rs<br/>per-device upload journal"]
   end
 
   subgraph hw["Hardware"]
@@ -219,15 +219,15 @@ flowchart LR
   mtp -.-> gvfs
   mtp ==> watch
 
-  click gui "src/app.rs"
-  click cli "src/cli.rs"
-  click transfer "src/transfer.rs"
-  click transcode "src/transcode.rs"
-  click playlist "src/playlist.rs"
-  click mtp "src/mtp.rs"
-  click garmin "src/garmin.rs"
-  click gvfs "src/gvfs.rs"
-  click history "src/history.rs"
+  click gui "crates/pelican/src/app.rs"
+  click cli "crates/pelican/src/cli.rs"
+  click transfer "crates/pelican-core/src/transfer.rs"
+  click transcode "crates/pelican-core/src/transcode/"
+  click playlist "crates/pelican-core/src/playlist.rs"
+  click mtp "crates/pelican-core/src/mtp.rs"
+  click garmin "crates/pelican-core/src/garmin.rs"
+  click gvfs "crates/pelican-core/src/platform/gvfs.rs"
+  click history "crates/pelican-core/src/history.rs"
 ```
 
 ---

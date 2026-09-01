@@ -1,14 +1,16 @@
-//! GVFS-MTP detection.
+//! Linux: `gvfs-mtp` auto-mounts the watch.
 //!
 //! On most Linux desktops, plugging in a Garmin watch causes gvfs-mtp to
-//! auto-mount it. While GVFS holds the device, libusb-based MTP backends
-//! (mtp-rs, libmtp) get LIBUSB_ERROR_BUSY. We surface this clearly rather
-//! than letting the underlying error confuse the user.
+//! auto-mount it. While GVFS holds the device, USB-level MTP backends get
+//! `LIBUSB_ERROR_BUSY`. We surface this clearly rather than letting the
+//! underlying error confuse the user.
+//!
+//! Unlike the macOS equivalent, this one is the user's to fix with no
+//! privileges — `gio mount -u` is enough.
 
 use std::fs;
 
-use anyhow::Result;
-
+use super::Contention;
 use crate::garmin::GARMIN_VENDOR_ID;
 
 /// A gvfs-mtp mount that appears to belong to a Garmin device.
@@ -27,12 +29,12 @@ fn shell_quote(s: &str) -> String {
 }
 
 /// Returns Some(mount) if a gvfs MTP mount appears to belong to a Garmin
-/// device. The caller should warn the user and offer to `gio mount -u` it.
+/// device.
 pub fn detect_garmin_gvfs_mount() -> Option<GvfsMount> {
     // SAFETY: geteuid is a side-effect-free POSIX syscall returning the
     // effective uid. The only reason it's `unsafe` in libc is FFI-by-default;
     // there's nothing to misuse. We localize the unsafe so the rest of the
-    // crate keeps `unsafe_code = "forbid"`.
+    // crate keeps `unsafe_code = "deny"`.
     #[allow(unsafe_code)]
     let uid = unsafe { libc::geteuid() };
     let base = format!("/run/user/{uid}/gvfs");
@@ -58,18 +60,35 @@ pub fn detect_garmin_gvfs_mount() -> Option<GvfsMount> {
     None
 }
 
-pub fn warn_if_holding_garmin() -> Result<()> {
-    if let Some(mount) = detect_garmin_gvfs_mount() {
-        // The URI is built here rather than in a shell substitution: the old
-        // `basename | sed 's/^mtp://'` pipeline emitted `mtp://host=...`, which
-        // gio rejects, and it interpolated device-controlled text unquoted.
-        let uri = shell_quote(&format!("mtp://{}", mount.host));
-        let path = &mount.path;
-        eprintln!(
-            "warning: GVFS appears to have mounted your Garmin device at:\n  {path}\n\
-             This will block direct USB access. Unmount with:\n  gio mount -u {uri}\n\
-             …then re-run garmin-music."
-        );
+pub fn detect() -> Option<Contention> {
+    let mount = detect_garmin_gvfs_mount()?;
+    // The URI is built here rather than in a shell substitution: the old
+    // `basename | sed 's/^mtp://'` pipeline emitted `mtp://host=...`, which
+    // gio rejects, and it interpolated device-controlled text unquoted.
+    let uri = shell_quote(&format!("mtp://{}", mount.host));
+    Some(Contention {
+        holder: "GVFS".to_string(),
+        detail: mount.path,
+        remedy: format!("gio mount -u {uri}"),
+        // Unprivileged and reliable — unlike ptpcamerad on macOS.
+        self_fixable: true,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shell_quote_neutralises_embedded_quotes() {
+        // The host string comes off USB descriptors the device controls.
+        let got = shell_quote("a'; rm -rf ~; echo '");
+        assert!(got.starts_with('\'') && got.ends_with('\''));
+        assert!(!got.contains("'; rm"), "quote escape failed: {got}");
     }
-    Ok(())
+
+    #[test]
+    fn detect_does_not_panic_without_gvfs() {
+        let _ = detect();
+    }
 }

@@ -1,0 +1,10 @@
+{
+  "surface": "Pelican desktop \u2014 main window",
+  "frame": "1180x760 app window, captured at 730x467",
+  "world": "The Fjord \u2014 cold blue-black ground from fjord depth; an absolute waterline as the only structural rule; one warm value (brass, low sun on water) reserved for the active state and primary action. Scandinavian restraint: craft in the joinery, no applied ornament.",
+  "medium": "authored as HTML/CSS in the shipping medium, then rasterised with qlmanage",
+  "prompt": "Not a generated image. This machine reports no image generation (context.mjs: converters only, cwebp/sips), so the comp round was run in the medium the product actually ships \u2014 real HTML/CSS at app viewport \u2014 and rasterised for the record. The substitution was disclosed to the user before approval. Source of truth for each comp is its .html sibling.",
+  "concept": "Above and Below \u2014 one waterline across the whole window; library above, watch submerged below; sending is downward.",
+  "source": "comp-e.html",
+  "approved": false
+}

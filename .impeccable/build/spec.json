@@ -1,0 +1,637 @@
+{
+  "tool": "comp-spec",
+  "version": 1,
+  "createdAt": "2026-09-01T21:17:00.281Z",
+  "comp": ".impeccable/mocks/comp-f.png",
+  "warnings": [
+    "region cover-frame: \"codeDrawn\": true set in the regions file (the painted-material refusal is overridden: code draws this region)"
+  ],
+  "uncoveredInkCells": [],
+  "compSize": {
+    "width": 730,
+    "height": 467
+  },
+  "aspect": 1.5632,
+  "orientation": "landscape",
+  "palette": [
+    {
+      "hex": "#0a1727",
+      "coverage": 0.9549
+    },
+    {
+      "hex": "#263741",
+      "coverage": 0.0304
+    },
+    {
+      "hex": "#596371",
+      "coverage": 0.0076
+    },
+    {
+      "hex": "#d89838",
+      "coverage": 0.0041
+    },
+    {
+      "hex": "#1c3252",
+      "coverage": 0.003
+    }
+  ],
+  "bands": [
+    {
+      "y": 0.1463,
+      "strength": 0.2076
+    },
+    {
+      "y": 0.1707,
+      "strength": 0.3244
+    }
+  ],
+  "regions": [
+    {
+      "id": "titlebar",
+      "kind": "chrome",
+      "note": "traffic lights, device name with connection dot, wordmark right",
+      "grid": "A0:J0",
+      "box": {
+        "x": 0,
+        "y": 0,
+        "w": 1,
+        "h": 0.1
+      },
+      "px": {
+        "x": 0,
+        "y": 0,
+        "w": 730,
+        "h": 47
+      },
+      "aspect": 15.5319,
+      "palette": [
+        {
+          "hex": "#0b1827",
+          "coverage": 0.9605
+        },
+        {
+          "hex": "#2a3d4d",
+          "coverage": 0.0245
+        },
+        {
+          "hex": "#646a77",
+          "coverage": 0.0116
+        },
+        {
+          "hex": "#d2d5e2",
+          "coverage": 0.0026
+        },
+        {
+          "hex": "#f85858",
+          "coverage": 0.0008
+        }
+      ],
+      "detail": {
+        "energy": 8.5461
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "sources-rail",
+      "kind": "chrome",
+      "note": "sources and playlists navigation; hairline right edge",
+      "grid": "A1:A9",
+      "box": {
+        "x": 0,
+        "y": 0.1,
+        "w": 0.1,
+        "h": 0.9
+      },
+      "px": {
+        "x": 0,
+        "y": 47,
+        "w": 73,
+        "h": 420
+      },
+      "aspect": 0.1738,
+      "palette": [
+        {
+          "hex": "#0d1626",
+          "coverage": 0.9628
+        },
+        {
+          "hex": "#3c4754",
+          "coverage": 0.0249
+        },
+        {
+          "hex": "#5f6d7c",
+          "coverage": 0.0063
+        },
+        {
+          "hex": "#172727",
+          "coverage": 0.0037
+        },
+        {
+          "hex": "#9098a8",
+          "coverage": 0.0023
+        }
+      ],
+      "detail": {
+        "energy": 1.7894
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "cover-frame",
+      "kind": "chrome",
+      "note": "square frame with hairline border and inner highlight, drawn in CSS. Pelican ships no rasters: what fills this frame is read from the user's own audio files at runtime, so there is no plate to generate.",
+      "grid": "B1:B2",
+      "codeDrawn": true,
+      "box": {
+        "x": 0.1,
+        "y": 0.1,
+        "w": 0.1,
+        "h": 0.2
+      },
+      "px": {
+        "x": 73,
+        "y": 47,
+        "w": 73,
+        "h": 93
+      },
+      "aspect": 0.7849,
+      "palette": [
+        {
+          "hex": "#171a2a",
+          "coverage": 0.7768
+        },
+        {
+          "hex": "#081818",
+          "coverage": 0.1535
+        },
+        {
+          "hex": "#203c50",
+          "coverage": 0.0645
+        },
+        {
+          "hex": "#243434",
+          "coverage": 0.0052
+        }
+      ],
+      "detail": {
+        "energy": 0.8024
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "album-hero",
+      "kind": "text",
+      "note": "eyebrow, album title at display size, credits, facts line with tabular figures",
+      "grid": "C1:F2",
+      "coverBox": {
+        "x": 0.2,
+        "y": 0.1,
+        "w": 0.4,
+        "h": 0.2
+      },
+      "box": {
+        "x": 0.3068,
+        "y": 0.1006,
+        "w": 0.2466,
+        "h": 0.1413
+      },
+      "px": {
+        "x": 224,
+        "y": 47,
+        "w": 180,
+        "h": 66
+      },
+      "aspect": 2.7273,
+      "palette": [
+        {
+          "hex": "#091928",
+          "coverage": 0.857
+        },
+        {
+          "hex": "#343e4a",
+          "coverage": 0.0549
+        },
+        {
+          "hex": "#5a6372",
+          "coverage": 0.0502
+        },
+        {
+          "hex": "#e3e5f3",
+          "coverage": 0.0263
+        },
+        {
+          "hex": "#637373",
+          "coverage": 0.0116
+        }
+      ],
+      "detail": {
+        "energy": 22.4868
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 15,
+          "capHeightPx": 11.4,
+          "inkIsDark": false,
+          "allCaps": false,
+          "advance": 0.6996,
+          "advTall": 1.0203,
+          "advX": 0.6705,
+          "gap": 0.0729,
+          "xRatio": 0.7539,
+          "stemW": 0.2269,
+          "contrast": 1.1596,
+          "serif": 0.4258,
+          "densTall": 0.5449,
+          "densX": 0.6914,
+          "weight": 0.5449
+        },
+        "widthClass": "normal",
+        "weightClass": "medium",
+        "chosen": {
+          "family": "Alegreya Sans SC",
+          "weight": 700,
+          "fontSizePx": 16,
+          "source": "catalog",
+          "estimatedSize": true,
+          "stamp": "f1a5c7bd16b4"
+        }
+      }
+    },
+    {
+      "id": "hero-actions",
+      "kind": "control",
+      "note": "Add to playlist (secondary) and Send N tracks (primary, the only brass fill on screen)",
+      "grid": "G1:G2",
+      "coverBox": {
+        "x": 0.6,
+        "y": 0.1,
+        "w": 0.1,
+        "h": 0.2
+      },
+      "box": {
+        "x": 0.6,
+        "y": 0.1906,
+        "w": 0.1,
+        "h": 0.0899
+      },
+      "px": {
+        "x": 438,
+        "y": 89,
+        "w": 73,
+        "h": 42
+      },
+      "aspect": 1.7381,
+      "palette": [
+        {
+          "hex": "#0f1e2d",
+          "coverage": 0.771
+        },
+        {
+          "hex": "#d89838",
+          "coverage": 0.1304
+        },
+        {
+          "hex": "#815e2f",
+          "coverage": 0.0406
+        },
+        {
+          "hex": "#7d888f",
+          "coverage": 0.0348
+        },
+        {
+          "hex": "#545864",
+          "coverage": 0.0232
+        }
+      ],
+      "detail": {
+        "energy": 5.9266
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "track-list",
+      "kind": "text",
+      "note": "track rows: play affordance, title, duration, format badge, selection checkbox",
+      "grid": "B3:G8",
+      "coverBox": {
+        "x": 0.1,
+        "y": 0.3,
+        "w": 0.6,
+        "h": 0.6
+      },
+      "box": {
+        "x": 0.1781,
+        "y": 0.3019,
+        "w": 0.2658,
+        "h": 0.3255
+      },
+      "px": {
+        "x": 130,
+        "y": 141,
+        "w": 194,
+        "h": 152
+      },
+      "aspect": 1.2763,
+      "palette": [
+        {
+          "hex": "#091828",
+          "coverage": 0.9489
+        },
+        {
+          "hex": "#5b646d",
+          "coverage": 0.0179
+        },
+        {
+          "hex": "#383d4d",
+          "coverage": 0.0128
+        },
+        {
+          "hex": "#223232",
+          "coverage": 0.0112
+        },
+        {
+          "hex": "#929aa2",
+          "coverage": 0.0091
+        }
+      ],
+      "detail": {
+        "energy": 8.4192
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "type": {
+        "comp": {
+          "lines": 3,
+          "glyphs": 41,
+          "capHeightPx": 6.7,
+          "inkIsDark": false,
+          "allCaps": false,
+          "advance": 1.0292,
+          "advTall": 1.0858,
+          "advX": 0.659,
+          "gap": 0.0762,
+          "xRatio": 0.7604,
+          "stemW": 0.2557,
+          "contrast": 0.9338,
+          "serif": 0.3024,
+          "densTall": 0.6718,
+          "densX": 0.7829,
+          "weight": 0.6718
+        },
+        "widthClass": "normal",
+        "weightClass": "black"
+      }
+    },
+    {
+      "id": "watch-wall",
+      "kind": "text",
+      "note": "what is aboard the watch; heading plus rows with art thumb, title, album, size",
+      "grid": "H1:J5",
+      "coverBox": {
+        "x": 0.7,
+        "y": 0.1,
+        "w": 0.3,
+        "h": 0.5
+      },
+      "box": {
+        "x": 0.8233,
+        "y": 0.1392,
+        "w": 0.1479,
+        "h": 0.257
+      },
+      "px": {
+        "x": 601,
+        "y": 65,
+        "w": 108,
+        "h": 120
+      },
+      "aspect": 0.9,
+      "palette": [
+        {
+          "hex": "#091828",
+          "coverage": 0.8179
+        },
+        {
+          "hex": "#3d4654",
+          "coverage": 0.1265
+        },
+        {
+          "hex": "#626e79",
+          "coverage": 0.0208
+        },
+        {
+          "hex": "#1e2e2e",
+          "coverage": 0.0181
+        },
+        {
+          "hex": "#949da5",
+          "coverage": 0.0167
+        }
+      ],
+      "detail": {
+        "energy": 11.856
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "type": {
+        "comp": {
+          "lines": 7,
+          "glyphs": 62,
+          "capHeightPx": 6.3,
+          "inkIsDark": false,
+          "allCaps": false,
+          "advance": 1.0247,
+          "advTall": 1.3457,
+          "advX": 0.6527,
+          "gap": 0.0932,
+          "xRatio": 0.7843,
+          "stemW": 0.2504,
+          "contrast": 0.9931,
+          "serif": 0.3143,
+          "densTall": 0.6299,
+          "densX": 0.7001,
+          "weight": 0.6299
+        },
+        "widthClass": "normal",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "waterline",
+      "kind": "chrome",
+      "note": "the signature move. One value #4a8cbe, 1px, with a soft bloom; the strongest value change in the app. Below it the fill gradient d1 to d4. Height is the fraction of capacity used.",
+      "grid": "H5:J6",
+      "box": {
+        "x": 0.7,
+        "y": 0.5,
+        "w": 0.3,
+        "h": 0.2
+      },
+      "px": {
+        "x": 511,
+        "y": 234,
+        "w": 219,
+        "h": 93
+      },
+      "aspect": 2.3548,
+      "palette": [
+        {
+          "hex": "#0d1c2c",
+          "coverage": 0.9735
+        },
+        {
+          "hex": "#274354",
+          "coverage": 0.0265
+        }
+      ],
+      "detail": {
+        "energy": 1.4509
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    },
+    {
+      "id": "capacity",
+      "kind": "text",
+      "note": "free space at display size with tabular figures, then the plain-language line: how much more music will fit",
+      "grid": "H8:J8",
+      "coverBox": {
+        "x": 0.7,
+        "y": 0.8,
+        "w": 0.3,
+        "h": 0.1
+      },
+      "box": {
+        "x": 0.7904,
+        "y": 0.8266,
+        "w": 0.1973,
+        "h": 0.0749
+      },
+      "px": {
+        "x": 577,
+        "y": 386,
+        "w": 144,
+        "h": 35
+      },
+      "aspect": 4.1143,
+      "palette": [
+        {
+          "hex": "#081619",
+          "coverage": 0.8885
+        },
+        {
+          "hex": "#2e3644",
+          "coverage": 0.0505
+        },
+        {
+          "hex": "#48555f",
+          "coverage": 0.0348
+        },
+        {
+          "hex": "#e1e1f1",
+          "coverage": 0.0157
+        },
+        {
+          "hex": "#a3a8b3",
+          "coverage": 0.0105
+        }
+      ],
+      "detail": {
+        "energy": 13.7304
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 3,
+          "capHeightPx": 12.1,
+          "inkIsDark": false,
+          "allCaps": true,
+          "advance": 0.6911,
+          "advTall": 0.6911,
+          "advX": null,
+          "gap": 0.4147,
+          "xRatio": null,
+          "stemW": 0.0572,
+          "contrast": 0.3033,
+          "serif": null,
+          "densTall": 0.5662,
+          "densX": null,
+          "weight": 0.5662
+        },
+        "widthClass": "normal",
+        "weightClass": "bold",
+        "chosen": {
+          "family": "Radio Canada",
+          "weight": 400,
+          "fontSizePx": 17,
+          "source": "catalog",
+          "estimatedSize": true,
+          "stamp": "3536b04d67fb"
+        }
+      }
+    },
+    {
+      "id": "player",
+      "kind": "control",
+      "note": "transport, now-playing with art thumb, scrubber, format badge; full width, deepest surface",
+      "grid": "A9:J9",
+      "coverBox": {
+        "x": 0,
+        "y": 0.9,
+        "w": 1,
+        "h": 0.1
+      },
+      "box": {
+        "x": 0.337,
+        "y": 0.9379,
+        "w": 0.189,
+        "h": 0.0385
+      },
+      "px": {
+        "x": 246,
+        "y": 438,
+        "w": 138,
+        "h": 18
+      },
+      "aspect": 7.6667,
+      "palette": [
+        {
+          "hex": "#080818",
+          "coverage": 0.8442
+        },
+        {
+          "hex": "#687888",
+          "coverage": 0.1449
+        },
+        {
+          "hex": "#182828",
+          "coverage": 0.0109
+        }
+      ],
+      "detail": {
+        "energy": 10.2282
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "title": "Choose Pelican's visual world",
+  "question": "The roll assigned The Mixtape. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "The Mixtape",
+      "kicker": "THE ROLL",
+      "lineage": "home-taped cassettes, hand-lettered J-cards, index stickers",
+      "thesis": "The watch holds 3.7 GB. That is not a disk, it is a tape — and you are making one for a run.",
+      "palette": ["#1a1714", "#f2ece1", "#c2462d", "#3f6b5c"],
+      "materials": ["label stock", "ballpoint ink", "spooling reel"],
+      "viewport": "One continuous chassis. A capacity spool dominates the header — not a progress bar, a reel that fills as the tape does. Below it the tape's running order in hand-lettered rows, and a slot on the right where the watch sits, labelled with its own name.",
+      "risk": "Skeuomorphic kitsch if it reaches for plastic textures and drop shadows. The commitment has to be to proportion, label typography, and capacity-as-the-organising-fact — not to a picture of a cassette.",
+      "raised": [
+        { "from": "challenger-elbow", "raise": "The chassis owns the whole viewport as one continuous frame. No floating cards adrift on a background." },
+        { "from": "challenger-cyclorama", "raise": "Every transfer state carries a written name. Colour never signals alone." },
+        { "from": "challenger-quarry", "raise": "Anything temporary declares its own lifetime — a converted file says it is staged and when it goes." },
+        { "from": "challenger-ascii", "raise": "A single strict grid module governs the entire surface. No ad-hoc spacing anywhere." },
+        { "from": "challenger-teletext", "raise": "A hard-capped palette, with one colour reserved exclusively for alerts and never spent on decoration." }
+      ],
+      "board": "https://impeccable.style/worlds/cards/vernacular-ephemera-boarding-pass-and-gate-board.webp"
+    },
+    {
+      "id": "model-pick",
+      "label": "Quiet Utility",
+      "kicker": "IMPECCABLE'S PICK",
+      "lineage": "system-native macOS tooling",
+      "thesis": "Disappear. The music is the content; the app is a pane of glass over a cable.",
+      "palette": ["#ffffff", "#1d1d1f", "#0071e3", "#f5f5f7"],
+      "materials": ["system type", "hairline rules", "generous air"],
+      "viewport": "A single library list with album art at rest, a drop target that only appears when you drag, and a capacity strip in the toolbar.",
+      "risk": "This is where almost every run in this category lands. It will look correct, ship fast, and be indistinguishable from any competent file-sync utility. Familiar and effective is a legitimate destination — but it is the safe one, and you rejected the last UI for being unremarkable."
+    },
+    {
+      "id": "challenger-gateboard",
+      "label": "The Gate Board",
+      "verdict": "competitive",
+      "lineage": "airport departure boards and segmented boarding passes",
+      "thesis": "A transfer is a departure. Tracks are ranked by when they board, and a changed row moves in place and stays lit until you have noticed it.",
+      "palette": ["#0b0d10", "#e8e6e1", "#f0b429", "#3aa17e"],
+      "materials": ["split-flap rank", "tabular figures", "one reserved alert amber"],
+      "viewport": "The queue as a live board: each track a row with status, size and destination, reranking in place as the transfer advances.",
+      "case": "Holds product clarity outright — it is the best answer anyone has to a slow serial queue with per-file states and silent firmware rejections that must stay visible. Loses audience identification: it frames a personal music library as logistics, and the curation half of the job goes cold. Competitive, not winning.",
+      "risk": "Turns choosing music into operations work.",
+      "hero": "https://impeccable.style/worlds/cards/vernacular-ephemera-boarding-pass-and-gate-board-hero.webp"
+    },
+    {
+      "id": "challenger-elbow",
+      "label": "Starship Elbow Panel",
+      "verdict": "declined",
+      "lineage": "pill-cornered console wall panels",
+      "palette": ["#000000", "#c9b6e4", "#f0a868", "#e8c547"],
+      "materials": ["flat pastel blocks", "numeric code labels"],
+      "case": "Loses both axes. Numeric code clusters bury the one thing a user needs to read — the track name — and it is another sci-fi console skin, which is precisely the register just rejected.",
+      "kept": "The frame itself is the layout grid.",
+      "hero": "https://impeccable.style/worlds/cards/pop-culture-shelf-elbow-panel-console-hero.webp"
+    },
+    {
+      "id": "challenger-cyclorama",
+      "label": "Cyclorama Dawn",
+      "verdict": "declined",
+      "lineage": "theatre lighting plots, black through cobalt to day",
+      "palette": ["#05070c", "#1b3a6b", "#c96f8a", "#f7f4ef"],
+      "materials": ["horizon bands", "stencil cue caps"],
+      "case": "Loses both. Light gradients as state are ambiguous at a glance, and colour-as-signal fails the accessibility bar this build is meant to raise.",
+      "kept": "Named, discrete, text-equivalent states.",
+      "hero": "https://impeccable.style/worlds/cards/stagecraft-theater-lighting-cyclorama-dawn-hero.webp"
+    },
+    {
+      "id": "challenger-quarry",
+      "label": "Cloud Quarry",
+      "verdict": "declined",
+      "lineage": "cutting blocks of weather",
+      "palette": ["#f4f6f8", "#7fb2e5", "#6b7280", "#c0c6cc"],
+      "materials": ["cut cloud faces", "quarry stencil"],
+      "case": "Loses both, and badly. There is no honest mapping from quarrying weather to moving files down a cable, and inventing one would make the interface lie about the device.",
+      "kept": "Temporary things announce how they end.",
+      "hero": "https://impeccable.style/worlds/cards/dream-surreal-impossible-worlds-cloud-quarry-hero.webp"
+    },
+    {
+      "id": "challenger-ascii",
+      "label": "ASCII Live Render",
+      "verdict": "declined",
+      "lineage": "glyph-density scene rendering",
+      "palette": ["#000000", "#33ff33", "#ffb000"],
+      "materials": ["single-ink phosphor", "monospace lattice"],
+      "case": "Loses both. Phosphor-on-black is the terminal register the owner is moving away from, and glyph density is a hostile way to browse an album.",
+      "kept": "One strict grid as the entire composition.",
+      "hero": "https://impeccable.style/worlds/cards/medium-native-ascii-live-scene-render-hero.webp"
+    },
+    {
+      "id": "challenger-teletext",
+      "label": "Teletext Service",
+      "verdict": "declined",
+      "lineage": "broadcast teletext magazines, 40x24 cells",
+      "palette": ["#000000", "#ffff00", "#00c0c0", "#ffffff"],
+      "materials": ["block mosaic", "bitmap face"],
+      "case": "Loses both for this audience. Three-digit page addressing is the wrong model for a file list, and the nostalgia is regionally narrow in a product meant for anyone with a Garmin.",
+      "kept": "A tiny fixed palette, absolutely obeyed.",
+      "hero": "https://impeccable.style/worlds/cards/broadcast-programming-teletext-service-hero.webp"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "What a music-sync utility ships, executed impeccably: sidebar, list, toolbar, progress sheet.",
+    "palette": ["#ffffff", "#111827", "#2563eb", "#f3f4f6"],
+    "materials": ["clean grid", "album art"],
+    "viewport": "Source on the left, device on the right, transfer button between them.",
+    "risk": "Indistinguishable from iTunes and every Android file manager, by design."
+  },
+  "steer": true
+}

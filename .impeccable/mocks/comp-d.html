@@ -1,0 +1,178 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Comp D — The Fjord</title><link rel="stylesheet" href="tokens.css">
+<style>
+/* D — THE FJORD. B's find-and-move base, C's transfer card, plus the player
+   and playlists. Three regions left to right: what you have, what you're
+   auditioning, what's aboard. The waterline lives only on the watch side,
+   where capacity is actually a constraint. */
+.top { display:flex; align-items:center; gap:16px; padding:0 18px; height:46px;
+  border-bottom:1px solid var(--hairline-2); flex:none; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--moss); }
+.main { flex:1; display:grid; grid-template-columns:198px 1fr 344px; min-height:0; }
+
+/* left rail — sources and playlists */
+.rail { border-right:1px solid var(--hairline-2); padding:16px 10px; display:flex;
+  flex-direction:column; gap:2px; min-height:0; }
+.rail .grp { margin:14px 8px 6px; }
+.nav { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:var(--r-sm);
+  font-size:12.5px; color:var(--ink-dim); }
+.nav.on { background:var(--surface-2); color:var(--ink); font-weight:590; }
+.nav .g { width:14px; text-align:center; opacity:.75; font-size:11px; }
+.nav .n { margin-left:auto; font-size:10.5px; color:var(--ink-faint); }
+.newpl { margin-top:auto; font-size:12px; color:var(--ink-faint); padding:8px 10px; }
+
+/* centre — the library you browse and audition */
+.lib { display:flex; flex-direction:column; min-height:0; }
+.libhead { padding:16px 20px 10px; display:flex; align-items:center; gap:12px; }
+.libhead h2 { font-size:15px; font-weight:640; letter-spacing:-.01em; }
+.search { margin-left:auto; width:210px; padding:6px 11px; border-radius:var(--r-sm);
+  background:var(--surface); border:1px solid var(--hairline); color:var(--ink-faint); font-size:12px; }
+.tracks { flex:1; overflow:hidden; padding:0 12px; }
+.tracks .row { grid-template-columns:22px 28px 1fr 92px auto; padding:7px 8px; gap:12px; }
+.tracks .row + .row { border-top:1px solid var(--hairline-2); }
+.play { color:var(--ink-faint); font-size:10px; text-align:center; }
+.row.playing .play { color:var(--sun); }
+.row.playing .t { color:var(--sun); }
+.fmt { font-size:10.5px; color:var(--ink-faint); letter-spacing:.04em; }
+.chk { width:15px; height:15px; border-radius:4px; border:1px solid var(--hairline);
+  background:var(--surface); }
+.chk.on { background:var(--sun); border-color:var(--sun); }
+
+/* right — the watch, with the waterline */
+.watch { border-left:1px solid var(--hairline-2); position:relative; display:flex;
+  flex-direction:column; min-height:0; }
+/* the waterline: filled mass below, open field above. The single strongest
+   value change in the window, because capacity is the fact that governs. */
+.watch::after { content:""; position:absolute; inset:auto 0 0 0; height:35%; z-index:0;
+  background:linear-gradient(to top, #16283a 0%, #12222f 55%, rgba(18,34,47,.55) 100%); }
+.watch::before { content:""; position:absolute; left:0; right:0; bottom:35%; height:1px; z-index:1;
+  background:linear-gradient(90deg, rgba(74,140,190,.25), #4a8cbe 30%, #4a8cbe 85%, rgba(74,140,190,.2));
+  box-shadow:0 0 12px rgba(74,140,190,.35); }
+.wh { padding:16px 18px 10px; position:relative; z-index:2; }
+.wh h2 { font-size:15px; font-weight:640; letter-spacing:-.01em; }
+.wh .c { color:var(--ink-faint); font-size:11.5px; margin-top:1px; }
+.wlist { flex:1; overflow:hidden; padding:0 10px; position:relative; z-index:2; }
+.wlist .row { grid-template-columns:1fr auto; padding:6px 8px; }
+.cap { padding:14px 18px 16px; position:relative; z-index:2; }
+.cap .big { font-size:23px; font-weight:640; letter-spacing:-.02em; }
+.cap .sm { font-size:11px; color:var(--ink-dim); margin-top:1px; }
+
+/* the transfer card, borrowed from C — docked, glass, only while sending */
+.flight { position:absolute; left:210px; right:12px; bottom:80px; z-index:6;
+  border-radius:var(--r-lg); padding:14px 16px; }
+.flight .hdr { display:flex; align-items:baseline; gap:10px; }
+.flight h3 { font-size:13.5px; font-weight:640; }
+.flight .of { color:var(--ink-dim); font-size:11.5px; margin-left:auto; }
+.prog { height:3px; border-radius:2px; background:var(--surface-2); margin:11px 0 6px; overflow:hidden; }
+.prog i { display:block; height:100%; width:43%; background:var(--sun); }
+.flight .now { display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-dim); }
+.warn { margin-top:10px; padding-top:9px; border-top:1px solid var(--hairline-2);
+  font-size:11.5px; color:var(--ink-dim); display:flex; align-items:center; gap:9px; }
+.warn b { color:var(--alert); font-weight:590; font-size:10px; letter-spacing:.09em; text-transform:uppercase; }
+
+/* player bar */
+.player { height:68px; flex:none; border-top:1px solid var(--hairline-2);
+  display:flex; align-items:center; gap:16px; padding:0 18px; }
+.tr { display:flex; align-items:center; gap:14px; }
+.tr button { background:none; border:none; color:var(--ink-dim); font-size:13px; }
+.tr .pp { width:32px; height:32px; border-radius:50%; background:var(--ink);
+  color:var(--ground); display:grid; place-items:center; font-size:12px; }
+.np { display:flex; align-items:center; gap:11px; min-width:0; width:268px; }
+.np .t { font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.np .s { font-size:11px; color:var(--ink-dim); }
+.scrub { flex:1; display:flex; align-items:center; gap:10px; }
+.track { flex:1; height:3px; border-radius:2px; background:var(--surface-2); overflow:hidden; }
+.track i { display:block; height:100%; width:31%; background:var(--ink-dim); }
+.time { font-size:11px; color:var(--ink-faint); }
+</style></head><body>
+<div class="win">
+  <div class="top">
+    <div class="tl"><i></i><i></i><i></i></div>
+    <div style="display:flex;align-items:center;gap:9px;margin-left:6px">
+      <span class="dot"></span><span style="font-weight:590">Forerunner 165 Music</span>
+      <span style="color:var(--ink-faint)">· connected</span>
+    </div>
+    <div style="margin-left:auto" class="label">Pelican</div>
+  </div>
+
+  <div class="main" style="position:relative">
+    <div class="rail">
+      <div class="nav on"><span class="g">♪</span>All music<span class="n num">2,418</span></div>
+      <div class="nav"><span class="g">◷</span>Recently added</div>
+      <div class="nav"><span class="g">⌂</span>NAS · Qobuz</div>
+      <div class="label grp">Playlists</div>
+      <div class="nav"><span class="g">▸</span>Long run<span class="n num">24</span></div>
+      <div class="nav"><span class="g">▸</span>Tempo<span class="n num">18</span></div>
+      <div class="nav"><span class="g">▸</span>Sea legs<span class="n num">31</span></div>
+      <div class="newpl">+ New playlist</div>
+    </div>
+
+    <div class="lib">
+      <div class="libhead">
+        <h2>Master and Commander</h2>
+        <div class="search">Search your library</div>
+      </div>
+      <div class="tracks">
+        <div class="row playing"><span class="play">▶</span><div class="art" style="width:28px;height:28px"></div>
+          <div><div class="t">Ghost of Time</div><div class="s">Iva Davies, Christopher Gordon, Richard Tognetti</div></div>
+          <div class="fmt">FLAC · 24/96</div><div class="chk on"></div></div>
+        <div class="row"><span class="play">·</span><div class="art" style="width:28px;height:28px"></div>
+          <div><div class="t">The Far Side of the World</div><div class="s">Iva Davies, Christopher Gordon, Richard Tognetti</div></div>
+          <div class="fmt">FLAC · 24/96</div><div class="chk on"></div></div>
+        <div class="row"><span class="play">·</span><div class="art" style="width:28px;height:28px"></div>
+          <div><div class="t">Into the Fog</div><div class="s">Richard Tognetti</div></div>
+          <div class="fmt">FLAC · 24/96</div><div class="chk on"></div></div>
+        <div class="row"><span class="play">·</span><div class="art" style="width:28px;height:28px"></div>
+          <div><div class="t">Adagio from Concerto Grosso</div><div class="s">Arcangelo Corelli</div></div>
+          <div class="fmt">FLAC · 16/44</div><div class="chk"></div></div>
+        <div class="row"><span class="play">·</span><div class="art" style="width:28px;height:28px"></div>
+          <div><div class="t">La Musica Notturna delle Strade di Madrid</div><div class="s">Luigi Boccherini</div></div>
+          <div class="fmt">FLAC · 16/44</div><div class="chk"></div></div>
+        <div class="row"><span class="play">·</span><div class="art" style="width:28px;height:28px"></div>
+          <div><div class="t">Prelude — The Far Side</div><div class="s">Iva Davies</div></div>
+          <div class="fmt">MP3 · 320</div><div class="chk"></div></div>
+      </div>
+    </div>
+
+    <div class="watch">
+      <div class="wh"><h2>On your watch</h2><div class="c num">20 tracks · Pelican put them here</div></div>
+      <div class="wlist">
+        <div class="row"><div><div class="t">Ghost of Time</div><div class="s">Master and Commander</div></div><div class="z num">13.4 MB</div></div>
+        <div class="row"><div><div class="t">The Far Side of the World</div><div class="s">Master and Commander</div></div><div class="z num">7.8 MB</div></div>
+        <div class="row"><div><div class="t">Into the Fog</div><div class="s">Master and Commander</div></div><div class="z num">4.9 MB</div></div>
+        <div class="row"><div><div class="t">Adagio from Concerto Grosso</div><div class="s">Corelli</div></div><div class="z num">3.9 MB</div></div>
+      </div>
+      <div class="cap">
+        <div class="big num">2.41 <span style="font-size:13px;color:var(--ink-dim)">GB free</span></div>
+        <div class="sm num">of 3.71 GB · 3 selected will fit with room to spare</div>
+      </div>
+    </div>
+
+    <div class="flight glass">
+      <div class="hdr"><h3>Sending to your watch</h3>
+        <span class="of num">3 of 7 · about 2 minutes left</span></div>
+      <div class="prog"><i></i></div>
+      <div class="now"><span>Into the Fog — converting FLAC to M4A on this Mac</span><span class="num">19.6 MB</span></div>
+      <div class="warn"><b>Needs a title</b>
+        <span>track_07.flac has no title or artist, so your watch would hide it.</span>
+        <button class="btn" style="margin-left:auto;padding:5px 11px;font-size:11.5px">Fix</button></div>
+    </div>
+  </div>
+
+  <div class="player">
+    <div class="tr">
+      <button>⏮</button><button class="pp">❚❚</button><button>⏭</button>
+    </div>
+    <div class="np">
+      <div class="art" style="width:38px;height:38px"></div>
+      <div style="min-width:0"><div class="t">Ghost of Time</div><div class="s">Iva Davies — Master and Commander</div></div>
+    </div>
+    <div class="scrub">
+      <span class="time num">1:47</span>
+      <div class="track"><i></i></div>
+      <span class="time num">5:42</span>
+    </div>
+    <button class="btn btn-primary">Send 3 tracks</button>
+  </div>
+</div>
+</body></html>

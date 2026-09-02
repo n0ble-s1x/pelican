@@ -25,6 +25,18 @@ pub struct RemoteEntry {
 }
 
 pub trait Backend: Send {
+    /// The device's own model name, from MTP `GetDeviceInfo`.
+    ///
+    /// The FR165 declares no USB product string descriptor (`iProduct = 0`),
+    /// so `nusb::DeviceInfo::product_string()` has nothing to return and the
+    /// real name — "Forerunner 165 Music" — exists only here. `GetDeviceInfo`
+    /// is fetched and cached during `open`, so this costs no device I/O.
+    ///
+    /// `None` when the device gives no model, which keeps the caller's
+    /// fallback chain honest rather than inventing a name.
+    fn model(&self) -> Option<String> {
+        None
+    }
     fn ensure_folder(&mut self, path: &str) -> Result<()>;
     /// Upload a local file to a remote folder. `on_progress(bytes_transferred, total_bytes)`
     /// is called as data flows; pass `&mut |_, _| {}` if you don't care.
@@ -228,6 +240,14 @@ mod mtp_rs_impl {
     }
 
     impl Backend for MtpRsBackend {
+        fn model(&self) -> Option<String> {
+            // Device-controlled text on its way to a webview, so it gets the
+            // same treatment `Device::label` gives the USB strings.
+            let model = crate::playlist::strip_control(&self.device.device_info().model);
+            let model = model.trim().to_string();
+            (!model.is_empty()).then_some(model)
+        }
+
         fn ensure_folder(&mut self, path: &str) -> Result<()> {
             self.resolve_folder(path).map(|_| ())
         }

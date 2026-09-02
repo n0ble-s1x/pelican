@@ -101,6 +101,13 @@ fn main() {
     let mut backend = match mtp::open(device) {
         Ok(b) => {
             println!("  session opened");
+            // The real model name lives in GetDeviceInfo, not in the USB
+            // descriptors — this watch declares no product string at all —
+            // so the probe and the app should agree on where it comes from.
+            match b.model() {
+                Some(m) => println!("  model   : {m} (from MTP GetDeviceInfo)"),
+                None => println!("  model   : the device reports none"),
+            }
             b
         }
         Err(e) => {

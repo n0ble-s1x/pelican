@@ -1,255 +1,310 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-01T22:33:55.089902Z",
+  "generatedAt": "2026-09-02T06:04:10.987047Z",
   "title": "Design System: Pelican",
   "extensions": {
     "colorMeta": {
-      "air": {
-        "role": "neutral",
-        "displayName": "Air",
-        "canonical": "oklch(19.8% 0.028 255.9)",
-        "tonalRamp": [
-          "#040b17",
-          "#1b2531",
-          "#36414f",
-          "#535f6d",
-          "#737e8e",
-          "#93a0b0",
-          "#b9c5d6",
-          "#e3f0ff"
-        ]
-      },
-      "air-2": {
-        "role": "neutral",
-        "displayName": "Air Raised",
-        "canonical": "oklch(22.3% 0.032 254.9)",
-        "tonalRamp": [
-          "#030b18",
-          "#192533",
-          "#344151",
-          "#525f70",
-          "#717f90",
-          "#91a0b2",
-          "#b7c6d9",
-          "#e1f0ff"
-        ]
-      },
-      "ground": {
-        "role": "neutral",
-        "displayName": "Fjord Ground",
-        "canonical": "oklch(15.2% 0.017 255.5)",
-        "tonalRamp": [
-          "#070b12",
-          "#1e252d",
-          "#3a4049",
-          "#575e68",
-          "#777e88",
-          "#979fa9",
-          "#bdc5d0",
-          "#e7effa"
-        ]
-      },
-      "d1": {
-        "role": "neutral",
-        "displayName": "Depth 1 \u2014 Lit Surface",
-        "canonical": "oklch(27.1% 0.041 249.6)",
-        "tonalRamp": [
-          "#000c1c",
-          "#132537",
-          "#2f4255",
-          "#4c6074",
-          "#6b8095",
-          "#8ba1b8",
-          "#b0c7de",
-          "#daf1ff"
-        ]
-      },
-      "d2": {
-        "role": "neutral",
-        "displayName": "Depth 2",
-        "canonical": "oklch(23.4% 0.036 249.6)",
-        "tonalRamp": [
-          "#010c19",
-          "#162535",
-          "#314152",
-          "#4e6071",
-          "#6d7f92",
-          "#8ea1b4",
-          "#b3c7db",
-          "#ddf1ff"
-        ]
-      },
-      "d3": {
-        "role": "neutral",
-        "displayName": "Depth 3",
-        "canonical": "oklch(19.6% 0.030 249.6)",
-        "tonalRamp": [
-          "#030c17",
-          "#192532",
-          "#34414f",
-          "#515f6e",
-          "#707f8f",
-          "#91a0b1",
-          "#b6c6d7",
-          "#e0f1ff"
-        ]
-      },
-      "d4": {
-        "role": "neutral",
-        "displayName": "Depth 4 \u2014 Floor",
-        "canonical": "oklch(16.0% 0.023 250.5)",
-        "tonalRamp": [
-          "#050c15",
-          "#1c252f",
-          "#37414c",
-          "#545f6b",
-          "#737f8b",
-          "#94a0ad",
-          "#b9c6d3",
-          "#e3f0fe"
-        ]
-      },
-      "line": {
-        "role": "secondary",
-        "displayName": "Waterline Blue",
-        "canonical": "oklch(61.8% 0.102 243.4)",
-        "tonalRamp": [
-          "#000731",
-          "#002550",
-          "#004371",
-          "#1d6392",
-          "#4183b5",
-          "#63a5d9",
-          "#89ccff",
-          "#b2f7ff"
-        ]
-      },
-      "ink": {
-        "role": "neutral",
-        "displayName": "Ink",
-        "canonical": "oklch(93.4% 0.013 251.6)",
-        "tonalRamp": [
-          "#070c11",
-          "#1f252a",
-          "#3b4047",
-          "#585e65",
-          "#787e85",
-          "#999fa7",
-          "#bec5cd",
-          "#e8eff7"
-        ]
-      },
-      "ink-dim": {
-        "role": "neutral",
-        "displayName": "Ink Dim",
-        "canonical": "oklch(68.2% 0.030 248.3)",
-        "tonalRamp": [
-          "#030c17",
-          "#182532",
-          "#33414f",
-          "#515f6e",
-          "#707f8f",
-          "#90a0b1",
-          "#b6c6d7",
-          "#dff1ff"
-        ]
-      },
-      "ink-faint": {
-        "role": "neutral",
-        "displayName": "Ink Faint",
-        "canonical": "oklch(63.3% 0.029 248.3)",
-        "tonalRamp": [
-          "#030c17",
-          "#192531",
-          "#34414e",
-          "#515f6d",
-          "#707f8e",
-          "#91a0b0",
-          "#b6c6d6",
-          "#e0f1ff"
-        ]
-      },
       "sun": {
         "role": "primary",
         "displayName": "Brass",
-        "canonical": "oklch(72.3% 0.129 70.4)",
+        "canonical": "#d8963f",
+        "purpose": "The low sun on the water. The only warm value in the system: primary action, checked checkbox, playing track, meter fill, caret, selection wash and focus ring. Measured at 0.41% frame coverage.",
         "tonalRamp": [
-          "#280000",
-          "#470d00",
-          "#682e00",
-          "#8a4d00",
-          "#ad6d00",
-          "#d08f37",
-          "#f9b560",
-          "#ffdf8b"
+          "#402a0d",
+          "#6e4816",
+          "#9d6720",
+          "#cb8629",
+          "#dca051",
+          "#e5b980",
+          "#f0d5b3",
+          "#faf1e6"
         ]
       },
       "sun-ink": {
         "role": "primary",
         "displayName": "Brass Ink",
-        "canonical": "oklch(17.5% 0.021 74.4)",
+        "canonical": "#160f06",
+        "purpose": "Near-black ink on brass fills only. 7.56:1 on --sun.",
         "tonalRamp": [
-          "#100a03",
-          "#2a2318",
-          "#473e33",
-          "#655c50",
-          "#857c6f",
-          "#a79d90",
-          "#cdc2b5",
-          "#f7eddf"
+          "#3c2910",
+          "#68471c",
+          "#946528",
+          "#c08334",
+          "#d29e5b",
+          "#deb887",
+          "#ebd4b7",
+          "#f8f1e7"
+        ]
+      },
+      "line": {
+        "role": "secondary",
+        "displayName": "Waterline Blue",
+        "canonical": "#4a8cbe",
+        "purpose": "The 1px waterline and the pending band's hatch. A rule, never an accent, never text.",
+        "tonalRamp": [
+          "#142938",
+          "#234762",
+          "#32648b",
+          "#4182b4",
+          "#659dc8",
+          "#8eb7d7",
+          "#bbd4e7",
+          "#e8f1f7"
         ]
       },
       "ok": {
         "role": "tertiary",
         "displayName": "Kelp",
-        "canonical": "oklch(67.9% 0.078 186.9)",
+        "canonical": "#5aa8a0",
+        "purpose": "The 7px connection dot when a watch is present. Never text.",
         "tonalRamp": [
-          "#001411",
-          "#002f2a",
-          "#004c47",
-          "#146c65",
-          "#3d8c85",
-          "#61aea6",
-          "#87d5cc",
-          "#b1fff7"
+          "#1a3230",
+          "#2e5753",
+          "#417c76",
+          "#55a099",
+          "#76b7b0",
+          "#9bcac5",
+          "#c3dfdc",
+          "#ebf4f3"
         ]
       },
       "alert": {
         "role": "tertiary",
         "displayName": "Signal Red",
-        "canonical": "oklch(61.0% 0.156 28.6)",
+        "canonical": "#d9634f",
+        "purpose": "Untagged-file warning, over-capacity readout, failure notice tag. 5.06:1 on --air, 4.77:1 on --notice-ground, 4.74:1 on the .07 tint, 5.08:1 on --d3. Always paired with a word.",
         "tonalRamp": [
-          "#360000",
-          "#5a0000",
-          "#7e0000",
-          "#a32d24",
-          "#c95144",
-          "#f07365",
-          "#ff9a89",
-          "#ffc4b2"
+          "#3f150e",
+          "#6d2418",
+          "#9b3322",
+          "#c9422b",
+          "#da6753",
+          "#e48f81",
+          "#efbcb4",
+          "#fae9e6"
         ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Fjord Ground",
+        "canonical": "#070c13",
+        "purpose": "The body behind the app; visible only at the window's own edges.",
+        "tonalRamp": [
+          "#152338",
+          "#243d61",
+          "#33578a",
+          "#4271b3",
+          "#668ec7",
+          "#8fadd6",
+          "#bccee6",
+          "#e9eff7"
+        ]
+      },
+      "air": {
+        "role": "neutral",
+        "displayName": "Air",
+        "canonical": "#0d1622",
+        "purpose": "The surface above the waterline: the app field and the titlebar.",
+        "tonalRamp": [
+          "#152437",
+          "#253e60",
+          "#345889",
+          "#4473b1",
+          "#6890c5",
+          "#90aed5",
+          "#bdcee6",
+          "#e9eff7"
+        ]
+      },
+      "air-2": {
+        "role": "neutral",
+        "displayName": "Air Raised",
+        "canonical": "#111c2a",
+        "purpose": "Top stop of the sources rail gradient; the rail's flat ground at <=1020px.",
+        "tonalRamp": [
+          "#162436",
+          "#263f5e",
+          "#365a86",
+          "#4774ae",
+          "#6a91c3",
+          "#92afd3",
+          "#becfe5",
+          "#e9eff6"
+        ]
+      },
+      "d1": {
+        "role": "neutral",
+        "displayName": "Depth 1",
+        "canonical": "#16283a",
+        "purpose": "The lit surface of the water. The lightest ground below the line, and the one that rises behind the wall head, list and capacity as the watch fills.",
+        "tonalRamp": [
+          "#152637",
+          "#244260",
+          "#345e89",
+          "#437ab1",
+          "#6796c5",
+          "#90b2d5",
+          "#bcd1e6",
+          "#e9f0f7"
+        ]
+      },
+      "d2": {
+        "role": "neutral",
+        "displayName": "Depth 2",
+        "canonical": "#101f2e",
+        "purpose": "Bottom stop of the watch wall's own gradient.",
+        "tonalRamp": [
+          "#142639",
+          "#224262",
+          "#315e8c",
+          "#3f7ab6",
+          "#6496c9",
+          "#8db2d8",
+          "#bbd1e7",
+          "#e8f0f7"
+        ]
+      },
+      "d3": {
+        "role": "neutral",
+        "displayName": "Depth 3",
+        "canonical": "#0a1622",
+        "purpose": "Top stop of the wall gradient, mid stop of the water, and the opaque backing under the capacity readout.",
+        "tonalRamp": [
+          "#11263b",
+          "#1e4266",
+          "#2b5e92",
+          "#387abd",
+          "#5d96cf",
+          "#89b2dc",
+          "#b8d1ea",
+          "#e7f0f8"
+        ]
+      },
+      "d4": {
+        "role": "neutral",
+        "displayName": "Depth 4",
+        "canonical": "#060e17",
+        "purpose": "The floor of the water and the ground of the player bar. The deepest surface on screen.",
+        "tonalRamp": [
+          "#10253d",
+          "#1b4069",
+          "#275b96",
+          "#3376c2",
+          "#5993d4",
+          "#86b0df",
+          "#b6d0ec",
+          "#e7eff9"
+        ]
+      },
+      "notice-ground": {
+        "role": "neutral",
+        "displayName": "Notice Ground",
+        "canonical": "#191b25",
+        "purpose": "Opaque ground for the transfer failure headline: --air with the alert hue flattened in. Exists so --alert's 4.77:1 is a property of the rule and not of the three layers behind it.",
+        "tonalRamp": [
+          "#1f212e",
+          "#353a4f",
+          "#4c5271",
+          "#636b92",
+          "#8289ab",
+          "#a4a9c1",
+          "#c8cbda",
+          "#edeef3"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#e3eaf2",
+        "purpose": "Titles, primary text, the seek thumb. 14.99:1 on --air; never below 12.38:1 anywhere in the app.",
+        "tonalRamp": [
+          "#182534",
+          "#2a415b",
+          "#3c5c81",
+          "#4e77a7",
+          "#7094bd",
+          "#97b1ce",
+          "#c0d0e2",
+          "#eaeff5"
+        ]
+      },
+      "ink-dim": {
+        "role": "neutral",
+        "displayName": "Ink Dim",
+        "canonical": "#8b9bab",
+        "purpose": "Secondary lines, and the required ink on every composite ground where --ink-faint fails: rail counts, wall head, wall list. 6.38:1 on --air, 5.27:1 on --d1.",
+        "tonalRamp": [
+          "#20262c",
+          "#38424d",
+          "#4f5e6d",
+          "#677a8e",
+          "#8696a7",
+          "#a6b2bf",
+          "#cad1d8",
+          "#edf0f2"
+        ]
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Ink Faint",
+        "canonical": "#7d8c9b",
+        "purpose": "The quietest legible tier: wordmark, rail heads, formats, timecodes, connection status. 5.28:1 on --air, 4.93:1 at its worst shipped ground (the transfer card over bright artwork). Was #5a6875 = 3.18:1.",
+        "tonalRamp": [
+          "#21262b",
+          "#3a424b",
+          "#525e6b",
+          "#6a7a8a",
+          "#8996a4",
+          "#a9b3bc",
+          "#cbd1d7",
+          "#eef0f2"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Veil 4.8%",
+        "canonical": "rgba(226,236,247,.048)",
+        "purpose": "Hover raise. Also the checkbox and seek rest ground."
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Veil 7.8%",
+        "canonical": "rgba(226,236,247,.078)",
+        "purpose": "Current/rest raise: secondary buttons, the current nav item, play/pause, the meter track."
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline 10.5%",
+        "canonical": "rgba(226,236,247,.105)",
+        "purpose": "The edge of something you can press."
+      },
+      "hairline-2": {
+        "role": "neutral",
+        "displayName": "Hairline 5.8%",
+        "canonical": "rgba(226,236,247,.058)",
+        "purpose": "Every structural divider and panel edge in the app."
       }
     },
     "typographyMeta": {
       "display": {
         "displayName": "Display / Album Title",
-        "purpose": "The album hero title. One line, no wrap at desktop. Measured cap height 11.4px in the comp (18.4px app)."
+        "purpose": "The album hero title. One line, clipped with an ellipsis at desktop; wraps at <=720px. Measured cap height 18.4px app-pixels."
       },
       "headline": {
         "displayName": "Headline / Capacity Figure",
-        "purpose": "The free-space number on the watch wall \u2014 the largest text in the app, because capacity governs every decision. Measured cap height 12.1px (19.6px app)."
+        "purpose": "The free-space number on the watch wall. The largest text in the app on purpose, because capacity governs every decision. Tabular numerals."
       },
       "title": {
         "displayName": "Title",
-        "purpose": "Panel headings: 'On your watch', the empty-state head, the transfer card heading (13.5px)."
+        "purpose": "Panel headings and empty-state heads (14px); the transfer card's heading at 13.5px."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Default text. Track titles, credits, explanations. Measured cap height 6.7px (10.8px app)."
+        "purpose": "The default. Track titles, album credits, the disconnected explanation."
       },
       "dense": {
         "displayName": "Dense",
-        "purpose": "Watch wall list (--fs-wall 12px, cap height 6.3px / 10.2px app), nav items, player now-playing, button faces."
+        "purpose": "The watch wall list (12px), nav items and player now-playing (12.5px), button faces (12.5px / 590)."
       },
       "detail": {
         "displayName": "Detail",
@@ -257,29 +312,29 @@
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Uppercase micro-label at 0.14em: wordmark, rail section heads, player format badge. Admitted only where it names a section or an alert state."
+        "purpose": "Uppercase 0.14em tracking: the wordmark, rail section heads, the player format badge. Notice and pre-warning tags use 0.1em at weight 640."
       }
     },
     "shadows": [
       {
         "name": "cover-lift",
         "value": "0 18px 44px rgba(0,0,0,.55)",
-        "purpose": "The 132px album cover only. The one object presented as a physical thing; the only true drop shadow in the app."
+        "purpose": "The 132px hero album cover only. The single true drop shadow in the app; it is the one object presented as a physical thing."
       },
       {
         "name": "frame-highlight",
         "value": "inset 0 1px 0 rgba(226,236,247,.05)",
-        "purpose": "1px top light on every cover frame at every size (.06 on the large cover). Joinery, not elevation."
+        "purpose": "A 1px top light on every cover frame at every size (.06 on the hero cover). Joinery, not elevation."
       },
       {
         "name": "waterline-bloom",
-        "value": "0 0 15px rgba(74,140,190,.32)",
-        "purpose": "The glow under the 1px waterline. The only luminous object in the app."
+        "value": "0 6px 12px -4px rgba(74,140,190,.32)",
+        "purpose": "The glow under the 1px waterline, and the only luminous object in the app. Directional by necessity: offset 6px down with a -4px spread so the light falls into the water. A symmetrical halo washed the ground the wall list scrolls across and pushed those rows under AA."
       },
       {
-        "name": "transfer-blur",
-        "value": "backdrop-filter: blur(24px) saturate(140%)",
-        "purpose": "The one floating surface: the transfer card, docked so it never covers the capacity readout."
+        "name": "glass-transfer",
+        "value": "background:rgba(13,22,34,.97); backdrop-filter:blur(24px) saturate(140%)",
+        "purpose": "The one floating surface. The near-opaque base under the blur is load-bearing: the card floats over scrolling album art, and with a 4.8% veil its inks inherited whatever was behind them (3.99:1 on the failure headline over bright art)."
       }
     ],
     "motion": [
@@ -291,32 +346,53 @@
       {
         "name": "t-quick",
         "value": "120ms",
-        "purpose": "Background, colour and opacity on every interactive element; runs linear, not eased."
+        "purpose": "Linear background, colour and opacity on every interactive element."
       },
       {
         "name": "t-settle",
         "value": "260ms",
-        "purpose": "State arrivals: transfer card entry (@starting-style from opacity 0 / translateY(10px)), meter fill scaleX, pending band, and the 'sink' keyframe carrying a sent row down 14px."
+        "purpose": "State arrivals: the transfer card's @starting-style entry, the meter's scaleX, the pending band's opacity, the sink keyframe."
       },
       {
         "name": "t-tide",
         "value": "900ms",
-        "purpose": "The water rising. The only slow motion in the app, and it runs once per transfer. Animates height, not transform: .water is out of flow and childless, and scaleY would squash the depth gradient and thicken the 1px waterline."
-      },
-      {
-        "name": "reduced-motion",
-        "value": "@media (prefers-reduced-motion: reduce) { animation-duration:1ms; transition-duration:1ms }",
-        "purpose": "State still changes; it just arrives rather than travels. The send gesture skips straight to the settled state in JS as well."
+        "purpose": "The water's translateY. The only slow thing in the app, and it runs once per transfer."
       }
     ],
     "breakpoints": [
       {
-        "name": "rail-strip",
+        "name": "wide",
+        "value": "@container shell (min-width: 1021px)"
+      },
+      {
+        "name": "medium",
         "value": "@container shell (max-width: 1020px)"
       },
       {
-        "name": "single-column",
+        "name": "narrow",
         "value": "@container shell (max-width: 720px)"
+      }
+    ],
+    "radiusExceptions": [
+      {
+        "value": "2px",
+        "where": "the 3px seek track and the 3px transfer meter",
+        "why": "A 6px radius on a 3px-tall bar is a pill, not a corner."
+      },
+      {
+        "value": "3px",
+        "where": ":focus-visible ring (2px brass outline, 2px offset)",
+        "why": "The ring hugs arbitrary geometry; it takes the smallest radius that stops the corners reading as cut."
+      },
+      {
+        "value": "4px",
+        "where": "the 15px checkbox and the icon buttons",
+        "why": "Below the scale's floor of roughly 16px in the short dimension."
+      },
+      {
+        "value": "5px",
+        "where": "the scrollbar thumb (9px wide) and the base cover frame",
+        "why": "Half the thumb's own width; the cover family scales 5px -> 8px so its corner reads constant."
       }
     ]
   },
@@ -326,92 +402,89 @@
       "kind": "button",
       "refersTo": "button-primary",
       "description": "The send action. The only brass fill on any screen.",
-      "html": "<button class=\"ds-btn ds-btn-primary\" type=\"button\">Send 3 tracks</button>",
-      "css": ".ds-btn-primary { font: 590 12.5px/1.45 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif; padding: 8px 16px; border-radius: 6px; background: #d8963f; border: 1px solid #d8963f; color: #160f06; transition: background-color 120ms linear, color 120ms linear, opacity 120ms linear; } .ds-btn-primary:hover:not(:disabled) { filter: brightness(1.08); } .ds-btn-primary:active:not(:disabled) { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid #d8963f; outline-offset: 2px; border-radius: 3px; } .ds-btn-primary:disabled { opacity: .45; cursor: default; }"
+      "html": "<button class=\"ds-btn ds-btn-primary\">Send 12 tracks</button>",
+      "css": ".ds-btn{font:590 12.5px/1.45 var(--font,-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif);padding:8px 16px;border-radius:6px;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078);color:#e3eaf2;transition:background-color 120ms linear,color 120ms linear,opacity 120ms linear}.ds-btn-primary{background:#d8963f;border-color:#d8963f;color:#160f06}.ds-btn-primary:hover{filter:brightness(1.08)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}"
     },
     {
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button",
-      "description": "Every non-primary action. Hover recedes to the lighter veil rather than brightening.",
-      "html": "<button class=\"ds-btn-secondary\" type=\"button\">Add to playlist</button>",
-      "css": ".ds-btn-secondary { font: 590 12.5px/1.45 -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif; padding: 8px 16px; border-radius: 6px; color: #e3eaf2; border: 1px solid rgba(226,236,247,.105); background: rgba(226,236,247,.078); transition: background-color 120ms linear, color 120ms linear; } .ds-btn-secondary:hover:not(:disabled) { background: rgba(226,236,247,.048); } .ds-btn-secondary:active:not(:disabled) { transform: translateY(1px); } .ds-btn-secondary:focus-visible { outline: 2px solid #d8963f; outline-offset: 2px; }"
+      "description": "Every non-primary action. Hover drops it to the lighter veil, so the surface recedes under the cursor rather than brightening.",
+      "html": "<button class=\"ds-btn2\">Eject</button> <button class=\"ds-btn2\" disabled>Send</button>",
+      "css": ".ds-btn2{font:590 12.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:8px 16px;border-radius:6px;color:#e3eaf2;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078);transition:background-color 120ms linear,color 120ms linear,opacity 120ms linear}.ds-btn2:hover:not(:disabled){background:rgba(226,236,247,.048)}.ds-btn2:active:not(:disabled){transform:translateY(1px)}.ds-btn2:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}.ds-btn2:disabled{opacity:.45;cursor:default}"
     },
     {
       "name": "Play / Pause",
       "kind": "button",
       "refersTo": "button-playpause",
-      "description": "The transport centre. A veiled circle, not a filled white disc \u2014 it must sit beneath the brass primary in brightness.",
-      "html": "<button class=\"ds-playpause\" type=\"button\" aria-pressed=\"true\" aria-label=\"Pause\"><svg class=\"ds-ic\" viewBox=\"0 0 15 14\" aria-hidden=\"true\"><path d=\"M4.6 3h1.9v8H4.6zM8.5 3h1.9v8H8.5z\" fill=\"currentColor\"/></svg></button>",
-      "css": ".ds-playpause { width: 31px; height: 31px; border-radius: 50%; background: rgba(226,236,247,.078); color: #e3eaf2; border: 1px solid rgba(226,236,247,.105); display: grid; place-items: center; transition: background-color 120ms linear; } .ds-playpause:hover { background: rgba(226,236,247,.048); } .ds-playpause:focus-visible { outline: 2px solid #d8963f; outline-offset: 2px; } .ds-ic { width: 17px; height: 16px; display: block; }"
+      "description": "A 31px circle on the 7.8% veil. It was a filled white disc and was demoted for outshouting the brass primary it is meant to sit beneath.",
+      "html": "<button class=\"ds-playpause\" aria-label=\"Play\"><svg class=\"ds-ic\" viewBox=\"0 0 15 14\" aria-hidden=\"true\"><path d=\"M4 2.5l8 4.5-8 4.5z\"/></svg></button>",
+      "css": ".ds-playpause{width:31px;height:31px;border-radius:50%;background:rgba(226,236,247,.078);color:#e3eaf2;border:1px solid rgba(226,236,247,.105);display:grid;place-items:center;transition:background-color 120ms linear}.ds-playpause:hover{background:rgba(226,236,247,.048)}.ds-playpause:focus-visible{outline:2px solid #d8963f;outline-offset:2px}.ds-ic{width:15px;height:14px;fill:currentColor;display:block}"
     },
     {
       "name": "Rail Navigation",
       "kind": "nav",
       "refersTo": "nav-item",
-      "description": "Sources and playlists. Current state is weight plus veil \u2014 never brass.",
-      "html": "<nav class=\"ds-rail\" aria-label=\"Sources\"><h2 class=\"ds-rail-head\">Playlists</h2><ul><li><a class=\"ds-nav ds-nav-current\" href=\"#\" aria-current=\"page\">All music <span class=\"ds-nav-n\">2,418</span></a></li><li><a class=\"ds-nav\" href=\"#\">Albums <span class=\"ds-nav-n\">184</span></a></li></ul></nav>",
-      "css": ".ds-rail { background: linear-gradient(to bottom, #111c2a, #0d1622); padding: 16px 10px; width: 198px; font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; } .ds-rail ul { list-style: none; margin: 0; padding: 0; } .ds-rail-head { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #7d8c9b; font-weight: 590; margin: 0 10px 6px; } .ds-nav { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; color: #8b9bab; text-decoration: none; font-size: 12.5px; transition: background-color 120ms linear, color 120ms linear; } .ds-nav:hover { background: rgba(226,236,247,.048); color: #e3eaf2; } .ds-nav-current { background: rgba(226,236,247,.078); color: #e3eaf2; font-weight: 590; } .ds-nav-n { margin-left: auto; font-size: 10.5px; color: #7d8c9b; font-variant-numeric: tabular-nums; }"
+      "description": "Sources rail items. Emphasis is weight plus veil, never brass. The trailing count is --ink-dim, not --ink-faint: on the current item's composite ground (#212c3a) --ink-faint is 4.09:1.",
+      "html": "<div class=\"ds-rail\"><div class=\"ds-rail-head\">Library</div><a class=\"ds-nav is-current\" href=\"#\">Albums<span class=\"ds-nav-n\">184</span></a><a class=\"ds-nav\" href=\"#\">Artists<span class=\"ds-nav-n\">61</span></a></div>",
+      "css": ".ds-rail{background:linear-gradient(to bottom,#111c2a,#0d1622);padding:16px 10px;width:198px;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-rail-head{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7d8c9b;font-weight:590;margin:0 10px 6px}.ds-nav{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:#8b9bab;text-decoration:none;font-size:12.5px;transition:background-color 120ms linear,color 120ms linear}.ds-nav:hover{background:rgba(226,236,247,.048);color:#e3eaf2}.ds-nav.is-current{background:rgba(226,236,247,.078);color:#e3eaf2;font-weight:590}.ds-nav-n{margin-left:auto;font-size:10.5px;color:#8b9bab}"
     },
     {
       "name": "Track Checkbox",
       "kind": "input",
       "refersTo": "checkbox",
-      "description": "The send selector. Checked is the one place a brass fill appears outside the primary action.",
-      "html": "<label class=\"ds-check-row\"><input class=\"ds-check\" type=\"checkbox\" checked aria-label=\"Send Ghost of Time\"></label>",
-      "css": ".ds-check { appearance: none; width: 15px; height: 15px; border-radius: 4px; border: 1px solid rgba(226,236,247,.105); background: rgba(226,236,247,.048); transition: background-color 120ms linear; } .ds-check:checked { background: #d8963f; border-color: #d8963f; } .ds-check:focus-visible { outline: 2px solid #d8963f; outline-offset: 2px; }"
+      "description": "Selection control in the track table. Checked is a solid brass fill; it is one of the four places brass is allowed.",
+      "html": "<input class=\"ds-check\" type=\"checkbox\" checked aria-label=\"Select track\"> <input class=\"ds-check\" type=\"checkbox\" aria-label=\"Select track\">",
+      "css": ".ds-check{appearance:none;width:15px;height:15px;border-radius:4px;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.048)}.ds-check:checked{background:#d8963f;border-color:#d8963f}.ds-check:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}"
     },
     {
       "name": "Seek Slider",
       "kind": "input",
-      "refersTo": "seek",
-      "description": "The player scrubber. The thumb is hidden at rest: an idle player should be a quiet line, not a bright dot.",
-      "html": "<input class=\"ds-seek\" type=\"range\" min=\"0\" max=\"342\" value=\"107\" aria-label=\"Seek\">",
-      "css": ".ds-seek { appearance: none; width: 240px; height: 3px; border-radius: 2px; background: linear-gradient(90deg, #8b9bab 31%, rgba(226,236,247,.10) 31%); caret-color: #d8963f; } .ds-seek::-webkit-slider-thumb { appearance: none; width: 11px; height: 11px; border-radius: 50%; background: #e3eaf2; opacity: 0; transition: opacity 120ms linear; } .ds-seek:hover::-webkit-slider-thumb, .ds-seek:focus-visible::-webkit-slider-thumb { opacity: 1; }"
+      "description": "A 3px track painted as a live gradient. The thumb is opacity:0 at rest and appears on hover and keyboard focus, because an idle player should be a quiet line rather than a bright dot.",
+      "html": "<input class=\"ds-seek\" type=\"range\" value=\"31\" aria-label=\"Seek\">",
+      "css": ".ds-seek{appearance:none;width:260px;height:3px;border-radius:2px;background:linear-gradient(90deg,#8b9bab 31%,rgba(226,236,247,.10) 31%)}.ds-seek::-webkit-slider-thumb{appearance:none;width:11px;height:11px;border-radius:50%;background:#e3eaf2;opacity:0;transition:opacity 120ms linear}.ds-seek:hover::-webkit-slider-thumb,.ds-seek:focus-visible::-webkit-slider-thumb{opacity:1}"
     },
     {
       "name": "Transfer Card",
       "kind": "card",
       "refersTo": "card-transfer",
-      "description": "The one floating surface in the app. Docked over the channel so it never covers the capacity readout.",
-      "html": "<section class=\"ds-transfer\"><div class=\"ds-transfer-head\"><h2>Sending to your watch</h2><p class=\"ds-transfer-of\">3 of 7 &middot; about 2 minutes left</p></div><div class=\"ds-meter\" role=\"progressbar\" aria-valuenow=\"43\" aria-valuemin=\"0\" aria-valuemax=\"100\"><i style=\"transform:scaleX(.43)\"></i></div><p class=\"ds-transfer-now\"><span>Into the Fog &mdash; converting FLAC to M4A on this Mac</span><span>19.6 MB</span></p></section>",
-      "css": ".ds-transfer { padding: 14px 16px; border-radius: 14px; background: rgba(226,236,247,.048); backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%); border: 1px solid rgba(226,236,247,.105); color: #e3eaf2; font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; max-width: 520px; } .ds-transfer-head { display: flex; align-items: baseline; gap: 12px; } .ds-transfer-head h2 { font-size: 13.5px; font-weight: 640; margin: 0; } .ds-transfer-of { margin: 0 0 0 auto; font-size: 11.5px; color: #8b9bab; font-variant-numeric: tabular-nums; } .ds-meter { height: 3px; border-radius: 2px; background: rgba(226,236,247,.078); margin: 11px 0 6px; overflow: hidden; } .ds-meter i { display: block; height: 100%; width: 100%; background: #d8963f; transform-origin: left center; transition: transform 260ms linear; } .ds-transfer-now { display: flex; justify-content: space-between; gap: 16px; margin: 0; font-size: 11.5px; color: #8b9bab; }"
+      "description": "The one floating surface, docked over the channel and stopping short of the watch wall so it can never cover the capacity number. Near-opaque base under the blur: with a 4.8% veil, bright album art scrolling behind dropped its inks to 3.99:1.",
+      "html": "<div class=\"ds-transfer\"><div class=\"ds-transfer-head\"><h2>Sending to Fenix 7</h2><span class=\"ds-transfer-of\">4 of 12</span></div><div class=\"ds-meter\"><i></i></div><div class=\"ds-transfer-now\"><span>Nightswimming.flac</span><span>2.1 MB/s</span></div></div>",
+      "css": ".ds-transfer{width:420px;padding:14px 16px;border-radius:14px;background:rgba(13,22,34,.97);backdrop-filter:blur(24px) saturate(140%);-webkit-backdrop-filter:blur(24px) saturate(140%);border:1px solid rgba(226,236,247,.105);color:#e3eaf2;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-transfer-head{display:flex;align-items:baseline;gap:12px}.ds-transfer-head h2{font-size:13.5px;font-weight:640;margin:0}.ds-transfer-of{margin-left:auto;font-size:11.5px;color:#8b9bab}.ds-meter{height:3px;border-radius:2px;background:rgba(226,236,247,.078);margin:11px 0 6px;overflow:hidden}.ds-meter i{display:block;height:100%;width:100%;background:#d8963f;transform-origin:left center;transform:scaleX(.33);transition:transform 260ms linear}.ds-transfer-now{display:flex;justify-content:space-between;gap:16px;font-size:11.5px;color:#8b9bab}"
     },
     {
-      "name": "Alert Notice",
-      "kind": "card",
+      "name": "Failure Notice",
+      "kind": "custom",
       "refersTo": "notice-alert",
-      "description": "A failure or warning states its name in words above its body. The tag exists so red is never the only signal.",
-      "html": "<div class=\"ds-notice\"><p class=\"ds-notice-tag\">Needs a title</p><p class=\"ds-notice-body\"><strong>track_07.flac</strong> has no title or artist, so your watch would store it but never show it in the music app.</p><div class=\"ds-notice-acts\"><button class=\"ds-notice-btn\" type=\"button\">Add tags&hellip;</button><button class=\"ds-notice-btn\" type=\"button\">Send anyway</button></div></div>",
-      "css": ".ds-notice { padding: 10px 12px; border-radius: 6px; border: 1px solid rgba(208,87,74,.34); background: rgba(208,87,74,.08); display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 14px; font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; max-width: 480px; } .ds-notice-tag { grid-column: 1/-1; margin: 0; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 640; color: #d0574a; } .ds-notice-body { margin: 0; font-size: 11.5px; color: #8b9bab; } .ds-notice-body strong { color: #e3eaf2; font-weight: 590; } .ds-notice-acts { display: flex; gap: 8px; align-self: center; } .ds-notice-btn { font: 590 11.5px/1.45 inherit; padding: 5px 11px; border-radius: 6px; color: #e3eaf2; border: 1px solid rgba(226,236,247,.105); background: rgba(226,236,247,.078); white-space: nowrap; transition: background-color 120ms linear; } .ds-notice-btn:hover { background: rgba(226,236,247,.048); }"
+      "description": "A failure states its name in words; colour is never the only signal. The ground is opaque --notice-ground rather than a red tint, because nested inside the translucent transfer card a tint put --alert at 4.18:1.",
+      "html": "<div class=\"ds-notice\"><span class=\"ds-notice-tag\">Transfer stopped</span><p class=\"ds-notice-body\">The watch disconnected after <strong>4 of 12</strong> tracks.</p><div class=\"ds-notice-acts\"><button class=\"ds-btn-sm\">Retry</button></div></div>",
+      "css": ".ds-notice{padding:10px 12px;border-radius:6px;border:1px solid rgba(217,99,79,.34);background:#191b25;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-notice-tag{grid-column:1/-1;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:640;color:#d9634f}.ds-notice-body{font-size:11.5px;color:#8b9bab;margin:0}.ds-notice-body strong{color:#e3eaf2;font-weight:590}.ds-notice-acts{display:flex;gap:8px;align-self:center}.ds-btn-sm{font:590 11.5px/1.45 inherit;padding:5px 11px;border-radius:6px;color:#e3eaf2;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078)}.ds-btn-sm:hover{background:rgba(226,236,247,.048)}"
     },
     {
       "name": "Watch Wall with Waterline",
       "kind": "custom",
-      "refersTo": "wall",
-      "description": "The signature component: a panel one depth step below the library, whose water level is the watch's used capacity. The pending band is a sibling of the water, not a child, so it measures against total capacity.",
-      "html": "<aside class=\"ds-wall\" aria-label=\"On your watch\"><div class=\"ds-wall-head\"><h2>On your watch</h2><p class=\"ds-wall-count\">20 tracks aboard</p></div><div class=\"ds-water\" style=\"height:35%\" aria-hidden=\"true\"></div><span class=\"ds-water-pending\" style=\"bottom:35%;height:8%\" aria-hidden=\"true\"></span><p class=\"ds-capacity\"><span class=\"ds-capacity-big\">2.41 <span class=\"ds-capacity-unit\">GB free</span></span><span class=\"ds-capacity-sm\">of 3.71 GB &middot; about 9 more hours will fit</span></p></aside>",
-      "css": ".ds-wall { position: relative; width: 300px; height: 320px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(to bottom, #0a1622, #101f2e); color: #e3eaf2; font: 400 12px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; } .ds-wall-head { padding: 16px 18px 8px; position: relative; z-index: 2; } .ds-wall-head h2 { font-size: 14px; font-weight: 640; margin: 0; } .ds-wall-count { margin: 1px 0 0; font-size: 11.5px; color: #7d8c9b; font-variant-numeric: tabular-nums; } .ds-water { position: absolute; inset: auto 0 0 0; z-index: 0; background: linear-gradient(to bottom, #16283a, #0a1622 60%, #060e17); transition: height 900ms cubic-bezier(.22,.61,.36,1); } .ds-water::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 1px; background: linear-gradient(90deg, rgba(74,140,190,.2), #4a8cbe 25%, #4a8cbe); box-shadow: 0 0 15px rgba(74,140,190,.32); } .ds-water-pending { position: absolute; left: 0; right: 0; z-index: 1; background: repeating-linear-gradient(-45deg, rgba(74,140,190,.20) 0 4px, rgba(74,140,190,.07) 4px 8px); border-top: 1px dashed rgba(74,140,190,.5); transition: height 260ms cubic-bezier(.22,.61,.36,1); } .ds-capacity { position: relative; z-index: 2; margin: auto 0 0; padding: 12px 18px 16px; font-variant-numeric: tabular-nums; } .ds-capacity-big { display: block; font-size: 26px; font-weight: 640; letter-spacing: -.024em; line-height: 1; } .ds-capacity-unit { font-size: 12px; color: #8b9bab; font-weight: 400; } .ds-capacity-sm { display: block; font-size: 11px; color: #8b9bab; margin-top: 4px; }"
+      "description": "The system's thesis made literal. The water is a full-height box translated down to the level, not a gradient compressed into a short box: the waterline stays exactly 1px at any level and a nearly empty watch shows only near-surface tones. The capacity readout carries its own opaque --d3 backing so the rising --d1 stop cannot get behind its ink.",
+      "html": "<div class=\"ds-wall\"><span class=\"ds-water\" style=\"transform:translateY(58%)\"></span><div class=\"ds-wall-head\"><h2>On your watch</h2><div class=\"ds-wall-count\">184 tracks aboard</div></div><div class=\"ds-capacity\"><span class=\"ds-cap-big\">4.1<span class=\"ds-cap-unit\"> GB free</span></span><span class=\"ds-cap-sm\">of 16 GB</span><span class=\"ds-cap-sel\" data-fits=\"no\">26 MB too much</span></div></div>",
+      "css": ".ds-wall{position:relative;width:300px;height:280px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;background:linear-gradient(to bottom,#0a1622,#101f2e);color:#e3eaf2;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-water{position:absolute;left:0;right:0;bottom:0;height:100%;z-index:0;background:linear-gradient(to bottom,#16283a,#0a1622 60%,#060e17);transition:transform 900ms cubic-bezier(.22,.61,.36,1)}.ds-water::before{content:\"\";position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,rgba(74,140,190,.2),#4a8cbe 25%,#4a8cbe);box-shadow:0 6px 12px -4px rgba(74,140,190,.32)}.ds-wall-head{padding:16px 18px 8px;position:relative;z-index:2}.ds-wall-head h2{font-size:14px;font-weight:640;margin:0}.ds-wall-count{font-size:11.5px;color:#8b9bab;margin-top:1px}.ds-capacity{position:relative;z-index:2;padding:12px 18px 16px;background:#0a1622}.ds-cap-big{display:block;font-size:26px;font-weight:640;letter-spacing:-.024em;line-height:1;font-variant-numeric:tabular-nums}.ds-cap-unit{font-size:12px;color:#8b9bab;font-weight:400}.ds-cap-sm{display:block;font-size:11px;color:#8b9bab;margin-top:4px}.ds-cap-sel{display:block;font-size:11px;color:#8b9bab;margin-top:5px}.ds-cap-sel[data-fits=\"no\"]{color:#d9634f}"
     },
     {
       "name": "Track Row",
       "kind": "custom",
-      "refersTo": "tracks",
-      "description": "A library row: play control, title over duration, format, send checkbox. The playing row turns brass in title and icon.",
-      "html": "<table class=\"ds-tracks\"><tbody><tr class=\"ds-playing\"><td class=\"ds-tracks-play\"><button class=\"ds-iconbtn\" type=\"button\" aria-label=\"Pause Ghost of Time\"><svg viewBox=\"0 0 15 14\" width=\"15\" height=\"14\" aria-hidden=\"true\"><path d=\"M4.6 3h1.9v8H4.6zM8.5 3h1.9v8H8.5z\" fill=\"currentColor\"/></svg></button></td><th scope=\"row\" class=\"ds-tracks-title\"><span class=\"ds-t\">Ghost of Time</span><span class=\"ds-s\">5:42</span></th><td class=\"ds-tracks-fmt\">FLAC 24/96</td><td><input class=\"ds-check\" type=\"checkbox\" checked aria-label=\"Send Ghost of Time\"></td></tr><tr><td class=\"ds-tracks-play\"><button class=\"ds-iconbtn\" type=\"button\" aria-label=\"Play Into the Fog\"><svg viewBox=\"0 0 15 14\" width=\"15\" height=\"14\" aria-hidden=\"true\"><path d=\"M4.5 2.8 11.5 7 4.5 11.2Z\" fill=\"currentColor\"/></svg></button></td><th scope=\"row\" class=\"ds-tracks-title\"><span class=\"ds-t\">Into the Fog</span><span class=\"ds-s\">3:07</span></th><td class=\"ds-tracks-fmt\">FLAC 16/44</td><td><input class=\"ds-check\" type=\"checkbox\" aria-label=\"Send Into the Fog\"></td></tr></tbody></table>",
-      "css": ".ds-tracks { width: 100%; max-width: 520px; border-collapse: collapse; background: #0d1622; color: #e3eaf2; font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; } .ds-tracks tbody tr { border-bottom: 1px solid rgba(226,236,247,.058); transition: background-color 120ms linear; } .ds-tracks tbody tr:hover { background: rgba(226,236,247,.048); } .ds-tracks td, .ds-tracks th { padding: 7px 10px; text-align: left; font-weight: 400; } .ds-tracks-play { width: 36px; } .ds-tracks-title .ds-t { display: block; font-size: 13px; } .ds-tracks-title .ds-s { display: block; font-size: 11.5px; color: #8b9bab; font-variant-numeric: tabular-nums; } .ds-tracks-fmt { width: 96px; font-size: 10.5px; color: #7d8c9b; letter-spacing: .05em; font-variant-numeric: tabular-nums; } .ds-playing .ds-t, .ds-playing .ds-iconbtn { color: #d8963f; } .ds-iconbtn { background: none; border: 0; color: #7d8c9b; display: grid; place-items: center; padding: 2px; border-radius: 4px; transition: color 120ms linear; } .ds-iconbtn:hover { color: #e3eaf2; } .ds-iconbtn:focus-visible { outline: 2px solid #d8963f; outline-offset: 2px; } .ds-check { appearance: none; width: 15px; height: 15px; border-radius: 4px; border: 1px solid rgba(226,236,247,.105); background: rgba(226,236,247,.048); } .ds-check:checked { background: #d8963f; border-color: #d8963f; }"
+      "description": "A row of the album channel's track table. Hairline-separated, hover takes the 4.8% veil, and the playing row turns brass on its title and its transport glyph.",
+      "html": "<table class=\"ds-tracks\"><tbody><tr class=\"is-playing\"><td class=\"ds-t-play\"><span class=\"ds-iconbtn\">▶</span></td><td><span class=\"ds-t\">Nightswimming</span><span class=\"ds-s\">R.E.M. · 4:18</span></td><td class=\"ds-fmt\">FLAC → MP3</td></tr><tr><td class=\"ds-t-play\"><span class=\"ds-iconbtn\">▶</span></td><td><span class=\"ds-t\">Find the River</span><span class=\"ds-s\">R.E.M. · 3:49</span></td><td class=\"ds-fmt\">FLAC → MP3</td></tr></tbody></table>",
+      "css": ".ds-tracks{width:420px;border-collapse:collapse;color:#e3eaf2;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-tracks tbody tr{border-bottom:1px solid rgba(226,236,247,.058);transition:background-color 120ms linear}.ds-tracks tbody tr:hover{background:rgba(226,236,247,.048)}.ds-tracks td{padding:7px 10px;text-align:left}.ds-t-play{width:36px}.ds-iconbtn{color:#7d8c9b;font-size:11px}.ds-t{display:block;font-size:13px}.ds-s{display:block;font-size:11.5px;color:#8b9bab}.ds-fmt{width:96px;font-size:10.5px;color:#7d8c9b;letter-spacing:.05em}.ds-tracks .is-playing .ds-t,.ds-tracks .is-playing .ds-iconbtn{color:#d8963f}"
     }
   ],
   "narrative": {
     "northStar": "The Fjord",
-    "overview": "Pelican is a cold blue-black room with one absolute horizontal in it. The ground (#070c13) is fjord water seen from above; every surface in the app sits at a stated depth in that water, and depth is the only spatial idea the system has. Above the waterline is --air \u2014 the library, where you browse your own music. Below it are --d1 through --d4, each colder, darker and denser than the last, ending at the player bar, which is the deepest surface on screen. One warm value, brass (#d8963f), is the low sun on the water; it appears on the active state and the primary action and nowhere else.\n\nThe register is Scandinavian restraint: the craft lives in the joinery \u2014 a 1px waterline with a 15px bloom, a hairline that is 5.8% ink and not a border-coloured line, a scrollbar drawn rather than inherited \u2014 and there is no applied ornament anywhere. Nothing is decorated to look designed. The density is a desktop utility's: 13px body, 46px titlebar, 66px player, rows at 7px vertical padding. It reads like a native Mac tool because it is built out of the same materials one is: the system type stack, no bundled asset, no raster of any kind.\n\nThe product's promises are load-bearing on the visuals. Nothing leaves the machine, which means no webfont, no remote image, no telemetry pixel; the frontend is vanilla HTML/CSS/JS with no framework and no bundler, so the system has to be expressible in one 415-line stylesheet and custom properties on :root. And the app ships zero rasters: album art is a code-drawn frame filled at runtime from the user's own files. The measured comp spec records 10 regions and 0 plates.",
+    "overview": "Pelican is a cold blue-black room with one absolute horizontal in it. The ground (`#070c13`) is fjord water seen from above; every surface in the app sits at a stated depth in that water, and depth is the only spatial idea the system has. Above the waterline is `--air` — the library, where you browse your own music. Below it are `--d1` through `--d4`, each colder, darker and denser than the last, ending at the player bar, which is the deepest surface on screen. One warm value, brass (`#d8963f`), is the low sun on the water; it appears on the active state and the primary action and nowhere else.\n\nThe register is Scandinavian restraint: the craft lives in the joinery — a 1px waterline with a bloom that falls only downward, a hairline that is 5.8% ink and not a border-coloured line, a scrollbar drawn rather than inherited — and there is no applied ornament anywhere. Nothing is decorated to look designed. The density is a desktop utility's: 13px body, 46px titlebar, 66px player, rows at 7px vertical padding. It reads like a native Mac tool because it is built out of the same materials one is: the system type stack, no bundled asset, no raster of any kind.\n\nThe product's promises are load-bearing on the visuals. Nothing leaves the machine, which means no webfont, no remote image, no telemetry pixel; the frontend is vanilla HTML/CSS/JS with no framework and no bundler, so the system has to be expressible in one 494-line stylesheet and custom properties on `:root`. And the app ships zero rasters: album art is a code-drawn frame filled at runtime from the user's own files. The measured comp spec records 10 regions and 0 plates.",
     "keyCharacteristics": [
       "Depth as the only spatial metaphor; five named grounds, no shadow ladder.",
-      "One absolute horizontal \u2014 the waterline \u2014 as the only structural rule.",
+      "One absolute horizontal — the waterline — as the only structural rule.",
       "Exactly one warm value, reserved; everything else is blue-black and ink.",
       "Colour never signals alone; every state also says its name in words.",
       "No shipped rasters, no bundled fonts, no icon font: SVG paths and CSS.",
-      "Container queries, not media queries \u2014 this is a window, not a viewport.",
+      "Container queries, not media queries — this is a window, not a viewport.",
       "One thing moves with intent (the water); nothing loops or pulses at rest."
     ],
     "rules": [
@@ -422,22 +495,27 @@
       },
       {
         "name": "The Word With The Colour Rule",
-        "body": "No state is carried by hue alone. Red appears only alongside its sentence; the connection dot only alongside the word 'connected' or 'no watch found'; over-capacity turns red and changes its text to '\u2026 too much'. Test: convert the screen to greyscale \u2014 if a state became unreadable, the state is under-built.",
+        "body": "No state is carried by hue alone. Red appears only alongside its sentence; the connection dot only alongside the word `connected` or `no watch found`; over-capacity turns red *and* changes its text to `… too much`. Test: convert the screen to greyscale — if a state became unreadable, the state is under-built.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ground You Actually Sit On Rule",
+        "body": "A contrast ratio is measured against the composite an element renders over, not against the token named in its parent's rule. Three failures in this build came from measuring against the wrong ground: `--alert` inside `.notice` inside a translucent `.transfer` read 5.06:1 on paper and 4.18:1 on the real three-layer composite; `--ink-faint` in the rail read 5.28:1 on `--air` and 4.09:1 on `--surface-2` over the rail gradient; the capacity readout read fine until `.water`'s `--d1` stop rose behind it at 4.18:1. Where a stack cannot be pinned down — the transfer card floats over scrolling album art — give the element an opaque ground and the question stops being open.",
         "section": "colors"
       },
       {
         "name": "The Deeper Is Colder Rule",
-        "body": "A surface's colour states its depth. Moving a panel down the ladder means moving it toward #060e17; there is no lighter-means-nearer inversion anywhere in the system.",
+        "body": "A surface's colour states its depth. Moving a panel down the ladder means moving it toward `#060e17`; there is no lighter- means-nearer inversion anywhere in the system.",
         "section": "colors"
       },
       {
         "name": "The One Family Rule",
-        "body": "There is no display face and no mono face. Hierarchy is made from weight (400 / 590 / 640 / 660), size, and ink tier \u2014 never from a second family. A bundled webfont is a network promise this product does not make.",
+        "body": "There is no display face and no mono face. Hierarchy is made from weight (400 / 590 / 640 / 660), size, and ink tier — never from a second family. A bundled webfont is a network promise this product does not make.",
         "section": "typography"
       },
       {
         "name": "The Tabular Number Rule",
-        "body": "Any numeral a user might compare against another numeral carries font-variant-numeric: tabular-nums. In practice that is every number in the app.",
+        "body": "Any numeral a user might compare against another numeral carries `font-variant-numeric: tabular-nums`. In practice that is every number in the app.",
         "section": "typography"
       },
       {
@@ -447,22 +525,27 @@
       },
       {
         "name": "The Window Not Viewport Rule",
-        "body": "Every breakpoint in this system is @container shell (max-width: \u2026). Adding a @media (max-width: \u2026) layout rule is a defect: it makes the app answer to the display instead of to itself.",
+        "body": "Every breakpoint in this system is `@container shell (max-width: …)`. Adding a `@media (max-width: …)` layout rule is a defect: it makes the app answer to the display instead of to itself.",
         "section": "layout"
       },
       {
         "name": "The Nothing Unreachable Rule",
-        "body": "No breakpoint may remove a navigation target. Panels may re-flow, re-orient or scroll; they may not disappear with their contents. Content that is duplicated elsewhere may be dropped; content that is unique may not.",
+        "body": "No breakpoint may remove a navigation target. Panels may re-flow, re-orient or scroll; they may not disappear with their contents. Content that is duplicated elsewhere (the rail's playlist note) may be dropped; content that is unique may not.",
         "section": "layout"
       },
       {
         "name": "The Tonal Depth Rule",
-        "body": "New surfaces take a depth from the ladder; they do not take a shadow. If a panel needs to read as further away, it moves toward #060e17, not under a blur.",
+        "body": "New surfaces take a depth from the ladder; they do not take a shadow. If a panel needs to read as further away, it moves toward `#060e17`, not under a blur.",
         "section": "elevation"
       },
       {
         "name": "The One Luminous Object Rule",
-        "body": "The waterline is the only thing in the app that emits light. No second glow, no accent bloom, no brass halo.",
+        "body": "The waterline is the only thing in the app that emits light, and it lights downward only. No second glow, no accent bloom, no brass halo, and no light cast up into the air where text lives.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Floor Under The Glass Rule",
+        "body": "A translucent surface that can float over arbitrary content gets an opaque or near-opaque base beneath its blur. Glass is a look, not a contrast strategy; without a floor, every ink on the panel inherits its ratio from whatever scrolls behind it.",
         "section": "elevation"
       },
       {
@@ -472,7 +555,12 @@
       },
       {
         "name": "The Hairline Rule",
-        "body": "Structural separation is a 5.8%-ink 1px line. Not a grey, not a --border colour, not a 2px rule, and never two lines where the tonal step already separates the panels.",
+        "body": "Structural separation is a 5.8%-ink 1px line. Not a grey, not a `--border` colour, not a 2px rule, and never two lines where the tonal step already separates the panels.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Scale Has A Floor Rule",
+        "body": "6 / 10 / 14 governs anything with an interior. An element smaller than about 16px in its short dimension takes a radius from its own geometry instead, and that exception is registered rather than assumed. Adding a fifth off-scale radius means registering it too, or it is drift.",
         "section": "shapes"
       },
       {
@@ -482,23 +570,27 @@
       }
     ],
     "dos": [
-      "Do place a new surface on the depth ladder (--air, --air-2, --d1\u2013--d4) and let its colour state how deep it is.",
+      "Do place a new surface on the depth ladder (`--air`, `--air-2`, `--d1`–`--d4`) and let its colour state how deep it is.",
       "Do use the two white veils (4.8% / 7.8%) for raised and current states, and the two hairlines (5.8% structural / 10.5% control) for edges.",
       "Do pair every colour-carried state with its word, and check the screen in greyscale before calling it done.",
-      "Do keep --ink-faint at #7d8c9b; the 5.28:1 ratio is the reason it is that value.",
-      "Do write new breakpoints as @container shell (max-width: \u2026).",
-      "Do mark comparable numerals .num.",
-      "Do draw new icons as inline SVG paths in the sprite, fill/stroke: currentColor at 15\u00d714 (17\u00d716 large), stroke-width 1.4, round caps.",
+      "Do keep `--ink-faint` at `#7d8c9b`; the 5.28:1 ratio is the reason it is that value.",
+      "Do write new breakpoints as `@container shell (max-width: …)`.",
+      "Do mark comparable numerals `.num`.",
+      "Do draw new icons as inline SVG paths in the sprite, `fill/stroke: currentColor` at 15×14 (17×16 large), stroke-width 1.4, round caps.",
       "Do keep prose blocks at or under 34ch.",
+      "Do register an off-scale radius in `.impeccable/config.json` when an element is too small for the 6/10/14 scale, rather than letting it pass unremarked.",
       "Do animate colour and background at 120ms, state arrivals at 260ms, and reserve 900ms for the water alone."
     ],
     "donts": [
-      "Don't put brass on anything that is not the primary action or the active state \u2014 not on hover, not on a heading, not on a border.",
+      "Don't put brass on anything that is not the primary action or the active state — not on hover, not on a heading, not on a border.",
       "Don't add a drop shadow to convey elevation; the cover lift is the only one, and depth is tonal.",
       "Don't introduce a second font family, a webfont, or an icon font. The no-network promise and the auditable dependency surface both depend on it.",
       "Don't ship a raster. Album art is a code-drawn frame filled from the user's own files at runtime; the build records 0 plates and should stay there.",
-      "Don't make the pending band a child of .water, or animate .water with transform \u2014 both were tried and both break the thing the design rests on.",
-      "Don't use pointer-events: none to disable a control; opacity plus a stated reason.",
+      "Don't make the pending band a child of `.water`: its percentage height resolves against the water's own height, so the band shrinks as the watch empties. It is a fraction of total capacity, so it measures against the wall.",
+      "Don't animate `.water` by scaling or by compressing the gradient into a short box. It is full-height and translated; that is what keeps the waterline exactly 1px and the depth ramp truthful at low levels.",
+      "Don't claim a contrast ratio against a parent's declared colour when the element renders over a composite. Measure the stack, or make the ground opaque.",
+      "Don't put a translucent surface over content you do not control without a floor under the blur.",
+      "Don't use `pointer-events: none` to disable a control; opacity plus a stated reason.",
       "Don't let a floating panel cover the capacity readout.",
       "Don't remove a navigation target at a breakpoint. Re-flow it.",
       "Don't invent placeholder numbers. Capacities, counts, sizes and formats are read from the device and the user's files; a fabricated value in this app is a lie about their hardware.",

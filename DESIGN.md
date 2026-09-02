@@ -16,7 +16,8 @@ colors:
   sun: "#d8963f"
   sun-ink: "#160f06"
   ok: "#5aa8a0"
-  alert: "#d0574a"
+  alert: "#d9634f"
+  notice-ground: "#191b25"
   surface: "rgba(226,236,247,.048)"
   surface-2: "rgba(226,236,247,.078)"
   hairline: "rgba(226,236,247,.105)"
@@ -127,12 +128,12 @@ components:
   checkbox-checked:
     backgroundColor: "{colors.sun}"
   card-transfer:
-    backgroundColor: "{colors.surface}"
+    backgroundColor: "rgba(13,22,34,.97)"
     textColor: "{colors.ink}"
     rounded: "{rounded.lg}"
     padding: "14px 16px"
   notice-alert:
-    backgroundColor: "rgba(208,87,74,.08)"
+    backgroundColor: "{colors.notice-ground}"
     textColor: "{colors.ink-dim}"
     rounded: "{rounded.sm}"
     padding: "10px 12px"
@@ -161,7 +162,7 @@ on screen. One warm value, brass (`#d8963f`), is the low sun on the water; it
 appears on the active state and the primary action and nowhere else.
 
 The register is Scandinavian restraint: the craft lives in the joinery — a
-1px waterline with a 15px bloom, a hairline that is 5.8% ink and not a
+1px waterline with a bloom that falls only downward, a hairline that is 5.8% ink and not a
 border-coloured line, a scrollbar drawn rather than inherited — and there is
 no applied ornament anywhere. Nothing is decorated to look designed. The
 density is a desktop utility's: 13px body, 46px titlebar, 66px player, rows
@@ -172,7 +173,7 @@ raster of any kind.
 The product's promises are load-bearing on the visuals. Nothing leaves the
 machine, which means no webfont, no remote image, no telemetry pixel; the
 frontend is vanilla HTML/CSS/JS with no framework and no bundler, so the
-system has to be expressible in one 415-line stylesheet and custom properties
+system has to be expressible in one 494-line stylesheet and custom properties
 on `:root`. And the app ships zero rasters: album art is a code-drawn frame
 filled at runtime from the user's own files. The measured comp spec records
 10 regions and 0 plates.
@@ -202,14 +203,16 @@ with one warm accent and two status values that never carry meaning alone.
 
 ### Secondary
 - **Waterline Blue** (`#4a8cbe`): the structural line. Used for the 1px
-  waterline (as a left-fading gradient with a 15px bloom at 32% opacity) and
-  the diagonal hatch of the pending band. It is a rule, not an accent: it is
-  never a text colour and never a fill.
+  waterline (a left-fading gradient carrying a directional bloom,
+  `0 6px 12px -4px rgba(74,140,190,.32)`) and the diagonal hatch of the
+  pending band. It is a rule, not an accent: it is never a text colour and
+  never a fill. Measured as text it would be 5.01:1 on `--air`; it is not used
+  as text anywhere, and should not be.
 
 ### Tertiary
 - **Kelp** (`#5aa8a0`): the connection dot when a watch is present, 7px. Never
   used for text.
-- **Signal Red** (`#d0574a`): the untagged-file warning, the over-capacity
+- **Signal Red** (`#d9634f`): the untagged-file warning, the over-capacity
   selection readout, and the failure notice's tag and hairline. Always paired
   with a word: `Needs a title`, `26 MB too much`.
 
@@ -228,6 +231,11 @@ with one warm accent and two status values that never carry meaning alone.
   credits, the transfer's running commentary.
 - **Ink Faint** (`#7d8c9b`, 5.28:1): the quietest legible tier — counts,
   formats, timecodes, connection status, uppercase labels.
+- **Notice Ground** (`#191b25`): the one opaque ground invented for a
+  legibility reason rather than a depth one. It is `--air` with the alert hue
+  flattened into it, and it exists so the transfer failure headline's contrast
+  is a property of its own rule instead of a property of whatever three layers
+  happen to be behind it. `--alert` measures 4.77:1 here under any backdrop.
 - **Surface veils** (`rgba(226,236,247,.048)` and `.078`): the only way an
   element becomes "raised". Hover is the 4.8% veil, current/rest is the 7.8%.
 - **Hairlines** (`rgba(226,236,247,.105)` and `.058`): control borders and
@@ -244,6 +252,17 @@ appears only alongside its sentence; the connection dot only alongside the
 word `connected` or `no watch found`; over-capacity turns red *and* changes
 its text to `… too much`. Test: convert the screen to greyscale — if a state
 became unreadable, the state is under-built.
+
+**The Ground You Actually Sit On Rule.** A contrast ratio is measured against
+the composite an element renders over, not against the token named in its
+parent's rule. Three failures in this build came from measuring against the
+wrong ground: `--alert` inside `.notice` inside a translucent `.transfer` read
+5.06:1 on paper and 4.18:1 on the real three-layer composite; `--ink-faint` in
+the rail read 5.28:1 on `--air` and 4.09:1 on `--surface-2` over the rail
+gradient; the capacity readout read fine until `.water`'s `--d1` stop rose
+behind it at 4.18:1. Where a stack cannot be pinned down — the transfer card
+floats over scrolling album art — give the element an opaque ground and the
+question stops being open.
 
 **The Deeper Is Colder Rule.** A surface's colour states its depth. Moving a
 panel down the ladder means moving it toward `#060e17`; there is no lighter-
@@ -379,12 +398,21 @@ The one true drop shadow in the app is under the large album cover.
   cover only. It is the one object presented as a physical thing.
 - **Frame highlight** (`inset 0 1px 0 rgba(226,236,247,.05–.06)`): a 1px top
   light on every cover frame, at every size. Joinery, not elevation.
-- **Waterline bloom** (`box-shadow: 0 0 15px rgba(74,140,190,.32)`): the glow
-  under the 1px waterline. The only luminous object in the app.
+- **Waterline bloom** (`box-shadow: 0 6px 12px -4px rgba(74,140,190,.32)`):
+  the glow under the 1px waterline. The only luminous object in the app, and
+  it is deliberately *directional* — offset 6px down with a −4px spread, so the
+  light falls into the water and not into the air. A symmetrical halo washed
+  the ground the wall list scrolls across and pushed those rows under AA.
 
 The single blur in the system is the transfer card: `backdrop-filter:
-blur(24px) saturate(140%)` over a 4.8% veil with a 10.5% hairline. It is the
-only element that floats, and it is docked — `left:210px; right:314px;
+blur(24px) saturate(140%)` over a **near-opaque base** (`rgba(13,22,34,.97)`)
+with a 10.5% hairline. The base is the load-bearing part. The card floats over
+`.channel`, which scrolls album art at full size, and over a 4.8% veil every
+ink on the card inherited whatever was behind it — bright art dragged the
+failure headline to 3.99:1. The blur stays; it is still glass, it just has a
+floor. At 97% over worst-case white artwork the card's ground composites to
+about `#141d29`, where ink is 13.99:1, `--ink-dim` 5.96:1 and `--ink-faint`
+4.93:1 — all still AA. It is the only element that floats, and it is docked — `left:210px; right:314px;
 bottom:80px` — deliberately stopping short of the watch wall, because capacity
 is the number actually changing during a transfer and the card must never
 cover it.
@@ -395,7 +423,13 @@ not take a shadow. If a panel needs to read as further away, it moves toward
 `#060e17`, not under a blur.
 
 **The One Luminous Object Rule.** The waterline is the only thing in the app
-that emits light. No second glow, no accent bloom, no brass halo.
+that emits light, and it lights downward only. No second glow, no accent
+bloom, no brass halo, and no light cast up into the air where text lives.
+
+**The Floor Under The Glass Rule.** A translucent surface that can float over
+arbitrary content gets an opaque or near-opaque base beneath its blur. Glass
+is a look, not a contrast strategy; without a floor, every ink on the panel
+inherits its ratio from whatever scrolls behind it.
 
 **The Never Cover The Number Rule.** Floating surfaces are docked with
 explicit insets that clear the capacity readout. A transient panel may cover
@@ -403,19 +437,31 @@ the library; it may never cover the fact that is changing.
 
 ## Shapes
 
-Rectangles with small, quiet radii and hairline edges. Three radius steps do
-almost all the work: 6px on controls (buttons, nav items, the untagged
-warning, the failure notice), 10px unused in the shipped surface but reserved
-as the mid step, and 14px on the one floating card. Covers are their own
+Rectangles with small, quiet radii and hairline edges. The scale is
+6 / 10 / 14px and it governs panels and controls: 6px does nearly all the work
+(buttons, nav items, the rail's new-playlist control, the untagged warning,
+the failure notice), 10px is defined but unused in the shipped surface and
+reserved as the mid step, and 14px is on the one floating card. Covers are their own
 family — 5px base, 8px at the 132px hero size, so the corner stays visually
 constant as the frame grows. Small interactive parts round to 4px (checkbox,
 icon buttons) and circles are reserved for exactly two things: the 7px
 connection dot and the 31px play/pause control.
 
+**Where the scale stops.** Four radii sit deliberately beneath the 6/10/14
+scale, because a 6px corner on a 3px-tall bar is a pill rather than a corner.
+They are registered as sanctioned exceptions in `.impeccable/config.json`, not
+drift: **2px** on the 3px seek track and the 3px transfer meter; **3px** on the
+focus ring (`:focus-visible`, 2px brass outline at 2px offset); **4px** on the
+15px checkbox and the icon buttons; **5px** on the scrollbar thumb, which is
+9px wide, so 5px is its own half-width. Covers are their own family for the
+opposite reason — 5px base and 8px at the 132px hero size, so the corner reads
+as visually constant as the frame grows. Circles are reserved for exactly
+three things: the 7px connection dot, the 31px play/pause control and the 11px
+seek thumb.
+
 Borders are hairlines, never lines: `rgba(226,236,247,.058)` for structure
-(every grid divider in the app is this one value) and `.105` for the edge of
-something you can press. The 3px progress meter and 3px seek track round to
-2px — a hair, enough to stop the ends reading as cut.
+(every panel edge and grid divider in the app is this one value) and `.105`
+for the edge of something you can press.
 
 The cover frame is the system's one drawn object: a 155° blue gradient with a
 9% hairline and an inner top highlight, standing in for artwork that is read
@@ -426,6 +472,12 @@ graphic.
 **The Hairline Rule.** Structural separation is a 5.8%-ink 1px line. Not a
 grey, not a `--border` colour, not a 2px rule, and never two lines where the
 tonal step already separates the panels.
+
+**The Scale Has A Floor Rule.** 6 / 10 / 14 governs anything with an interior.
+An element smaller than about 16px in its short dimension takes a radius from
+its own geometry instead, and that exception is registered rather than
+assumed. Adding a fifth off-scale radius means registering it too, or it is
+drift.
 
 **The No Applied Ornament Rule.** No borders that do not separate, no
 gradients that do not describe depth, no rounded corner larger than 14px, no
@@ -467,7 +519,12 @@ answer in 120ms with a veil, never a jump.
 
 ### Navigation
 - Rail items are 12.5px, `--ink-dim`, `7px 10px`, 6px radius, with the count
-  pushed right at 10.5px `--ink-faint`. Hover takes the 4.8% veil and ink
+  pushed right at 10.5px **`--ink-dim`** — not `--ink-faint`. The count sits on
+  a composite, not on `--air`: `.is-current` stacks `--surface-2` over the
+  rail's `--air-2` stop for `#212c3a`, where `--ink-faint` is 4.09:1, and
+  `:hover` gives `#1b2634` at 4.44:1. Both fail AA, and the default markup
+  ships `.is-current`, so the badge was under AA at open. `--ink-dim` is
+  4.95:1 and 5.37:1 on those same grounds. No palette token changed to fix it. Hover takes the 4.8% veil and ink
   text; the current item takes the 7.8% veil, ink text and 590 weight —
   emphasis by weight and veil, never by brass.
 - Section heads are 10px/0.14em uppercase `--ink-faint`.
@@ -475,21 +532,46 @@ answer in 120ms with a veil, never a jump.
   on the raised `--air-2` ground with a bottom hairline instead of a right one.
 
 ### Cards / Containers
-- **Transfer card:** 14px radius, 4.8% veil, `blur(24px) saturate(140%)`,
-  10.5% hairline, `14px 16px` padding, docked over the channel. Enters with
+- **Transfer card:** 14px radius, near-opaque base `rgba(13,22,34,.97)` under
+  `blur(24px) saturate(140%)`, 10.5% hairline, `14px 16px` padding, docked over
+  the channel. Enters with
   `@starting-style` from `opacity:0; translateY(10px)` over 260ms.
-- **Notice / pre-warning:** 6px radius, `10px 12px`, red at 8% fill and 32–34%
-  border, with a two-column grid so the actions sit beside the body and the
-  uppercase tag spans the full width above them. The tag is the state's name
-  in words; it exists so the red is never the only signal.
+- **Failure notice:** 6px radius, `10px 12px`, an **opaque** `--notice-ground`
+  fill with a `rgba(217,99,79,.34)` border, in a two-column grid so the actions
+  sit beside the body and the uppercase tag spans the full width above them.
+  The opacity is the point: `.notice` nests inside `.transfer`, and a red tint
+  over that composite put `--alert` at 4.18:1 — below AA on the one string in
+  the app that reports a failure. Flattened, `--alert` is 4.77:1 and
+  `--ink-dim` 6.02:1 there, regardless of what the channel is scrolling behind
+  the card. Do not restore the translucent fill.
+- **Pre-send warning (`.prewarn`):** the same 6px / `10px 12px` / two-column
+  shape, but it sits directly on `--air` rather than inside glass, so it keeps
+  a tint: `rgba(217,99,79,.07)` fill with a `.32` border. That composite is
+  `#1b1b25`, where `--alert` is 4.74:1 and `--ink-dim` 5.97:1. The uppercase
+  tag is the state's name in words; it exists so the red is never the only
+  signal.
+- **Capacity readout:** opaque `--d3` backing, `12px 18px 16px`. `.water` is
+  anchored to the same bottom edge, so on a nearly empty watch its lightest
+  stop `--d1` rises directly behind this block and dropped the over-capacity
+  warning to 4.18:1. On the opaque `--d3` it is 5.08:1 at any level.
 
 ### Signature Component: the watch wall and its waterline
 The right-hand panel is the app's thesis made literal. The panel itself is a
 `d3→d2` gradient — a step deeper than the channel beside it, because the
 library is open air and the watch is under water. The water is an absolutely
-positioned box pinned to the bottom whose `height` is the fraction of capacity
-in use, filled `d1 → d3 (60%) → d4`. Its `::before` draws the waterline: 1px,
-fading in from 20% at the left edge to solid `#4a8cbe`, with a 15px bloom.
+positioned box pinned to the bottom at **full height**, filled
+`d1 → d3 (60%) → d4` and **translated down** to the level:
+`transform: translateY(calc(100% - var(--used, 0%)))`. Its `::before` draws the
+waterline: 1px, fading in from 20% at the left edge to solid `#4a8cbe`, with a
+downward-only bloom.
+
+**Translating a full-height gradient, rather than compressing a gradient into
+a short box, is what makes the two details true.** The waterline stays exactly
+1px at every level, because nothing about the box is being scaled. And the
+depth ramp becomes honest: a nearly-empty watch shows only near-surface tones
+instead of cramming `d1` through `d4` into a sliver, because shallow water is
+not abyssal. The geometry is exact — in a 668px wall, levels of 8 / 35 / 88 /
+100% expose 53.4 / 233.8 / 587.8 / 668px of water.
 
 The pending band shows what the current selection would add: a −45° hatch of
 the line colour (20% / 7%) with a dashed top edge, sitting on top of the
@@ -498,8 +580,14 @@ percentage height resolved against the water's own height, so the band shrank
 as the watch emptied. It is a fraction of total capacity, so it must measure
 against the wall.
 
+At ≤720px the wall sits below the channel rather than beside it, and there the
+water is a fixed **84px band behind the capacity readout** with
+`transform: none` — it is no longer a fill behind a panel, so there is no level
+for it to carry, and the readout beside it states the number instead.
+
 Everything else in the wall (head, list, more-link, capacity readout) sits at
-`z-index: 2` above the water. The disconnected state is driven by
+`z-index: 2` above the water, and the capacity block carries an opaque `--d3`
+backing of its own so the rising `--d1` stop can never get behind its ink. The disconnected state is driven by
 `[data-device="none"]` on the app root: list, count, water and capacity all
 hide, the empty-state paragraph appears, and the connection dot desaturates
 from kelp to `--ink-faint`.
@@ -513,50 +601,71 @@ Nothing loops or pulses while idle. Three durations, one easing curve
 - **Quick, 120ms linear** — background, colour and opacity on every
   interactive element (nav, buttons, icon buttons, table rows, seek thumb).
 - **Settle, 260ms** — the transfer card's entry, the meter fill, the pending
-  band, and the `sink` keyframe that carries a sent row down 14px to
+  band's opacity, and the `sink` keyframe that carries a sent row down 14px to
   `opacity: 0`. That gesture is comp E's downward send, surviving as behaviour
   rather than as a layout.
 - **Tide, 900ms** — the water rising. The only slow thing in the app, and it
   runs once per transfer.
 
-**`.water` animates `height`, deliberately, against the usual advice to
-animate `transform`.** It is out of flow and childless, so the layout cost is
-a single absolutely-positioned box, not a frame budget — and `scaleY` would
-squash the depth gradient and thicken the 1px waterline, which is the one
-detail the whole design rests on. `--used` carries the initial level from the
-markup so the panel is correct before script runs; script then drives `height`
-directly, because WKWebView will not transition a property whose value comes
-from a custom property. `.meter i` is the opposite case and takes `scaleX`: a
-solid fill with no gradient or border looks identical scaled and animates on
-the compositor.
+**`.water` animates `transform`, not `height`.** The element is full-height
+and slides down to the level, so the one animation the design actually cares
+about is compositor-only and nothing lays out on an animation frame. It also
+avoids the trap that made `scaleY` unusable: translation moves the gradient
+without squashing it and without thickening the 1px waterline, which is the
+one detail the whole design rests on. `.meter i` takes `scaleX` for the
+adjacent reason — a solid fill with no gradient or border looks identical
+scaled. `.water__pending` transitions **opacity**, not height: animating the
+height of a hatch pattern is a layout animation for something that would
+distort under `scaleY` anyway.
+
+**The initial level is the CSS fallback, `0%`** — empty, because before the
+first device scan the level is genuinely unknown. The markup carries no
+`--used`; there are no inline styles in `index.html` at all, and the shell's
+CSP is `style-src 'self'` with no `'unsafe-inline'`, so a style attribute
+would be dropped even if one were added. `app.js` writes the level through
+the CSSOM once the watch reports.
+
+One correction worth keeping, because it was believed during the build and is
+false: WKWebView **does** transition a property whose value comes from a custom
+property. The readings that suggested otherwise were taken against a
+backgrounded webview, where transitions freeze and computed values read stale.
+Do not reintroduce that claim, and do not shape a rule around it.
 
 Under `prefers-reduced-motion: reduce`, every animation and transition is
 clamped to 1ms and the send gesture skips straight to the settled state. State
 still changes; it just arrives rather than travels.
 
 ### Accessibility commitments
-- **`--ink-faint` is `#7d8c9b` for contrast: 5.28:1 on `--air`.** It was
-  `#5a6875` = 3.18:1 and failed AA on every count, size, duration and the
-  connection status. This value is not a tone choice and must not be "tidied"
-  darker. Its worst ground in the app is `--d2` (4.85:1), still AA.
-- Ink is 14.99:1, ink-dim 6.38:1, brass 7.23:1 on `--air`; dark ink on brass
-  is 7.56:1.
-- **Known shortfall, recorded not endorsed:** `--alert` `#d0574a` measures
-  4.45:1 on `--air` and 4.22:1 on its own 7% tinted background — just under
-  AA for its 10–11.5px use. It is mitigated by the Word With The Colour Rule,
-  not fixed by it. A future pass should lift the red rather than enlarge the
-  text.
-- Focus is a 2px brass outline at 2px offset with a 3px radius, on
-  `:focus-visible` only, globally.
-- Every state carries a word, never a colour alone.
-- Disabled controls keep their cursor and publish their reason as real DOM
-  text referenced by `aria-describedby`.
-- Status strings are written into the DOM, never via CSS `content` — generated
-  text is not reliably announced.
-- The transfer region is `aria-live="polite"`; the meter's `aria-valuenow` and
-  its visual fill are driven from one function so they cannot drift.
-- Table headers, captions and column headings exist and are `.sr-only`; icons
-  are `aria-hidden` with the label on the button.
+Every ratio below is measured against the ground the element actually renders
+over, including composites. Where a composite could not be pinned down, the
+element was given an opaque ground rather than a hopeful number.
+
+- **`--ink-faint` is `#7d8c9b`: 5.28:1 on `--air`.** It was `#5a6875` = 3.18:1
+  and failed AA on every count, size, duration and the connection status. This
+  value is not a tone choice and must not be "tidied" darker. Where it ships,
+  its worst real ground is the transfer card over bright album art (4.93:1);
+  on the player's `--d4` it is 5.63:1 and on the rail gradient 4.98–5.28:1.
+- **`--ink-faint` is banned from two grounds it used to sit on**, because on
+  those composites it fails: the rail's item count (4.09:1 current, 4.44:1
+  hover) and the watch wall's head and list, where the water's `--d1` stop
+  rises behind them (4.36:1). Both took `--ink-dim` instead — 4.95:1 / 5.37:1
+  in the rail, 5.27:1 over `--d1` — and no palette token changed.
+- **Ink `#e3eaf2`** is 14.99:1 on `--air` and never below 12.38:1 anywhere in
+  the app (its darkest-ratio ground is `--d1`, the lit surface of the water).
+  **`--ink-dim`** is 6.38:1 on `--air` and 5.27:1 at its worst ground (`--d1`).
+  **Brass** is 7.23:1 on `--air`; `--sun-ink` on brass is 7.56:1.
+- **`--alert` is `#d9634f`.** It shipped as `#d0574a` = 4.45:1 on `--air`, just
+  under AA. It now measures 5.06:1 on `--air` (the send-blocked reason),
+  4.77:1 on the opaque `--notice-ground` (the failure headline), 4.74:1 on the
+  pre-warning's `rgba(217,99,79,.07)` tint over `--air`, and 5.08:1 on the
+  capacity readout's opaque `--d3`. Same hue; do not lower it back.
+- **Two of those four grounds are opaque on purpose.** On the composites they
+  replaced, `--alert` measured 4.18:1 — inside the translucent transfer card,
+  and behind the capacity readout when `--d1` rose under it. A near-opaque
+  transfer base was not enough on its own: at 94% over bright album art the
+  headline still read 3.99:1. The ratio has to be a property of the rule.
+- **`--line` (`#4a8cbe`) is 5.01:1 on `--air`** but is never used as text, and
+  should not be. It is a 1px rule and a hatch.
 
 ## Do's and Don'ts
 
@@ -574,6 +683,9 @@ still changes; it just arrives rather than travels.
 - **Do** draw new icons as inline SVG paths in the sprite, `fill/stroke:
   currentColor` at 15×14 (17×16 large), stroke-width 1.4, round caps.
 - **Do** keep prose blocks at or under 34ch.
+- **Do** register an off-scale radius in `.impeccable/config.json` when an
+  element is too small for the 6/10/14 scale, rather than letting it pass
+  unremarked.
 - **Do** animate colour and background at 120ms, state arrivals at 260ms, and
   reserve 900ms for the water alone.
 
@@ -587,9 +699,17 @@ still changes; it just arrives rather than travels.
 - **Don't** ship a raster. Album art is a code-drawn frame filled from the
   user's own files at runtime; the build records 0 plates and should stay
   there.
-- **Don't** make the pending band a child of `.water`, or animate `.water`
-  with `transform` — both were tried and both break the thing the design rests
-  on.
+- **Don't** make the pending band a child of `.water`: its percentage height
+  resolves against the water's own height, so the band shrinks as the watch
+  empties. It is a fraction of total capacity, so it measures against the wall.
+- **Don't** animate `.water` by scaling or by compressing the gradient into a
+  short box. It is full-height and translated; that is what keeps the waterline
+  exactly 1px and the depth ramp truthful at low levels.
+- **Don't** claim a contrast ratio against a parent's declared colour when the
+  element renders over a composite. Measure the stack, or make the ground
+  opaque.
+- **Don't** put a translucent surface over content you do not control without
+  a floor under the blur.
 - **Don't** use `pointer-events: none` to disable a control; opacity plus a
   stated reason.
 - **Don't** let a floating panel cover the capacity readout.

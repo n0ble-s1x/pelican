@@ -1,3 +1,39 @@
 {
-  "buildPath": "comp"
+  "buildPath": "comp",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-radius",
+        "value": "2px",
+        "createdAt": "2026-09-02T05:16:05.538Z"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "5px",
+        "createdAt": "2026-09-02T05:16:05.574Z"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "3px",
+        "createdAt": "2026-09-02T05:17:08.710Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#24455f",
+        "createdAt": "2026-09-02T05:17:08.746Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#142838",
+        "createdAt": "2026-09-02T05:17:08.782Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#0d1c28",
+        "createdAt": "2026-09-02T05:17:08.819Z"
+      }
+    ]
+  }
 }

@@ -1,0 +1,31 @@
+[package]
+name = "pelican-shell"
+description = "Pelican's macOS shell — a Tauri window over pelican-core, serving the vanilla ui/ frontend. No npm, no network."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+crossbeam-channel.workspace = true
+pelican-core = { path = "../pelican-core", version = "0.1.0" }
+percent-encoding.workspace = true
+rfd.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[lints]
+workspace = true

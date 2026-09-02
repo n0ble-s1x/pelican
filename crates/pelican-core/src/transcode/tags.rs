@@ -47,7 +47,15 @@ impl Tags {
             .with_context(|| format!("opening {} for tag read", src.display()))?
             .read()
             .with_context(|| format!("parsing tags in {}", src.display()))?;
+        Ok(Self::from_tagged(&tagged))
+    }
 
+    /// Pull the allowlist out of an already-parsed file.
+    ///
+    /// Split out of [`Tags::read`] so [`read_fast`] can reuse the exact same
+    /// resolution rules — album-artist preference, multi-tag fallthrough,
+    /// year handling — rather than growing a second copy that drifts.
+    fn from_tagged(tagged: &lofty::file::TaggedFile) -> Self {
         // Primary tag first, then any other tag the file carries — an MP3
         // can hold both ID3v2 and APE, and a FLAC both Vorbis comments and
         // ID3v2. Falling through means a half-tagged file still works.
@@ -70,7 +78,7 @@ impl Tags {
         let artist = first(&|t| t.artist().map(|s| s.into_owned()));
         let resolved_artist = album_artist.or(artist);
 
-        Ok(Self {
+        Self {
             title: first(&|t| t.title().map(|s| s.into_owned())),
             artist: resolved_artist,
             album: first(&|t| t.album().map(|s| s.into_owned())),
@@ -84,7 +92,7 @@ impl Tags {
                     .or_else(|| t.date().map(|d| d.year.to_string()))
             }),
             genre: first(&|t| t.genre().map(|s| s.into_owned())),
-        })
+        }
     }
 
     /// True when the watch's music app will be able to show this file.
@@ -190,6 +198,54 @@ impl Tags {
 fn clean(v: String) -> Option<String> {
     let s = sanitize_tag_value(&v);
     (!s.is_empty()).then_some(s)
+}
+
+/// Everything a browsing UI needs to know about a source file, in one parse.
+///
+/// The transfer pipeline only ever wants [`Tags`]. A library view wants more:
+/// a duration for the track row and the seek bar, and the sample rate / bit
+/// depth behind a "FLAC 24/96" label. Those are properties, not tags, so they
+/// are not something [`Tags`] should grow — but re-opening the file to get
+/// them would double the parse cost on a folder scan.
+#[derive(Debug, Clone)]
+pub struct SourceInfo {
+    pub tags: Tags,
+    /// Whole seconds. `0` when the decoder could not determine a duration.
+    pub duration_secs: u64,
+    pub sample_rate: Option<u32>,
+    pub bit_depth: Option<u8>,
+    pub channels: Option<u8>,
+    /// Audio bitrate in kbps where the format reports one.
+    pub bitrate_kbps: Option<u32>,
+}
+
+/// Read tags *and* audio properties without decoding embedded cover art.
+///
+/// Cover art is the expensive part of a tag read — a FLAC carrying a 1 MB
+/// JPEG spends almost all of its parse time on a picture this function then
+/// throws away. Scanning a library is the one place that cost is paid per
+/// file and the art is never used, so the scan path asks for it to be
+/// skipped; [`Tags::read`] is left alone, because the transfer path parses
+/// one file at a time and its callers are unchanged.
+pub fn read_fast(src: &Path) -> Result<SourceInfo> {
+    use lofty::config::ParseOptions;
+    use lofty::file::AudioFile;
+
+    let tagged = Probe::open(src)
+        .with_context(|| format!("opening {} for tag read", src.display()))?
+        .options(ParseOptions::new().read_cover_art(false))
+        .read()
+        .with_context(|| format!("parsing tags in {}", src.display()))?;
+
+    let props = tagged.properties();
+    Ok(SourceInfo {
+        duration_secs: props.duration().as_secs(),
+        sample_rate: props.sample_rate(),
+        bit_depth: props.bit_depth(),
+        channels: props.channels(),
+        bitrate_kbps: props.audio_bitrate(),
+        tags: Tags::from_tagged(&tagged),
+    })
 }
 
 #[cfg(test)]

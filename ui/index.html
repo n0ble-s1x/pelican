@@ -33,193 +33,203 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <g id="i-next"><path d="M11 3.2v7.6M4 3.4 9.6 7 4 10.6Z"/></g>
 </defs></svg>
 <div class="shell">
-<div class="app" data-device="connected" data-view="album">
+<!-- Starts detached. The USB poller answers within a tick; opening on
+     "connected" would flash a watch that may not be there. -->
+<div class="app" data-device="none" data-view="album">
 
   <header class="titlebar">
     <p class="device">
       <span class="state state--ok" aria-hidden="true"></span>
-      <span class="device__name">Forerunner 165 Music</span>
-      <span class="device__status">connected</span>
+      <span class="device__name">Garmin watch</span>
+      <span class="device__status">looking…</span>
     </p>
     <p class="wordmark">Pelican</p>
   </header>
 
+  <!-- Only the sources that exist. Albums / Artists / Recently added were
+       sample entries for views this build does not have, and a rail full of
+       links that go nowhere is a worse first impression than a short one. -->
   <nav class="rail" aria-label="Sources and playlists">
     <ul class="rail__list">
-      <li><a class="nav is-current" href="#" aria-current="page">All music <span class="nav__n num">2,418</span></a></li>
-      <li><a class="nav" href="#">Albums <span class="nav__n num">184</span></a></li>
-      <li><a class="nav" href="#">Artists</a></li>
-      <li><a class="nav" href="#">Recently added</a></li>
+      <li><a class="nav is-current" href="#" aria-current="page">All music <span class="nav__n num" data-count-all>0</span></a></li>
+      <li><a class="nav" href="#" data-pick>Choose folder…</a></li>
     </ul>
     <h2 class="rail__head">Playlists</h2>
-    <p class="rail__note">Playlists live on this Mac. Your watch stores the
-      tracks as individual files.</p>
-    <ul class="rail__list">
-      <li><a class="nav" href="#">Long run <span class="nav__n num">24</span></a></li>
-      <li><a class="nav" href="#">Tempo <span class="nav__n num">18</span></a></li>
-      <li><a class="nav" href="#">Sea legs <span class="nav__n num">31</span></a></li>
-    </ul>
-    <button class="rail__new" type="button">New playlist</button>
+    <p class="rail__note">Pelican has no playlists yet. Your watch will not take
+      one over USB either — its firmware rejects playlist files — so tracks go
+      across individually.</p>
+    <ul class="rail__list" data-playlists></ul>
+    <button class="rail__new" type="button" disabled>New playlist</button>
   </nav>
 
   <main class="channel" aria-label="Library">
     <div class="hero">
-      <div class="cover cover--lg" role="img" aria-label="Album artwork for Master and Commander"></div>
+      <div class="cover cover--lg" role="img" aria-label="Cover art"></div>
       <div class="hero__meta">
-        <h1 class="hero__title">Master and Commander</h1>
-        <p class="hero__by">Iva Davies, Christopher Gordon, Richard Tognetti</p>
-        <p class="hero__facts num">2003 · 21 tracks · 1 hr 14 min · FLAC 24/96</p>
+        <h1 class="hero__title" data-hero-title>No folder open</h1>
+        <p class="hero__by" data-hero-by>Choose a folder of music to get started.</p>
+        <p class="hero__facts num" data-hero-facts></p>
       </div>
       <div class="hero__actions">
-        <button class="btn" type="button">Add to playlist</button>
+        <!-- Playlists are a later version; a control that does nothing is
+             worse than one that says it cannot yet. -->
+        <button class="btn" type="button" disabled>Add to playlist</button>
         <button class="btn btn--primary" type="button" data-send
-          aria-describedby="send-why">Send 3 tracks</button>
+          aria-describedby="send-why">Send</button>
       </div>
     </div>
 
-    <div class="prewarn" role="status">
-        <p class="prewarn__tag">1 track needs a title</p>
-        <p class="prewarn__body">
-          <strong>track_07.flac</strong> has no title or artist. It will copy across,
-          but your watch will never show it in the music app.
-        </p>
-        <button class="btn btn--sm" type="button">Add tags…</button>
+    <div class="prewarn" role="status" hidden>
+        <p class="prewarn__tag"></p>
+        <p class="prewarn__body" data-prewarn-body></p>
+        <!-- Tag editing is out of scope for this build. Disabled rather than
+             removed: the fix is real and named, it just is not here yet. -->
+        <button class="btn btn--sm" type="button" disabled>Add tags…</button>
       </div>
+
+    <!-- Which encoder will do the work, and whether that path has been
+         confirmed on real hardware. Only the ffmpeg MP3 profile has. -->
+    <div class="prewarn" role="status" data-encoder hidden>
+      <p class="prewarn__tag"></p>
+      <p class="prewarn__body" data-encoder-body></p>
+    </div>
+
+    <!-- Anything the engine refused to do, in its own words. `.sendwhy` is
+         the send button's reason and is spoken for; this is everything else. -->
+    <div class="prewarn" role="alert" data-error hidden>
+      <p class="prewarn__tag"></p>
+      <p class="prewarn__body" data-error-body></p>
+      <button class="btn btn--sm" type="button" data-error-act hidden></button>
+    </div>
 
     <p class="sendwhy" id="send-why" data-send-why hidden></p>
 
     <table class="tracks">
-      <caption class="sr-only">Tracks on this album. Tick a track to send it to your watch.</caption>
+      <caption class="sr-only">Tracks in this folder. Tick a track to send it to your watch.</caption>
       <thead class="sr-only">
         <tr><th scope="col">Play</th><th scope="col">Title</th><th scope="col">Format</th><th scope="col">Send</th></tr>
       </thead>
-      <tbody>
-        <tr class="is-playing" data-bytes="13400000">
-          <td class="tracks__play"><button class="iconbtn" type="button" aria-pressed="true" aria-label="Pause Ghost of Time"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-pause"/></svg></button></td>
-          <th scope="row" class="tracks__title"><span class="t">Ghost of Time</span><span class="s num">5:42</span></th>
-          <td class="tracks__fmt num">FLAC 24/96</td>
-          <td class="tracks__pick"><input type="checkbox" checked aria-label="Send Ghost of Time"></td>
-        </tr>
-        <tr data-bytes="7800000">
-          <td class="tracks__play"><button class="iconbtn" type="button" aria-pressed="false" aria-label="Play The Far Side of the World"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-play"/></svg></button></td>
-          <th scope="row" class="tracks__title"><span class="t">The Far Side of the World</span><span class="s num">4:18</span></th>
-          <td class="tracks__fmt num">FLAC 24/96</td>
-          <td class="tracks__pick"><input type="checkbox" checked aria-label="Send The Far Side of the World"></td>
-        </tr>
-        <tr data-bytes="4900000">
-          <td class="tracks__play"><button class="iconbtn" type="button" aria-pressed="false" aria-label="Play Into the Fog"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-play"/></svg></button></td>
-          <th scope="row" class="tracks__title"><span class="t">Into the Fog</span><span class="s num">3:07</span></th>
-          <td class="tracks__fmt num">FLAC 24/96</td>
-          <td class="tracks__pick"><input type="checkbox" checked aria-label="Send Into the Fog"></td>
-        </tr>
-        <tr data-bytes="3900000">
-          <td class="tracks__play"><button class="iconbtn" type="button" aria-pressed="false" aria-label="Play Adagio from Concerto Grosso"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-play"/></svg></button></td>
-          <th scope="row" class="tracks__title"><span class="t">Adagio from Concerto Grosso</span><span class="s num">6:31</span></th>
-          <td class="tracks__fmt num">FLAC 16/44</td>
-          <td class="tracks__pick"><input type="checkbox" aria-label="Send Adagio from Concerto Grosso"></td>
-        </tr>
-        <tr data-bytes="5200000" data-untagged="true">
-          <td class="tracks__play"><button class="iconbtn" type="button" aria-pressed="false" aria-label="Play La Musica Notturna delle Strade di Madrid"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-play"/></svg></button></td>
-          <th scope="row" class="tracks__title"><span class="t">La Musica Notturna delle Strade di Madrid</span><span class="s num">8:02</span></th>
-          <td class="tracks__fmt num">FLAC 16/44</td>
-          <td class="tracks__pick"><input type="checkbox" aria-label="Send La Musica Notturna delle Strade di Madrid"></td>
-        </tr>
-      </tbody>
+      <tbody data-rows></tbody>
     </table>
   </main>
 
   <aside class="wall" aria-label="On your watch">
     <div class="wall__head">
       <h2>On your watch</h2>
-      <p class="wall__count num">20 tracks aboard</p>
+      <p class="wall__count num" data-wall-count>0 tracks aboard</p>
     </div>
-    <ul class="wall__list">
-      <li><span class="cover cover--xs" aria-hidden="true"></span>
-        <span class="t">Sinfonia from Cantata 29</span><span class="s">J.S. Bach</span>
-        <span class="z num">9.1 MB</span></li>
-      <li><span class="cover cover--xs" aria-hidden="true"></span>
-        <span class="t">Nimrod</span><span class="s">Elgar — Enigma Variations</span>
-        <span class="z num">6.4 MB</span></li>
-      <li><span class="cover cover--xs" aria-hidden="true"></span>
-        <span class="t">The Ashokan Farewell</span><span class="s">Jay Ungar</span>
-        <span class="z num">5.2 MB</span></li>
-      <li><span class="cover cover--xs" aria-hidden="true"></span>
-        <span class="t">Fratres</span><span class="s">Arvo Pärt</span>
-        <span class="z num">8.8 MB</span></li>
-    </ul>
-    <p class="wall__more"><a href="#">Show all 20</a></p>
+    <ul class="wall__list" data-wall-list></ul>
     <p class="wall__empty">
-      <span class="wall__empty-h">No watch connected</span>
-      Plug your Garmin in over USB. Pelican will find it on its own — there is no
-      account to sign into and nothing to install on the watch.
+      <span class="wall__empty-h" data-empty-h>No watch connected</span>
+      <span data-empty-body>Plug your Garmin in over USB. Pelican will find it on its own — there is no
+      account to sign into and nothing to install on the watch.</span>
+      <!-- When the open failed because something else on this Mac is holding
+           the device, that is a standing condition with a fix, not a blip.
+           It belongs here, where the user is already looking. -->
+      <span data-contention hidden></span>
     </p>
 
     <!-- the waterline: fill is the fraction of capacity IN USE (1.30 GB of 3.71).
          --pending is what the current selection would add, shown as a band
          above the line so you can see whether it fits before committing. -->
-    <div class="water" style="--used: 35%" aria-hidden="true"></div>
-    <span class="water__pending" style="--used: 35%; --pending: 0.7%" aria-hidden="true"></span>
+    <div class="water" aria-hidden="true"></div>
+    <span class="water__pending" aria-hidden="true"></span>
     <p class="capacity">
-      <span class="capacity__big num">2.41 <span class="capacity__unit">GB free</span></span>
-      <span class="capacity__sm num">of 3.71 GB · about 9 more hours will fit</span>
-      <span class="capacity__sel num" data-selection>3 selected · 26 MB · 2.38 GB would remain</span>
+      <span class="capacity__big num" data-cap-big>— <span class="capacity__unit">free</span></span>
+      <span class="capacity__sm num" data-cap-sm></span>
+      <span class="capacity__sel num" data-selection>Nothing selected</span>
     </p>
   </aside>
 
   <section class="transfer" aria-labelledby="transfer-h" aria-live="polite" hidden>
     <div class="transfer__head">
       <h2 id="transfer-h">Sending to your watch</h2>
-      <p class="transfer__of num"><span data-transfer-done>3</span> of <span data-transfer-total>7</span> · about 2 minutes left</p>
+      <p class="transfer__of num"><span data-transfer-done>0</span> of <span data-transfer-total>0</span><span data-transfer-eta></span></p>
     </div>
-    <div class="meter" role="progressbar" aria-valuenow="43" aria-valuemin="0" aria-valuemax="100"
-         aria-label="Transfer progress" data-meter><i style="transform:scaleX(.43)"></i></div>
+    <div class="meter" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+         aria-label="Transfer progress" data-meter><i></i></div>
     <p class="transfer__now">
-      <span>Into the Fog — converting FLAC to M4A on this Mac</span>
-      <span class="num">19.6 MB</span>
+      <span data-now-label></span>
+      <span class="num" data-now-bytes></span>
     </p>
 
-    <div class="notice">
-      <p class="notice__tag">Needs a title</p>
-      <p class="notice__body">
-        <strong>track_07.flac</strong> has no title or artist, so your watch would store it
-        but never show it in the music app.
-      </p>
-      <div class="notice__acts">
-        <button class="btn btn--sm" type="button">Add tags…</button>
-        <button class="btn btn--sm" type="button">Send anyway</button>
-      </div>
-    </div>
+    <!-- Failures are appended here, verbatim, and the meter keeps advancing:
+         transfer::run never aborts, so a failure is not the end of the run
+         and the interface must not imply it is. -->
+    <div data-notices></div>
 
     <div class="transfer__foot">
       <p class="transfer__hint">Keep the cable connected. You can keep listening while this runs.</p>
-      <button class="btn btn--sm" type="button">Stop</button>
+      <!-- "Stop" would be a lie. There is no cancellation point inside a
+           file — a 60 MB FLAC mid-upload finishes either way. -->
+      <button class="btn btn--sm" type="button" data-stop>Stop after this track</button>
     </div>
   </section>
 
   <footer class="player" aria-label="Player">
     <div class="player__transport">
       <button class="iconbtn" type="button" aria-label="Previous track"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-prev"/></svg></button>
-      <button class="playpause" type="button" aria-pressed="true" aria-label="Pause"><svg class="ic ic--lg" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-pause"/></svg></button>
+      <button class="playpause" type="button" aria-pressed="false" aria-label="Play"><svg class="ic ic--lg" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-play"/></svg></button>
       <button class="iconbtn" type="button" aria-label="Next track"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-next"/></svg></button>
     </div>
     <div class="player__now">
       <span class="cover cover--sm" aria-hidden="true"></span>
       <span class="player__meta">
-        <span class="t">Ghost of Time</span>
-        <span class="s">Iva Davies — Master and Commander</span>
+        <span class="t">Nothing playing</span>
+        <span class="s"></span>
       </span>
     </div>
     <div class="player__scrub">
-      <span class="time num">1:47</span>
+      <span class="time num" data-time-now>0:00</span>
       <label class="sr-only" for="seek">Seek</label>
-      <input id="seek" class="seek" type="range" min="0" max="342" value="107">
-      <span class="time num">5:42</span>
+      <input id="seek" class="seek" type="range" min="0" max="0" value="0" step="0.1">
+      <span class="time num" data-time-total>0:00</span>
     </div>
-    <p class="player__fmt num">FLAC 24/96</p>
+    <p class="player__fmt num"></p>
   </footer>
 
 </div>
 </div>
+
+<!-- Playback is the webview's own decoder over the asset protocol. No
+     library, no transcode, no copy: the element is handed the real on-disk
+     path, because WKWebView picks its decoder from the URL extension. -->
+<audio id="audio" hidden preload="metadata"></audio>
+
+<!-- The row shape, kept as markup rather than a template string in JS so the
+     approved structure and its classes stay reviewable in one place. -->
+<template id="tpl-track">
+  <tr>
+    <td class="tracks__play"><button class="iconbtn" type="button" aria-pressed="false"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-play"/></svg></button></td>
+    <th scope="row" class="tracks__title"><span class="t"></span><span class="s num"></span></th>
+    <td class="tracks__fmt num"></td>
+    <td class="tracks__pick"><input type="checkbox"></td>
+  </tr>
+</template>
+
+<template id="tpl-wall">
+  <li><span class="cover cover--xs" aria-hidden="true"></span>
+    <span class="t"></span><span class="s"></span>
+    <span class="z num"></span></li>
+</template>
+
+<!-- A handle the watch reports but whose metadata it refuses to read: a stub
+     left by an upload the firmware rejected. It occupies space and can never
+     play, so the only thing to offer is removal. Uses the existing grid
+     areas — `.z` puts the control where the size would be. -->
+<template id="tpl-wall-broken">
+  <li><span class="cover cover--xs" aria-hidden="true"></span>
+    <span class="t"></span><span class="s">The watch will not report this file</span>
+    <button type="button" class="btn btn--sm z" data-delete>Delete</button></li>
+</template>
+
+<template id="tpl-notice">
+  <div class="notice">
+    <p class="notice__tag"></p>
+    <p class="notice__body"></p>
+  </div>
+</template>
+
 <script src="app.js"></script>
 </body>
 </html>

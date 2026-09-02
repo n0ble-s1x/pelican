@@ -1,10 +1,18 @@
 //! Persistent record of files we've uploaded to a given watch.
 //!
-//! Garmin's firmware does not expose its indexed music library over MTP, so
-//! after the watch absorbs files out of `/Music` they're invisible to us.
-//! This module keeps a local journal — per device serial — of every upload
-//! we've successfully completed, so the GUI can show the user "what's on the
-//! watch (according to us)" even after the indexer has eaten the staging.
+//! Garmin's firmware does not expose its indexed music library over MTP —
+//! `list_dir("Music")` is the only view we get, and it is a view of files,
+//! not of what the watch's music app will play. This module keeps a local
+//! journal, per device serial, of every upload we completed.
+//!
+//! What it is: our record that we sent a file. What it is not: evidence the
+//! file is still on the watch. On FR165 firmware 2506 `/Music` is durable —
+//! a probe found all 20 of the owner's tracks still listed there — so a
+//! journal entry the listing does not confirm most likely means the file has
+//! since gone. Callers must not present the two sources as the same fact.
+//!
+//! `UploadRecord::name` is the *sanitized remote stem* — the name written to
+//! the device — precisely so it can be matched against a later listing.
 
 use std::path::PathBuf;
 

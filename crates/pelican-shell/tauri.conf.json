@@ -1,0 +1,40 @@
+{
+  "productName": "Pelican",
+  "version": "0.1.0",
+  "identifier": "com.krypteia.pelican",
+  "build": {
+    "frontendDist": "../../ui",
+    "removeUnusedCommands": true
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pelican",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 940,
+        "minHeight": 600,
+        "resizable": true,
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "freezePrototype": true,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'self' asset: http://asset.localhost; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; worker-src 'none'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": ["icons/icon.png"],
+    "category": "Music",
+    "shortDescription": "Sync and play your music on a Garmin watch.",
+    "longDescription": "Pelican copies music from this Mac to a Garmin watch over USB. No account, no network, no telemetry."
+  }
+}

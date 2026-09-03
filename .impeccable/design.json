@@ -522,6 +522,14 @@
       "description": "Two rules. It never lives in a row — only on an opaque ground, so its contrast is a property of its own rule (--d3 5.08:1, --notice-ground 4.77:1; a selected row is 3.80:1 and a hovered one 4.12:1). And it never tints its own ground — an alert-hued 10% wash drops those to 4.60 and 4.28, so hover moves the border to --ink-dim (6.41:1 / 6.02:1) instead. The word carries the meaning, so 'colour never signals alone' holds without a fill.",
       "html": "<button class=\"ds-danger2\">Delete from watch</button>",
       "css": ".ds-danger2{font:590 11.5px/1.45 -apple-system,system-ui,sans-serif;padding:5px 11px;border-radius:6px;background:transparent;border:1px solid rgba(226,236,247,.40);color:#d9634f}.ds-danger2:hover{background:transparent;border-color:#8b9bab}.ds-danger2:focus-visible{outline:2px solid #d8963f;outline-offset:2px}"
+    },
+    {
+      "name": "Arrangement Chip",
+      "kind": "toggle",
+      "refersTo": "chip",
+      "description": "A segmented view toggle over a set that does not change: same files, differently ordered. Distinct from the rail's .nav on purpose — the rail switches WHAT the library shows you and is navigation; this switches HOW one fixed list is arranged. State lives in aria-pressed, not in a class. Files is the default and stays the default: it is the order list_dir('Music') returned, and the panel opens on the device's answer rather than on Pelican's memory of it. --ink-dim on --d3 6.41:1; pressed, --ink on the #1b2733 composite 12.51:1; --edge border 3.40 / 3.27.",
+      "html": "<div role=\"group\" aria-label=\"Arrange the list\" style=\"display:flex;gap:4px\"><button class=\"ds-chip\" aria-pressed=\"true\">Files</button><button class=\"ds-chip\" aria-pressed=\"false\">Album</button><button class=\"ds-chip\" aria-pressed=\"false\">Artist</button></div>",
+      "css": ".ds-chip{font:590 11px/1.45 -apple-system,system-ui,sans-serif;padding:4px 9px;border-radius:6px;border:1px solid rgba(226,236,247,.40);background:transparent;color:#8b9bab}.ds-chip:hover{color:#e3eaf2}.ds-chip[aria-pressed=\"true\"]{background:rgba(226,236,247,.078);color:#e3eaf2}"
     }
   ],
   "narrative": {
@@ -534,7 +542,8 @@
       "Colour never signals alone; every state also says its name in words.",
       "No shipped rasters, no bundled fonts, no icon font: SVG paths and CSS.",
       "Container queries, not media queries — this is a window, not a viewport.",
-      "One thing moves with intent (the water); nothing loops or pulses at rest."
+      "One thing moves with intent (the water); nothing loops or pulses at rest.",
+      "Two navigation vocabularies, deliberately distinct: `.nav` in the rail switches what the library shows you; `.chip` in the wall switches how one fixed list is arranged."
     ],
     "rules": [
       {

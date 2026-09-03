@@ -85,6 +85,19 @@ fn describe(path: &Path, encoders: &[Encoder]) -> TrackDto {
         .unwrap_or_default();
 
     let info = tags::read_fast(path).ok();
+    // `read_fast` already parses all of these; `describe` used to throw the
+    // track number away, which left album ordering falling back to filename
+    // sort — wrong for any album whose files are not zero-padded.
+    let track = info.as_ref().and_then(|i| {
+        i.tags
+            .track
+            .as_deref()
+            // Vorbis writes "3/12".
+            .and_then(|s| s.split('/').next())
+            .and_then(|s| s.trim().parse().ok())
+    });
+    let disc = info.as_ref().and_then(|i| i.tags.disc.clone());
+    let date = info.as_ref().and_then(|i| i.tags.date.clone());
     let (title, artist, album, duration_secs, fmt) = match &info {
         Some(i) => (
             i.tags.title.clone().unwrap_or_else(|| stem.clone()),
@@ -147,6 +160,9 @@ fn describe(path: &Path, encoders: &[Encoder]) -> TrackDto {
         title,
         artist,
         album,
+        track,
+        disc,
+        date,
         duration_secs,
         fmt,
         bytes,

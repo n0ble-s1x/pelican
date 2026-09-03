@@ -571,6 +571,23 @@ answer in 120ms with a veil, never a jump.
 - **Caret:** brass, in every input.
 
 ### Navigation
+
+**Two controls, deliberately different, because they answer different
+questions.** The rail switches *what the library shows you* — All music,
+Albums, Artists — which is navigation, so it is `.nav`. The wall's Files /
+Album / Artist control switches *how one fixed list is arranged*: the same
+files, differently ordered, so it is a segmented toggle and it is `.chip`.
+Making them look alike would say the two do the same kind of thing. They do
+not, and the next reviewer to file this as an inconsistency should read this
+paragraph first.
+
+- **Chips** (the wall's arrangement toggle) are 11px/590, `4px 9px`, 6px
+  radius, a `--edge` border on a transparent ground, `--ink-dim` text
+  (**6.41:1** on the head's `--d3`). Pressed takes the 7.8% veil and `--ink`
+  (**12.51:1** on the `#1b2733` composite) and carries `aria-pressed`, which
+  is the state, not the class. **Files is the default and stays the default:**
+  it is the order `list_dir("Music")` returned, and the panel should open on
+  the device's answer rather than on Pelican's memory of it.
 - Rail items are 12.5px, `--ink-dim`, `7px 10px`, 6px radius, with the count
   pushed right at 10.5px **`--ink-dim`** — not `--ink-faint`. The count sits on
   a composite, not on `--air`: `.is-current` stacks `--surface-2` over the
@@ -581,6 +598,13 @@ answer in 120ms with a veil, never a jump.
   text; the current item takes the 7.8% veil, ink text and 590 weight —
   emphasis by weight and veil, never by brass.
 - Section heads are 10px/0.14em uppercase `--ink-faint`.
+- **The album / artist list** in the channel is a `.group` button per row: a
+  38px cover frame, title at 13px/590, a `--ink-dim` subtitle and a
+  `--ink-dim` count. `--ink-faint` is out of bounds here too — the hover veil
+  composites to `#1b2634` where it measures 4.44:1.
+- **Crumb.** One `.linkbtn`, underlined, `--ink-dim`. Leaving an album is
+  navigation inside the view the rail already chose, so it is a link and not a
+  button.
 - At ≤1020px the rail becomes a horizontal strip, items `white-space: nowrap`,
   on the raised `--air-2` ground with a bottom hairline instead of a right one.
 

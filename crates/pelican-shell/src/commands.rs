@@ -87,16 +87,38 @@ pub fn disconnect(shell: State<'_, Shell>) -> Result<(), String> {
     shell.device.post(DeviceOp::Disconnect)
 }
 
-/// Delete one object on the watch. Offered only for broken stubs in v1.
+/// Remove objects from the watch. Irreversible: MTP has no trash and no
+/// undo. The confirmation is the UI's job and is written to say so; this
+/// layer's job is to refuse an empty or ill-formed batch rather than post a
+/// no-op that would still cost a `snapshot`.
 #[tauri::command]
-pub fn delete_remote(shell: State<'_, Shell>, path: String) -> Result<(), String> {
+pub fn delete_remote(shell: State<'_, Shell>, paths: Vec<String>) -> Result<(), String> {
     if shell.device.is_busy() {
         return Err(BUSY.into());
     }
-    if path.trim().is_empty() {
+    let paths: Vec<String> = paths.into_iter().filter(|p| !p.trim().is_empty()).collect();
+    if paths.is_empty() {
         return Err("no path given".into());
     }
-    shell.device.post(DeviceOp::Delete { path })
+    shell.device.post(DeviceOp::Delete { paths })
+}
+
+/// Drop rows from Pelican's own journal.
+///
+/// A journal row the device does not list has nothing to delete. Clearing
+/// the record is the only action that exists for it, and the UI's copy for
+/// this says exactly that — it must never borrow the delete wording, because
+/// nothing on the watch changes.
+#[tauri::command]
+pub fn forget_uploads(shell: State<'_, Shell>, names: Vec<String>) -> Result<(), String> {
+    if shell.device.is_busy() {
+        return Err(BUSY.into());
+    }
+    let names: Vec<String> = names.into_iter().filter(|n| !n.trim().is_empty()).collect();
+    if names.is_empty() {
+        return Err("nothing selected".into());
+    }
+    shell.device.post(DeviceOp::Forget { names })
 }
 
 /// The modal folder picker. **Blocks, correctly** — see the module note.
@@ -145,9 +167,6 @@ pub fn start_sync(
     paths: Vec<String>,
     skip_tag_check: bool,
 ) -> Result<(), String> {
-    if shell.device.is_busy() {
-        return Err(BUSY.into());
-    }
     if paths.is_empty() {
         return Err("nothing selected".into());
     }
@@ -159,10 +178,34 @@ pub fn start_sync(
         }
         out.push(path);
     }
-    shell.device.post(DeviceOp::StartSync {
+    // Claim `busy` here, synchronously, rather than reading it.
+    //
+    // `is_busy()` was a check against a flag the *worker* sets when it
+    // dequeues, and `post` only pushes onto an unbounded channel — so two
+    // quick clicks both passed and both ran. The second run's `Planned` then
+    // called `startRun`, which clears the notices and the counters, and the
+    // first run's report was destroyed. The UI's own `syncing` guard is no
+    // help: it goes true when `Planned` arrives, long after `expand_inputs`
+    // has walked the tree. `device::start_sync` releases the flag on every
+    // exit path, through a guard, because a missed release deadlocks Send for
+    // the life of the process.
+    if shell
+        .device
+        .busy
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(BUSY.into());
+    }
+    let posted = shell.device.post(DeviceOp::StartSync {
         paths: out,
         skip_tag_check,
-    })
+    });
+    if posted.is_err() {
+        // Nothing will dequeue it, so nothing will release the flag.
+        shell.device.busy.store(false, Ordering::SeqCst);
+    }
+    posted
 }
 
 /// Stop **after the current track**.

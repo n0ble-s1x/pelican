@@ -9,6 +9,7 @@
     "allow-connect",
     "allow-disconnect",
     "allow-delete-remote",
+    "allow-forget-uploads",
     "allow-pick-folder",
     "allow-scan-folder",
     "allow-start-sync",

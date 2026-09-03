@@ -24,6 +24,40 @@ pub struct RemoteEntry {
     pub is_broken: bool,
 }
 
+/// How far an upload got before it failed, attached to the error as typed
+/// context so callers can word the failure by phase instead of guessing from
+/// a string.
+///
+/// `sent == len` means the whole file crossed the wire and the failure was in
+/// the PTP *response* phase — the object is quite possibly on the watch, and a
+/// UI that flatly reports "failed" there is making a claim about the device it
+/// cannot support. `sent < len` means the data phase itself was cut short, and
+/// whatever is on the device is not the file.
+#[derive(Debug, Clone)]
+pub struct UploadPhase {
+    pub local: String,
+    pub sent: u64,
+    pub len: u64,
+}
+
+impl UploadPhase {
+    /// True when every byte was handed to the transport before the error.
+    /// A zero-length file counts: there was nothing left to send.
+    pub fn drained(&self) -> bool {
+        self.sent >= self.len
+    }
+}
+
+impl std::fmt::Display for UploadPhase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "uploading {} (streamed {} of {} bytes)",
+            self.local, self.sent, self.len
+        )
+    }
+}
+
 pub trait Backend: Send {
     /// The device's own model name, from MTP `GetDeviceInfo`.
     ///
@@ -298,16 +332,28 @@ mod mtp_rs_impl {
             let info = NewObjectInfo::file(remote_name, len);
             let storage = &self.storage;
             on_progress(0, len);
-            let new_handle = self
-                .rt
-                .block_on(
-                    storage.upload_with_progress(parent, info, Box::pin(stream), |p| {
-                        on_progress(p.bytes_transferred, len);
-                        std::ops::ControlFlow::Continue(())
-                    }),
-                )
-                .with_context(|| format!("uploading {}", local.display()))?;
-            let sent = sent.load(std::sync::atomic::Ordering::Relaxed);
+            let uploaded = self.rt.block_on(storage.upload_with_progress(
+                parent,
+                info,
+                Box::pin(stream),
+                |p| {
+                    on_progress(p.bytes_transferred, len);
+                    std::ops::ControlFlow::Continue(())
+                },
+            ));
+            // Read the counter *before* `?`, so a failure carries how far the
+            // data phase got. An abort during the PTP response phase leaves
+            // `sent == len` and an object that is very likely intact; an abort
+            // mid-data leaves `sent < len` and an object that is not. Those are
+            // different facts and callers have to be able to tell them apart,
+            // so the distinction is a typed context rather than prose.
+            let streamed = sent.load(std::sync::atomic::Ordering::Relaxed);
+            let new_handle = uploaded.with_context(|| crate::mtp::UploadPhase {
+                local: local.display().to_string(),
+                sent: streamed,
+                len,
+            })?;
+            let sent = streamed;
             if sent != len {
                 // The object already exists on the device — mtp-rs returned Ok
                 // and the data phase is closed. Leaving it would be exactly the

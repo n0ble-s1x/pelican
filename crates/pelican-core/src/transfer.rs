@@ -290,6 +290,52 @@ pub fn has_required_tags(p: &Path) -> bool {
     }
 }
 
+/// What the post-write size probe actually tells us.
+///
+/// `GetObjectInfo` on FR165 firmware 2506 returns 0 for an object the device
+/// has written but not yet indexed, and errors outright for a few seconds
+/// after that. Neither is evidence of a bad write. Only a non-zero size that
+/// disagrees with what we streamed is a confirmed mismatch — and even that
+/// means "the object is on the watch at the wrong size", never "nothing
+/// happened".
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum PostWrite {
+    Landed,
+    Mismatch { expected: u64, actual: u64 },
+}
+
+/// Read the probe. Split out of [`run`] so the rule can be tested without a
+/// watch: the verdict is the thing the reported tally hangs off, and the
+/// firmware race that produces `Some(0)` cannot be forced on demand.
+pub(crate) fn post_write_verdict(expected: u64, probed: &Result<Option<u64>>) -> PostWrite {
+    match probed {
+        Ok(Some(actual)) if *actual != 0 && *actual != expected => PostWrite::Mismatch {
+            expected,
+            actual: *actual,
+        },
+        _ => PostWrite::Landed,
+    }
+}
+
+/// An upload error, worded by *where in the transfer it landed*.
+///
+/// `upload` can fail after the data phase has fully drained — a cable pulled
+/// during the PTP response phase is exactly that shape, and it reaches us as
+/// `kIOReturnAborted`. The object may well be intact on the watch. Asserting
+/// a bare failure there is a claim about the device we cannot support, so the
+/// two cases get different sentences. `mtp::UploadPhase` is the typed context
+/// that tells them apart; the engine's own message is always kept whole.
+fn describe_upload_failure(e: &anyhow::Error) -> String {
+    let verbatim = format!("{e:#}");
+    match e.downcast_ref::<crate::mtp::UploadPhase>() {
+        Some(p) if p.drained() => format!(
+            "the bytes finished streaming but the watch did not confirm the write — \
+             the file may be on your watch; check the list below ({verbatim})"
+        ),
+        _ => verbatim,
+    }
+}
+
 /// Drain a plan onto the device, emitting an [`Event`] for every step.
 ///
 /// **One MTP session per file.** Garmin firmware on the FR165 silently
@@ -420,17 +466,32 @@ pub fn run(device: &crate::garmin::Device, jobs: Vec<Job>, opts: &Options, tx: &
                 // Garmin's GetObjectInfo errors on freshly-written files until
                 // the indexer settles, so a missing size or a listing error is
                 // normal here — only a confirmed mismatch is a failure.
-                match backend.remote_size(&job.remote_dir, &upload_name) {
-                    Ok(Some(actual)) if actual != bytes => {
+                let mut verdict =
+                    post_write_verdict(bytes, &backend.remote_size(&job.remote_dir, &upload_name));
+                // Before believing a mismatch, let the indexer settle and ask
+                // once more. The firmware reports intermediate sizes for a
+                // second or so after the data phase closes, and a single
+                // disagreeing probe is not enough to call a landed file bad.
+                if matches!(verdict, PostWrite::Mismatch { .. }) {
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    let second = backend.remote_size(&job.remote_dir, &upload_name);
+                    if matches!(post_write_verdict(bytes, &second), PostWrite::Landed) {
+                        verdict = PostWrite::Landed;
+                    }
+                }
+                match verdict {
+                    PostWrite::Mismatch { expected, actual } => {
                         report.failed += 1;
                         let _ = tx.send(Event::Failed {
                             at,
                             error: format!(
-                                "post-write size mismatch: expected {bytes}, watch reports {actual}"
+                                "post-write size mismatch: the file is on your watch but at \
+                                 {actual} bytes, not the {expected} we sent — it will probably \
+                                 not play, and MTP has no overwrite, so delete it before retrying"
                             ),
                         });
                     }
-                    _ => {
+                    PostWrite::Landed => {
                         report.ok += 1;
                         let _ = tx.send(Event::Done { at, bytes });
                     }
@@ -440,7 +501,7 @@ pub fn run(device: &crate::garmin::Device, jobs: Vec<Job>, opts: &Options, tx: &
                 report.failed += 1;
                 let _ = tx.send(Event::Failed {
                     at,
-                    error: format!("{e:#}"),
+                    error: describe_upload_failure(&e),
                 });
             }
         }
@@ -491,6 +552,72 @@ pub fn run_to_report(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The reported mechanism behind "Sent 0 tracks" with the music present.
+    /// The watch answers `GetObjectInfo` with 0 for an object it has written
+    /// but not yet indexed; treating that as a mismatch failed a file that
+    /// had landed, and left it on the device with nothing offering to remove
+    /// it.
+    #[test]
+    fn zero_size_after_write_is_not_a_failure() {
+        assert_eq!(post_write_verdict(4096, &Ok(Some(0))), PostWrite::Landed);
+    }
+
+    #[test]
+    fn missing_or_failed_probe_is_not_a_failure() {
+        assert_eq!(post_write_verdict(4096, &Ok(None)), PostWrite::Landed);
+        assert_eq!(
+            post_write_verdict(4096, &Err(anyhow::anyhow!("busy"))),
+            PostWrite::Landed
+        );
+    }
+
+    #[test]
+    fn confirmed_disagreement_is_a_mismatch() {
+        assert_eq!(
+            post_write_verdict(4096, &Ok(Some(2048))),
+            PostWrite::Mismatch {
+                expected: 4096,
+                actual: 2048
+            }
+        );
+    }
+
+    #[test]
+    fn agreement_is_landed() {
+        assert_eq!(post_write_verdict(4096, &Ok(Some(4096))), PostWrite::Landed);
+    }
+
+    /// A cable pulled in the response phase drained the data phase first. The
+    /// object may be on the watch, and the sentence has to leave room for it.
+    #[test]
+    fn a_drained_upload_says_the_file_may_be_aboard() {
+        let e = anyhow::anyhow!("kIOReturnAborted (0xe00002ed)").context(crate::mtp::UploadPhase {
+            local: "/x/t.m4a".into(),
+            sent: 4096,
+            len: 4096,
+        });
+        let msg = describe_upload_failure(&e);
+        assert!(msg.contains("did not confirm"), "{msg}");
+        assert!(
+            msg.contains("kIOReturnAborted"),
+            "the engine's own words must survive: {msg}"
+        );
+    }
+
+    /// Cut mid-data, there is no such doubt: what is on the watch is not the
+    /// file, and offering hope would be the lie the whole plan is about.
+    #[test]
+    fn an_upload_cut_mid_data_is_reported_verbatim() {
+        let e = anyhow::anyhow!("kIOReturnAborted (0xe00002ed)").context(crate::mtp::UploadPhase {
+            local: "/x/t.m4a".into(),
+            sent: 1024,
+            len: 4096,
+        });
+        let msg = describe_upload_failure(&e);
+        assert!(!msg.contains("did not confirm"), "{msg}");
+        assert!(msg.contains("streamed 1024 of 4096 bytes"), "{msg}");
+    }
 
     #[test]
     fn dedupe_disambiguates_colliding_remote_stems() {

@@ -96,6 +96,12 @@ pub enum FailKind {
     OpenSession,
     NoEncoder,
     SizeMismatch,
+    /// Every byte streamed and the watch never confirmed the write. The file
+    /// may be aboard; the post-run listing is what decides. Distinct from
+    /// `Other` because the shell reconciles on it and the UI words it
+    /// differently — asserting a flat failure here would be a claim about the
+    /// device we cannot support.
+    Unconfirmed,
     Other,
 }
 
@@ -128,6 +134,8 @@ pub fn classify_fail(error: &str) -> FailKind {
     // far more actionable thing to tell the user than "the open failed".
     if e.contains("exclusive access") || e.contains("busy") || e.contains("access is denied") {
         FailKind::DeviceBusy
+    } else if e.contains("the bytes finished streaming but the watch did not confirm") {
+        FailKind::Unconfirmed
     } else if e.contains("post-write size mismatch") {
         FailKind::SizeMismatch
     } else if e.starts_with("opening session: ") {
@@ -198,6 +206,9 @@ pub enum UiEvent {
     FileStarted {
         completed: u32,
         total: u32,
+        ok: u32,
+        skipped: u32,
+        failed: u32,
         name: String,
         path: String,
     },
@@ -206,11 +217,17 @@ pub enum UiEvent {
     FileStaging {
         completed: u32,
         total: u32,
+        ok: u32,
+        skipped: u32,
+        failed: u32,
         name: String,
     },
     FileProgress {
         completed: u32,
         total: u32,
+        ok: u32,
+        skipped: u32,
+        failed: u32,
         name: String,
         file_bytes: u64,
         file_total: u64,
@@ -220,12 +237,18 @@ pub enum UiEvent {
     FileDone {
         completed: u32,
         total: u32,
+        ok: u32,
+        skipped: u32,
+        failed: u32,
         name: String,
         bytes: u64,
     },
     FileSkipped {
         completed: u32,
         total: u32,
+        ok: u32,
+        skipped: u32,
+        failed: u32,
         name: String,
         /// Verbatim from the engine. Render this, not the kind.
         reason: String,
@@ -234,6 +257,9 @@ pub enum UiEvent {
     FileFailed {
         completed: u32,
         total: u32,
+        ok: u32,
+        skipped: u32,
+        failed: u32,
         name: String,
         /// Verbatim, with the whole `.context()` chain intact. The
         /// size-mismatch message in particular states whether the stub was
@@ -248,6 +274,34 @@ pub enum UiEvent {
         skipped: u32,
         failed: u32,
         stopped: bool,
+        /// Bytes of the plan that actually reached the watch, and the plan's
+        /// total. The meter is byte-weighted, and a run that failed halfway
+        /// must not be allowed to finish full: `delivered / planned` is the
+        /// fraction that is true.
+        delivered_bytes: u64,
+        planned_bytes: u64,
+    },
+    /// A file the run reported as failed or uncertain, which the fresh
+    /// listing then found on the watch at the size we sent.
+    ///
+    /// Emitted **after** the `Snapshot`, deliberately: the UI already has the
+    /// listing in hand when the correction arrives, so it can revise the
+    /// sentence against evidence the user can also see. It is not folded into
+    /// `Snapshot` because a snapshot also fires on connect and after a
+    /// delete, where a `landed` field would mean nothing.
+    SyncReconciled {
+        landed: Vec<String>,
+    },
+    /// A batch delete drained. One per batch, followed by one `Snapshot`.
+    Deleted {
+        ok: u32,
+        failed: u32,
+    },
+    /// One file in a batch delete failed. `error` is verbatim from the engine,
+    /// same contract as `FileFailed`.
+    DeleteFailed {
+        name: String,
+        error: String,
     },
 
     Error {
@@ -328,6 +382,18 @@ mod tests {
                    (afconvert) cannot read it. Install ffmpeg to handle every \
                    format Pelican accepts.";
         assert!(matches!(classify_fail(msg), FailKind::NoEncoder));
+    }
+
+    /// `transfer::describe_upload_failure` writes this sentence, and the
+    /// shell reconciles the run on the kind it produces. If the wording there
+    /// changes without this changing, a drained upload silently becomes a
+    /// plain failure and stops being revised by the listing.
+    #[test]
+    fn a_drained_upload_is_its_own_kind() {
+        let msg = "the bytes finished streaming but the watch did not confirm the write — \
+                   the file may be on your watch; check the list below \
+                   (uploading /x/t.m4a (streamed 4096 of 4096 bytes): kIOReturnAborted)";
+        assert!(matches!(classify_fail(msg), FailKind::Unconfirmed));
     }
 
     #[test]

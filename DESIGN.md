@@ -174,7 +174,7 @@ raster of any kind.
 The product's promises are load-bearing on the visuals. Nothing leaves the
 machine, which means no webfont, no remote image, no telemetry pixel; the
 frontend is vanilla HTML/CSS/JS with no framework and no bundler, so the
-system has to be expressible in one 494-line stylesheet and custom properties
+system has to be expressible in one stylesheet and custom properties
 on `:root`. And the app ships zero rasters: album art is a code-drawn
 frame, filled at play time from a picture embedded in the user's own file —
 never from the network, and never from a bundled asset. **The fill is a
@@ -385,12 +385,11 @@ steps:
   titlebar (`"rail rail"` spanning both columns), channel and wall sit side by
   side with the wall at 280px. The rail's local note is dropped here because
   the hero still carries that truth. Nothing becomes unreachable at any size:
-  the rail must not vanish, because it carries Albums, Artists, Recently added
-  and every playlist.
+  the rail must not vanish, because it carries All music, Albums, Artists and
+  every playlist.
 - **≤720px** — one column, stacked titlebar / rail / channel / wall / player.
   The gauge drops from 132px to 84px and nothing else about the water changes;
-  the wall list is capped at 32vh. The hero
-  wraps, the cover drops to 88px, actions go full width and split evenly. The
+  the wall list is capped at 32vh. The hero wraps, the cover drops to 88px, actions go full width and split evenly. The
   format column leaves the track table and the player's now-playing block and
   format badge are hidden outright — truncating a title to `G…` is worse than
   not showing it.
@@ -625,6 +624,20 @@ paragraph first.
   `blur(24px) saturate(140%)`, 10.5% hairline, `14px 16px` padding, docked over
   the channel. Enters with
   `@starting-style` from `opacity:0; translateY(10px)` over 260ms.
+
+  **It has a lifecycle, and the end of it is a different object.** While the
+  run is live: present-tense heading, a Stop button, a live region. When the
+  run drains: the heading becomes the outcome in the past tense, Stop is
+  *hidden* rather than re-enabled (it controls nothing now), `aria-live` goes
+  to `off` once the terminal sentence has been announced, and a Dismiss
+  control appears — `Escape` does the same. A clean run fades on its own; a
+  run with anything to report **stays until it is dismissed or the next run
+  supersedes it.** A failure record must not vanish on a timer.
+
+  Its heading and the send button's reason line are produced by **one
+  function**. Composed separately they could contradict each other on screen:
+  a cable pulled mid-send painted "Connect your watch to send music." under a
+  card still headed "Sending to your watch".
 - **Failure notice:** 6px radius, `10px 12px`, an **opaque** `--notice-ground`
   fill with a `rgba(217,99,79,.34)` border, in a two-column grid so the actions
   sit beside the body and the uppercase tag spans the full width above them.
@@ -639,10 +652,17 @@ paragraph first.
   `#1b1b25`, where `--alert` is 4.74:1 and `--ink-dim` 5.97:1. The uppercase
   tag is the state's name in words; it exists so the red is never the only
   signal.
-- **Capacity readout:** opaque `--d3` backing, `12px 18px 16px`. `.water` is
-  anchored to the same bottom edge, so on a nearly empty watch its lightest
-  stop `--d1` rises directly behind this block and dropped the over-capacity
-  warning to 4.18:1. On the opaque `--d3` it is 5.08:1 at any level.
+- **Capacity readout:** opaque `--d3` backing, `12px 18px 16px`. The water can
+  no longer get behind it — it is confined to the gauge above — but the
+  reasoning survives the change of ground: the panel's own `d3→d2` gradient
+  reaches its darkest stop exactly here, and an opaque fill makes the ratio a
+  property of this rule rather than of whatever happens to land underneath.
+  `--alert` is 5.08:1 on it. **It is never covered.** The delete confirmation
+  is inline above the list for that reason, and in a window too short for
+  everything the gauge shrinks before this block does.
+- **Selection bar and delete confirmation:** see §Colors for the two opaque
+  grounds the destructive control is allowed on and the two it is not, and
+  §Components for the shape.
 
 ### Signature Component: the watch wall and its waterline
 The right-hand panel is the app's thesis made literal. The panel itself is a
@@ -785,11 +805,18 @@ element was given an opaque ground rather than a hopeful number.
   value is not a tone choice and must not be "tidied" darker. Where it ships,
   its worst real ground is the transfer card over bright album art (4.93:1);
   on the player's `--d4` it is 5.63:1 and on the rail gradient 4.98–5.28:1.
-- **`--ink-faint` is banned from two grounds it used to sit on**, because on
-  those composites it fails: the rail's item count (4.09:1 current, 4.44:1
-  hover) and the watch wall's head and list, where the water's `--d1` stop
-  rises behind them (4.36:1). Both took `--ink-dim` instead — 4.95:1 / 5.37:1
-  in the rail, 5.27:1 over `--d1` — and no palette token changed.
+- **`--ink-faint` is banned from the grounds it used to sit on**, because on
+  those composites it fails. The rail's item count: 4.09:1 current, 4.44:1
+  hover, against `--ink-dim`'s 4.95 and 5.37. And the whole of the watch
+  wall — the reason changed with the gauge but the answer did not. It used to
+  be the water's `--d1` stop rising behind the rows; the water is now confined
+  to the gauge, but every row is hoverable and selectable, and those veils are
+  the ground the text sits on: `--ink-faint` is **4.30:1** on a hovered row
+  (`--surface` over `--d2` = `#1a2938`) and **3.97:1** on a selected one
+  (`--surface-2` over `--d2` = `#202f3e`), where `--ink-dim` is 5.20 and 4.80.
+  **Inside `.wall__list`, every ink is `--ink` or `--ink-dim`.** The album and
+  artist list in the channel is the same story: its hover veil composites to
+  `#1b2634`, 4.44:1. No palette token changed for any of it.
 - **Ink `#e3eaf2`** is 14.99:1 on `--air` and never below 12.38:1 anywhere in
   the app (its darkest-ratio ground is `--d1`, the lit surface of the water).
   **`--ink-dim`** is 6.38:1 on `--air` and 5.27:1 at its worst ground (`--d1`).
@@ -806,18 +833,50 @@ element was given an opaque ground rather than a hopeful number.
   headline still read 3.99:1. The ratio has to be a property of the rule.
 - **`--line` (`#4a8cbe`) is 5.01:1 on `--air`** but is never used as text, and
   should not be. It is a 1px rule and a hatch.
+- **`--edge` (`rgba(226,236,247,.40)`) is the control boundary**, and it is a
+  1.4.11 figure rather than a text one: 3.16–3.40:1 across every ground a
+  control sits on, worst case a selected wall row. `--hairline` is 1.25–1.35:1
+  on the same grounds and identifies nothing, which is why it stays a
+  structural divider and why disabled controls keep it deliberately.
+- **The delete control's two grounds are opaque for the same reason the
+  failure headline's is.** `--alert` is 5.08:1 on the selection bar's `--d3`
+  and 4.77:1 on the confirm's `--notice-ground`; on a selected wall row it is
+  3.80:1 and on a hovered one 4.12:1, so a row is a ground it is not allowed
+  on. Its hover moves the border rather than tinting the ground, because a 10%
+  alert-hued wash drops those two to 4.60 and 4.28.
+- **The meter's fill on a run that did not deliver everything** drops from
+  brass to `--ink-dim`, which is 5.23:1 against the track (`--surface-2` over
+  the transfer card's near-opaque `#0d1622` ground = `#1e2733`) — a graphical
+  object, so 3:1 is the bar and it clears it comfortably.
+- **`aria-valuenow` on the transfer meter is the delivered fraction**, never
+  an unconditional 100, and `aria-valuetext` carries the same sentence the
+  sighted user reads. A progressbar labelled "Transfer progress" reading 100
+  after nothing was sent is the same lie as the wrong counter, aimed at the
+  person least able to check it.
+- **A finished transfer report stops being a live region.** `aria-live` is set
+  to `off` once the terminal sentence has been announced, because a report
+  still announced as live tells a screen-reader user a transfer is running
+  when none is.
 
 ## Do's and Don'ts
 
 ### Do:
 - **Do** place a new surface on the depth ladder (`--air`, `--air-2`,
   `--d1`–`--d4`) and let its colour state how deep it is.
-- **Do** use the two white veils (4.8% / 7.8%) for raised and current states,
-  and the two hairlines (5.8% structural / 10.5% control) for edges.
+- **Do** use the two white veils (4.8% / 7.8%) for raised and current states.
+  Edges come in three, and the distinction is contrast, not taste: 5.8%
+  structural, 10.5% a button's resting edge and a disabled control's, and
+  `--edge` at 40% for the boundary of anything you tick or press. Only the
+  last one measures over 3:1 on the grounds these sit on.
 - **Do** pair every colour-carried state with its word, and check the screen
   in greyscale before calling it done.
 - **Do** keep `--ink-faint` at `#7d8c9b`; the 5.28:1 ratio is the reason it is
-  that value.
+  that value — and keep it out of `.wall__list` and the album list entirely,
+  where the hover and selected veils put it under AA.
+- **Do** measure a new ink against the composite it will actually render on,
+  including the row's hover and selected veils, and record the figure beside
+  the rule. "The Ground You Actually Sit On" exists because that was got wrong
+  once already.
 - **Do** write new breakpoints as `@container shell (max-width: …)`.
 - **Do** mark comparable numerals `.num`.
 - **Do** draw new icons as inline SVG paths in the sprite, `fill/stroke:
@@ -861,9 +920,25 @@ element was given an opaque ground rather than a hopeful number.
   a floor under the blur.
 - **Don't** use `pointer-events: none` to disable a control; opacity plus a
   stated reason.
-- **Don't** let a floating panel cover the capacity readout.
+- **Don't** let a floating panel cover the capacity readout. The delete
+  confirmation is inline above the list for exactly this reason, and when the
+  window is too short for everything the gauge shrinks before the readout
+  does.
+- **Don't** let a destructive control tint its own ground, and don't put one
+  in a row. Both figures are in §Colors; both fail.
+- **Don't** use `--ink-faint` inside `.wall__list`. Every row is hoverable and
+  selectable and those veils are the ground it actually sits on.
 - **Don't** remove a navigation target at a breakpoint. Re-flow it.
 - **Don't** invent placeholder numbers. Capacities, counts, sizes and formats
   are read from the device and the user's files; a fabricated value in this
-  app is a lie about their hardware.
+  app is a lie about their hardware. A broken stub's size is `—`, not `0 KB`:
+  `GetObjectInfo` failed for that handle, so the watch never gave us one.
+- **Don't** render a bare "N of M" for a transfer. The numerator is position
+  in the batch, which is a real quantity and stays as it is; read alone it
+  says "N sent", so the ok/skipped/failed breakdown rides beside it.
+- **Don't** group anything on the watch without stating where the grouping
+  came from. Over MTP the device returns names and sizes and nothing else, so
+  every grouped view names its source and gives an honest home to every file
+  it cannot place — never an album group, and never "Unknown Artist", which
+  would read as a tag rather than as an absence.
 - **Don't** add anything that loops, pulses or breathes at rest.

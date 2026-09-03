@@ -262,6 +262,38 @@ pub fn read_fast(src: &Path) -> Result<SourceInfo> {
     })
 }
 
+/// Read the first embedded picture, on demand.
+///
+/// Deliberately separate from [`read_fast`], which asks for
+/// `read_cover_art(false)` and is right to: a FLAC carrying a 1 MB JPEG spends
+/// almost all of its parse time on a picture a library scan then throws away,
+/// and the scan pays that per file. This is the other case — one file, at the
+/// moment its art is actually wanted — so it opens with default
+/// `ParseOptions` and takes the first picture any tag on the file carries.
+///
+/// `Ok(None)` means the file has no embedded art. That is a fact, not a
+/// failure, and callers must render it as absence rather than substituting
+/// something.
+pub fn read_cover(src: &Path) -> Result<Option<(String, Vec<u8>)>> {
+    let tagged = Probe::open(src)
+        .with_context(|| format!("opening {} for cover art", src.display()))?
+        .read()
+        .with_context(|| format!("parsing {} for cover art", src.display()))?;
+
+    let pic = tagged
+        .primary_tag()
+        .into_iter()
+        .chain(tagged.tags().iter())
+        .find_map(|t| t.pictures().first());
+    Ok(pic.map(|p| {
+        let mime = p
+            .mime_type()
+            .map(|m| m.to_string())
+            .unwrap_or_else(|| "image/jpeg".to_string());
+        (mime, p.data().to_vec())
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

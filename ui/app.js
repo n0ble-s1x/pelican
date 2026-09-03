@@ -313,6 +313,11 @@
       tr.dataset.bytes = String(t.bytes);
       tr.dataset.fmt = t.fmt;
       tr.dataset.pipeline = t.pipeline;
+      /* For MediaMetadata and for the album key the cover cache uses. The
+         title falls back to the file stem in scan.rs, so it is never blank. */
+      tr.dataset.title = t.title;
+      tr.dataset.artist = t.artist || '';
+      tr.dataset.album = t.album || '';
       if (!t.playableInLibrary) tr.dataset.untagged = 'true';
 
       const label = t.artist ? `${t.title} — ${t.artist}` : t.title;
@@ -358,6 +363,8 @@
     picks = $$('.tracks__pick input');
     picks.forEach((p) => p.addEventListener('change', updateSelection));
     wirePlay();
+    buildQueue();
+    publishMediaSession();
     updateSelection();
   }
 
@@ -1146,6 +1153,38 @@
 
   let current = null;   /* the <tr> whose track is loaded */
 
+  /* The playable rows, in the order they are shown, and where we are in them.
+     Previous and Next were enabled controls with no click handler anywhere —
+     `.player__transport .iconbtn` appeared in the markup and nowhere in this
+     file — and `ended` only re-painted the chrome, so playback stopped dead
+     at the end of every track. The same two functions drive the footer
+     buttons, the media keys and Control Center, so those three can never
+     disagree about what "next" means. */
+  let queue = [];
+  let qi = -1;
+
+  /* Ogg rows are excluded because they are disabled for playback: the media
+     element reports readyState 4, a correct duration and a moving clock, and
+     emits digital silence. A queue that walks into one would look hung. */
+  const buildQueue = () => {
+    queue = $$('.tracks tbody tr')
+      .filter((r) => !$('.tracks__play .iconbtn', r).disabled);
+    qi = current ? queue.indexOf(current) : -1;
+  };
+
+  function next() {
+    if (qi < 0 || qi >= queue.length - 1) return;
+    load(queue[qi + 1]);
+  }
+
+  function prev() {
+    if (qi < 0) return;
+    /* The conventional behaviour, and the one every player on this machine
+       has: past three seconds, Previous restarts the track. */
+    if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+    if (qi > 0) load(queue[qi - 1]);
+  }
+
   function clearRowStates() {
     $$('.tracks__play .iconbtn').forEach((other) => {
       const r = other.closest('tr');
@@ -1166,12 +1205,30 @@
   }
 
   async function load(row) {
+    /* The remote path — a media key, or the Control Center button — has to
+       reach `play()` without an await in the way. A user-activation token
+       from a MediaSession action handler is not something to bet a skip
+       button on surviving an async IPC round trip and a fresh `src`.
+       `set_now_playing` is pure string work after a scope check (its own doc
+       comment says so), so its answer is stable for the life of the grant and
+       can be memoised. The invoke still runs once per row, so the scope check
+       is never skipped for a file. */
+    if (row.dataset.url) {
+      current = row;
+      qi = queue.indexOf(row);
+      audio.src = row.dataset.url;
+      audio.play().catch((e) => reportPlayFailure(e, row));
+      syncPlayerChrome();
+      return;
+    }
     try {
       /* The URL carries the true on-disk path. WKWebView picks its decoder
          from the extension, so an opaque id would break FLAC and WAV even
          though the bytes are identical. */
       const url = await invoke('set_now_playing', { path: row.dataset.path });
+      row.dataset.url = url;
       current = row;
+      qi = queue.indexOf(row);
       audio.src = url;
       /* Deliberately not gated on canPlayType(): it returns "" for FLAC,
          Ogg Opus and M4A on this WebKit while all three decode fine.
@@ -1188,6 +1245,100 @@
   function reportPlayFailure(e, row = current) {
     const why = audio.error ? `the decoder refused it (code ${audio.error.code})` : String(e);
     showError('Could not play that file', `${row ? row.dataset.name + ': ' : ''}${why}`);
+  }
+
+  /* ── Control Center and the media keys ──────────────────────────────── */
+
+  /* Verified present on this machine (macOS 26.6.2 build 25G83, wry 0.55.1 /
+     Tauri 2.11.5) with compiled WKWebView harnesses: `navigator.mediaSession`
+     and `MediaMetadata` exist, `setActionHandler` is accepted for play, pause,
+     stop, seekbackward, seekforward, previoustrack, nexttrack and seekto, and
+     `setPositionState` is accepted. Still guarded, because a capability that
+     is present today is not a capability to assume. */
+  const MS = ('mediaSession' in navigator) ? navigator.mediaSession : null;
+
+  /* Cover art, one read per album, at play time — never during a scan.
+     Keyed on album+artist so a twelve-track album costs one read. */
+  const artCache = new Map();
+  const artPending = new Map();
+
+  const albumKey = (row) =>
+    `${(row.dataset.album || '').toLowerCase()}\u0000${(row.dataset.artist || '').toLowerCase()}`;
+
+  function wantArt(row) {
+    const key = albumKey(row);
+    if (artCache.has(key)) { paintArt(artCache.get(key)); return; }
+    if (artPending.has(row.dataset.path)) return;
+    artPending.set(row.dataset.path, key);
+    invoke('cover_art', { path: row.dataset.path })
+      /* A refusal is not worth an error box: the frame simply stays a frame,
+         which is what it already is. */
+      .catch(() => artPending.delete(row.dataset.path));
+  }
+
+  /* One string, three consumers: the hero frame, the player frame and the
+     MediaMetadata artwork. Same directive, same allowance, one read. */
+  function paintArt(dataUrl) {
+    for (const el of $$('.cover--lg, .cover--sm')) {
+      el.style.backgroundImage = dataUrl ? `url("${dataUrl}")` : '';
+      el.style.backgroundSize = dataUrl ? 'cover' : '';
+    }
+    publishMediaSession();
+  }
+
+  function publishMediaSession() {
+    if (!MS) return;
+    if (!current) { MS.metadata = null; return; }
+    const art = artCache.get(albumKey(current));
+    MS.metadata = new MediaMetadata({
+      title: current.dataset.title || $('.t', current).textContent,
+      artist: current.dataset.artist || '',
+      album: current.dataset.album || '',
+      /* Omitted entirely when there is none. macOS then shows the app's own
+         icon, which is true, instead of a generic note glyph, which would
+         imply Pelican looked and found something. */
+      artwork: art ? [{ src: art, sizes: '512x512', type: mimeOf(art) }] : [],
+    });
+    /* Re-registered on every change, so skip is not advertised at the ends of
+       the queue: macOS greys the Control Center buttons from the published
+       command set, and a permanently-registered handler shows two always-lit
+       buttons, one of which silently does nothing. */
+    MS.setActionHandler('nexttrack', qi >= 0 && qi < queue.length - 1 ? next : null);
+    MS.setActionHandler('previoustrack', qi > 0 ? prev : null);
+  }
+
+  const mimeOf = (dataUrl) => {
+    const m = /^data:([^;]+);/.exec(dataUrl);
+    return m ? m[1] : 'image/jpeg';
+  };
+
+  if (MS) {
+    MS.setActionHandler('play', () => {
+      if (audio.src) audio.play().catch(reportPlayFailure);
+    });
+    MS.setActionHandler('pause', () => audio.pause());
+    MS.setActionHandler('seekto', (d) => {
+      if (typeof d.seekTime === 'number') audio.currentTime = d.seekTime;
+    });
+    /* `playbackState` is writable but WebKit re-derives it from the element —
+       it read back `paused` after a tone ended despite being set to
+       `playing`. So it is not managed by hand; the element's own play/pause
+       events are the source of truth. */
+  }
+
+  /* Guarded on a finite duration, so Control Center's scrubber is never
+     handed a NaN or an Infinity — a streaming-shaped duration would make the
+     position bar a lie rather than an absence. */
+  function publishPosition() {
+    if (!MS || !MS.setPositionState) return;
+    if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+    try {
+      MS.setPositionState({
+        duration: audio.duration,
+        position: Math.min(audio.currentTime, audio.duration),
+        playbackRate: audio.playbackRate || 1,
+      });
+    } catch { /* a rate or position the platform refuses is not worth a box */ }
   }
 
   function syncPlayerChrome() {
@@ -1210,18 +1361,22 @@
       f.textContent = current.dataset.fmt || '';
       f.title = 'The format of the file on this Mac. Pelican does not know what your output device does with it.';
       f.setAttribute('aria-label', 'Source file format: ' + (current.dataset.fmt || 'unknown'));
+      wantArt(current);
     }
+    publishMediaSession();
   }
 
   audio.addEventListener('play', syncPlayerChrome);
   audio.addEventListener('pause', syncPlayerChrome);
-  audio.addEventListener('ended', () => { syncPlayerChrome(); });
+  /* Playback used to stop dead here. */
+  audio.addEventListener('ended', () => { syncPlayerChrome(); next(); });
   audio.addEventListener('error', () => { if (audio.src) reportPlayFailure(new Error('load failed')); });
 
   audio.addEventListener('loadedmetadata', () => {
     const d = Number.isFinite(audio.duration) ? audio.duration : 0;
     seek.max = String(d || 0);
     $('[data-time-total]').textContent = mmss(d);
+    publishPosition();
   });
 
   audio.addEventListener('timeupdate', () => {
@@ -1229,6 +1384,12 @@
     seek.value = String(audio.currentTime);
     $('[data-time-now]').textContent = mmss(audio.currentTime);
     paintSeek();
+    publishPosition();
+  });
+
+  $$('.player__transport .iconbtn').forEach((btn) => {
+    const back = btn.getAttribute('aria-label') === 'Previous track';
+    btn.addEventListener('click', back ? prev : next);
   });
 
   if (playpause) {
@@ -1719,6 +1880,18 @@
            thing that says whether a retry is safe. */
         showError('Could not delete that', `${ev.name}: ${ev.error}`);
         break;
+
+      case 'coverArt': {
+        const key = artPending.get(ev.path);
+        artPending.delete(ev.path);
+        if (key === undefined) break;
+        /* `null` is cached too. It is an answer — this album has no embedded
+           art — and re-asking on every track of it would re-read the file
+           twelve times to be told the same thing. */
+        artCache.set(key, ev.art || null);
+        if (current && albumKey(current) === key) paintArt(ev.art || null);
+        break;
+      }
 
       case 'error':
         if (ev.contention) {

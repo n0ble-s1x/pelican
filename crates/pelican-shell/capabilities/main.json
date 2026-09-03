@@ -14,6 +14,7 @@
     "allow-scan-folder",
     "allow-start-sync",
     "allow-stop-sync",
-    "allow-set-now-playing"
+    "allow-set-now-playing",
+    "allow-cover-art"
   ]
 }

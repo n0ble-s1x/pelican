@@ -314,6 +314,19 @@ pub enum UiEvent {
         error: String,
     },
 
+    /// Answer to `cover_art`. `art` is a `data:` URL, or `None` when the file
+    /// carries no embedded picture or its picture is over the size cap.
+    ///
+    /// `None` means *render nothing*. A placeholder would imply Pelican looked
+    /// and found something, and on the Control Center side omitting the
+    /// artwork lets macOS show the app's own icon, which is true.
+    CoverArt {
+        /// The path that was asked about, so the UI can match the answer to
+        /// the request without holding a pending map.
+        path: String,
+        art: Option<String>,
+    },
+
     Error {
         message: String,
         /// Set when the failure was something else holding the device. The

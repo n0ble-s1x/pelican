@@ -248,6 +248,80 @@ pub fn set_now_playing(
     ))
 }
 
+/// The picture cap. A 12 MB hi-res cover would cross IPC as a ~16 MB base64
+/// string and be decoded into a 132px frame; above this the honest answer is
+/// that Pelican is not going to carry it.
+const COVER_CAP: usize = 2 * 1024 * 1024;
+
+/// Read one file's embedded cover art. Answers as `CoverArt`.
+///
+/// **Not inline**, per the module note: this is file I/O, a sync command runs
+/// on the macOS main thread, and a FLAC with a large picture would freeze the
+/// window for the length of the read. The scope check is the only thing that
+/// happens here; the parse goes to a short-lived worker, exactly as
+/// `scan_folder` sends its walk to one.
+///
+/// `read_fast` is deliberately left alone — it passes `read_cover_art(false)`
+/// because a library scan pays the picture's parse cost per file and never
+/// uses it. This is the other case: one file, at the moment its art is wanted.
+#[tauri::command]
+pub fn cover_art(app: AppHandle, shell: State<'_, Shell>, path: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    if !shell.is_granted(&p) {
+        return Err(format!("{path} is outside the folder you opened."));
+    }
+    if !app.asset_protocol_scope().is_allowed(&p) {
+        return Err(format!("{path} is not readable by the player."));
+    }
+    let sink = shell.sink.clone();
+    std::thread::Builder::new()
+        .name("pelican-cover".into())
+        .spawn(move || {
+            let art = pelican_core::transcode::tags::read_cover(&p)
+                .ok()
+                .flatten()
+                .filter(|(_, bytes)| bytes.len() <= COVER_CAP)
+                .map(|(mime, bytes)| format!("data:{mime};base64,{}", base64(&bytes)));
+            // Always answers, including with `None`. A request that produced
+            // no event would leave the caller waiting on a promise that never
+            // settles, and it would never learn the file simply has no art.
+            sink.send(UiEvent::CoverArt { path, art });
+        })
+        .map_err(|e| format!("could not read cover art: {e}"))?;
+    Ok(())
+}
+
+/// Standard base64, hand-rolled.
+///
+/// Sixteen lines against a new crate in a dependency tree this project
+/// deliberately keeps small enough for `cargo-deny` to be meaningful. The
+/// alphabet and the padding rules are RFC 4648 §4 and are covered by tests.
+fn base64(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        out.push(A[(n >> 18) as usize & 63] as char);
+        out.push(A[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 {
+            A[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            A[n as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
 /// Allow the asset protocol to serve `root`, and remember it for the
 /// path checks the commands above perform.
 pub fn grant(app: &AppHandle, shell: State<'_, Shell>, root: &Path) -> Result<(), String> {
@@ -274,6 +348,29 @@ mod tests {
             !enc.contains('#'),
             "a fragment marker would truncate: {enc}"
         );
+    }
+
+    /// RFC 4648 §4 test vectors. The `data:` URL an embedded cover crosses
+    /// IPC as is built from this, and a wrong pad byte is a picture that
+    /// silently fails to decode in the webview.
+    #[test]
+    fn base64_matches_the_rfc_vectors() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foob"), "Zm9vYg==");
+        assert_eq!(base64(b"fooba"), "Zm9vYmE=");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    }
+
+    /// The two high bytes exercise the '+' and '/' end of the alphabet, which
+    /// a JPEG's binary payload will hit within the first few bytes.
+    #[test]
+    fn base64_covers_the_whole_alphabet() {
+        assert_eq!(base64(&[0xff, 0xef, 0xbe]), "/+++");
+        assert_eq!(base64(&[0x00, 0x00, 0x00]), "AAAA");
+        assert_eq!(base64(&[0xff, 0xd8, 0xff]), "/9j/");
     }
 
     #[test]

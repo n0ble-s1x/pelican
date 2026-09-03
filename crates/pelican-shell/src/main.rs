@@ -93,6 +93,7 @@ fn main() {
             commands::start_sync,
             commands::stop_sync,
             commands::set_now_playing,
+            commands::cover_art,
         ])
         .setup(|app| {
             let sink = Arc::new(EventSink::default());

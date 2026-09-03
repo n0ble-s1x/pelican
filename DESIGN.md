@@ -183,7 +183,9 @@ art field, and nothing in `ui/app.js` sets a background or a `src` on
 
 **Key Characteristics:**
 - Depth as the only spatial metaphor; five named grounds, no shadow ladder.
-- One absolute horizontal — the waterline — as the only structural rule.
+- One absolute horizontal — the waterline — as the only structural rule, and
+  it now has a stated range: it travels within the gauge and never crosses
+  type.
 - Exactly one warm value, reserved; everything else is blue-black and ink.
 - Colour never signals alone; every state also says its name in words.
 - No shipped rasters, no bundled fonts, no icon font: SVG paths and CSS.
@@ -360,8 +362,8 @@ steps:
   the rail must not vanish, because it carries Albums, Artists, Recently added
   and every playlist.
 - **≤720px** — one column, stacked titlebar / rail / channel / wall / player.
-  The water stops being a fill behind the whole panel and becomes an 84px band
-  behind the capacity readout; the wall list is capped at 32vh. The hero
+  The gauge drops from 132px to 84px and nothing else about the water changes;
+  the wall list is capped at 32vh. The hero
   wraps, the cover drops to 88px, actions go full width and split evenly. The
   format column leaves the track table and the player's now-playing block and
   format badge are hidden outright — truncating a title to `G…` is worse than
@@ -391,7 +393,9 @@ There is no shadow ladder in this system. Depth is tonal: an element is
 a white veil at 4.8% or 7.8%. The full ordering, air to floor, is
 `air-2 → air → d3 → d2 → d1 → d3 → d4`: raised rail, app field, watch wall
 top, watch wall bottom, then the water's own gradient from its lit surface
-down to the floor, with the player bar at `d4` beneath everything.
+down to the floor, with the player bar at `d4` beneath everything. The
+`d1 → d3 → d4` run is now compressed into the 132px gauge rather than spanning
+the whole panel; the ordering is unchanged, its extent is not.
 
 Only three real shadows exist and two of them are inner highlights, not lifts.
 The one true drop shadow in the app is under the large album cover.
@@ -561,39 +565,67 @@ answer in 120ms with a veil, never a jump.
 ### Signature Component: the watch wall and its waterline
 The right-hand panel is the app's thesis made literal. The panel itself is a
 `d3→d2` gradient — a step deeper than the channel beside it, because the
-library is open air and the watch is under water. The water is an absolutely
-positioned box pinned to the bottom at **full height**, filled
-`d1 → d3 (60%) → d4` and **translated down** to the level:
+library is open air and the watch is under water.
+
+**The water lives in a gauge, and nowhere else.** `.gauge` is a fixed
+`--gauge: 132px` band between the track list and the capacity readout, with
+`overflow: hidden`. **Its height *is* total capacity**, so `--used` and
+`--pending` resolve against it. Inside it the water is an absolutely
+positioned box at **full height of the gauge**, filled `d1 → d3 (60%) → d4`
+and **translated down** to the level:
 `transform: translateY(calc(100% - var(--used, 0%)))`. Its `::before` draws the
 waterline: 1px, fading in from 20% at the left edge to solid `#4a8cbe`, with a
 downward-only bloom.
+
+The gauge is why the waterline can no longer cut a title in half. The water
+used to be a full-panel fill behind the entire wall, so at any level under
+100% its line and its bloom crossed the track rows horizontally. The ≤720px
+breakpoint had already found this and fixed it locally with a fixed band; the
+gauge generalises that fix to every width, which **removes a special case
+rather than adding one**. Nothing inside the band is text, so there is nothing
+left for the line to cross.
 
 **Translating a full-height gradient, rather than compressing a gradient into
 a short box, is what makes the two details true.** The waterline stays exactly
 1px at every level, because nothing about the box is being scaled. And the
 depth ramp becomes honest: a nearly-empty watch shows only near-surface tones
 instead of cramming `d1` through `d4` into a sliver, because shallow water is
-not abyssal. The geometry is exact — in a 668px wall, levels of 8 / 35 / 88 /
-100% expose 53.4 / 233.8 / 587.8 / 668px of water.
+not abyssal. The geometry is exact and measured — in the 132px gauge, levels
+of 8 / 35 / 88 / 100% expose **10.6 / 46.2 / 116.2 / 132px** of water.
 
 The pending band shows what the current selection would add: a −45° hatch of
 the line colour (20% / 7%) with a dashed top edge, sitting on top of the
-current level. **It is a sibling of the water, not a child** — as a child its
-percentage height resolved against the water's own height, so the band shrank
-as the watch emptied. It is a fraction of total capacity, so it must measure
-against the wall.
+current level. **It is a child of the gauge and a sibling of the water, never
+a child of the water** — as a child its percentage height resolved against the
+water's own height, so the band shrank as the watch emptied. It is a fraction
+of total capacity, so it must measure against the gauge. It carries a
+`max(2px, …)` floor, which the gauge makes necessary: a 3% selection was ~20px
+of a 668px wall and is 4px of a 132px gauge, and a real selection must not
+round away to nothing.
 
-At ≤720px the wall sits below the channel rather than beside it, and there the
-water is a fixed **84px band behind the capacity readout** with
-`transform: none` — it is no longer a fill behind a panel, so there is no level
-for it to carry, and the readout beside it states the number instead.
+At ≤720px only the band's height changes — `--gauge: 84px`, set on `.wall`
+because a container query cannot reach `:root`. One mechanism at every width.
 
-Everything else in the wall (head, list, more-link, capacity readout) sits at
-`z-index: 2` above the water, and the capacity block carries an opaque `--d3`
-backing of its own so the rising `--d1` stop can never get behind its ink. The disconnected state is driven by
-`[data-device="none"]` on the app root: list, count, water and capacity all
-hide, the empty-state paragraph appears, and the connection dot desaturates
-from kelp to `--ink-faint`.
+The stacking scaffold is gone with the fill it existed for: the head, list and
+capacity readout no longer need `z-index: 2`, because nothing is behind them
+any more. The capacity block keeps its opaque `--d3` backing for a different
+reason — the panel's own gradient reaches its darkest stop exactly there, and
+an opaque ground makes the ratio a property of the rule. The disconnected
+state is driven by `[data-device="none"]` on the app root: list, count, gauge
+and capacity all hide, the empty-state paragraph appears, and the connection
+dot desaturates from kelp to `--ink-faint`.
+
+**The wall's ink floor is `--ink-dim`.** `--ink-faint` is out of bounds inside
+`.wall__list`, and the reason changed with the gauge. It used to be the
+water's `--d1` stop rising behind the rows. The water is gone from behind
+them, but every row is now hoverable and selectable, and those veils are the
+ground the text actually sits on:
+
+| ground | `--ink` | `--ink-dim` | `--ink-faint` |
+|---|---|---|---|
+| wall gradient, worst stop `--d2` `#101f2e` | 13.77 | **5.86** | 4.85 |
+| hovered row, `--surface` over `--d2` = `#1a2938` | 12.21 | **5.20** | **4.30 FAIL** |
+| selected row, `--surface-2` over `--d2` = `#202f3e` | 11.26 | **4.80** | **3.97 FAIL** |
 
 ### Motion
 Scandinavian restraint applies to time as well as ink. One thing moves with
@@ -704,7 +736,11 @@ element was given an opaque ground rather than a hopeful number.
   there.
 - **Don't** make the pending band a child of `.water`: its percentage height
   resolves against the water's own height, so the band shrinks as the watch
-  empties. It is a fraction of total capacity, so it measures against the wall.
+  empties. It is a fraction of total capacity, so it measures against the
+  gauge.
+- **Don't** put the water behind text. It owns the gauge and nothing else.
+  Every level below 100% used to drag a 1px line and a bloom horizontally
+  through the track rows.
 - **Don't** animate `.water` by scaling or by compressing the gradient into a
   short box. It is full-height and translated; that is what keeps the waterline
   exactly 1px and the depth ramp truthful at low levels.

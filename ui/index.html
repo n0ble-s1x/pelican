@@ -130,11 +130,15 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <span data-contention hidden></span>
     </p>
 
-    <!-- the waterline: fill is the fraction of capacity IN USE (1.30 GB of 3.71).
+    <!-- The gauge. Its height IS total capacity, so --used and --pending
+         resolve against it. The water lives here and nowhere else: nothing in
+         this band is text, so the waterline can never cross a row again.
          --pending is what the current selection would add, shown as a band
          above the line so you can see whether it fits before committing. -->
-    <div class="water" aria-hidden="true"></div>
-    <span class="water__pending" aria-hidden="true"></span>
+    <div class="gauge" aria-hidden="true">
+      <div class="water"></div>
+      <span class="water__pending"></span>
+    </div>
     <p class="capacity">
       <span class="capacity__big num" data-cap-big>— <span class="capacity__unit">free</span></span>
       <span class="capacity__sm num" data-cap-sm></span>

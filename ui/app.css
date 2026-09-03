@@ -31,6 +31,14 @@
   /* measured from the approved comp via font-match --measure */
   --fs-hero:25px; --fs-body:13px; --fs-wall:12px; --fs-cap:26px;
 
+  /* The gauge's height, and therefore the capacity scale. The water used to
+     be a full-panel fill behind the whole wall, so at any level under 100%
+     its waterline and bloom cut horizontally through the track rows. The
+     ≤720px breakpoint had already diagnosed and fixed exactly that with a
+     fixed band; this generalises that fix to every width and removes the
+     special case rather than adding one. */
+  --gauge:132px;
+
   --r-sm:6px; --r-md:10px; --r-lg:14px;
   --ease:cubic-bezier(.22,.61,.36,1);
   --t-quick:120ms; --t-settle:260ms; --t-tide:900ms;
@@ -185,15 +193,18 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
      library is open air and the watch is under water, and the wall read as a
      plain panel until the water started. */
   background:linear-gradient(to bottom, var(--d3), var(--d2)); }
-.wall__head { padding:16px 18px 8px; position:relative; z-index:2; }
+.wall__head { padding:16px 18px 8px; }
 .wall__head h2 { font-size:14px; font-weight:640; }
-/* Same AA correction as .wall__list .z below: as the watch fills, the water's
-   --d1 stop rises behind the head, where --ink-faint is 4.36:1. --ink-dim is
-   5.27:1 there. Filling the watch is the point of the app, so that ground is a
-   state the product drives users into, not an edge case. */
+/* The ground this used to be measured against — the water's --d1 stop rising
+   behind the head as the watch filled — no longer exists: the water is
+   confined to the gauge. What is left is the panel's own d3→d2 gradient,
+   whose worst stop for ink is --d2, where --ink-faint is 4.85:1 and --ink-dim
+   is 5.86:1. --ink-dim stays, and now for the reason below: this panel's ink
+   floor is --ink-dim throughout, because the list beneath it is hoverable and
+   selectable and those veils are darker ground than the gradient. */
 .wall__count { font-size:11.5px; color:var(--ink-dim); margin-top:1px; }
-.wall__list { list-style:none; flex:1; overflow-y:auto; padding:0 10px;
-  position:relative; z-index:2; font-size:var(--fs-wall); }
+.wall__list { list-style:none; flex:1; overflow-y:auto; padding:0 10px 8px;
+  font-size:var(--fs-wall); }
 .wall__list li { display:grid; grid-template-columns:24px minmax(0,1fr) auto;
   grid-template-areas:"art title size" "art album size"; gap:0 11px;
   align-items:center; padding:6px 8px; }
@@ -204,7 +215,9 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
    track number is the only thing distinguishing these names. */
 .wall__list .t { grid-area:title; white-space:nowrap; overflow:hidden;
   text-overflow:ellipsis; }
-/* `.s` wraps where `.t` clips, and the difference is what each one carries.
+/* Same rule as `.z` below: --ink-dim, not --ink-faint, because the row is
+   hoverable and selectable.
+   `.s` wraps where `.t` clips, and the difference is what each one carries.
    `.t` is a filename the row's `title` recovers in full; `.s` is the row's
    only disclaimer — "the watch is not listing it now", "The watch will not
    report this file" — and an ellipsis cut it at the negation, leaving "Sent 3
@@ -212,22 +225,24 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
    grid's album row is auto-height, so it has somewhere to go. */
 .wall__list .s { grid-area:album; font-size:11px; color:var(--ink-dim);
   overflow-wrap:anywhere; }
-/* --ink-faint is 4.36:1 over --d1, the lighter stop at the top of the water,
-   and this list always crosses it. --ink-dim is 5.27:1 there and still the
-   quietest ink in the panel. */
+/* THE RULE FOR THIS LIST: every ink inside .wall__list is --ink or --ink-dim.
+   --ink-faint is out of bounds here, and the reason changed with this build.
+   It used to be the water's --d1 stop rising behind the rows (4.36:1). The
+   water is gone from behind them, but every row is now hoverable and
+   selectable, and those veils are the ground the text actually sits on:
+     wall gradient, worst stop --d2 #101f2e   ink-dim 5.86  ink-faint 4.85
+     hovered  row, --surface   over --d2 = #1a2938   5.20            4.30 FAIL
+     selected row, --surface-2 over --d2 = #202f3e   4.80            3.97 FAIL
+   --ink is 11.26:1 on the worst of those. --ink-faint fails two of the three,
+   so it is not used in this panel at all. */
 .wall__list .z { grid-area:size; font-size:11px; color:var(--ink-dim); }
-.wall__more { position:relative; z-index:2; padding:2px 18px 0; font-size:11.5px; }
-.wall__more a { color:var(--ink-dim); }
-
 .wall__empty { display:none; padding:22px 18px; font-size:12px;
-  color:var(--ink-dim); position:relative; z-index:2; max-width:34ch; }
+  color:var(--ink-dim); max-width:34ch; }
 .wall__empty-h { display:block; font-size:14px; font-weight:640;
   color:var(--ink); margin-bottom:6px; }
 [data-device="none"] .wall__list,
 [data-device="none"] .wall__count,
-[data-device="none"] .wall__more,
-[data-device="none"] .water,
-[data-device="none"] .water__pending,
+[data-device="none"] .gauge,
 [data-device="none"] .capacity { display:none; }
 [data-device="none"] .wall__empty { display:block; }
 /* A connected watch with an empty /Music used to render a heading, a zero and
@@ -247,7 +262,13 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
    stays exactly 1px at any level, and the depth ramp becomes truthful: a
    nearly empty watch shows only the near-surface tones instead of cramming
    d1 through d4 into a sliver, because shallow water is not abyssal. */
-.water { position:absolute; left:0; right:0; bottom:0; height:100%; z-index:0;
+/* The gauge is the capacity scale, and it is the water's whole world. Its
+   own height is 100% of the watch, so --used and --pending resolve against
+   it; nothing inside it is text, so the waterline has nothing left to cut
+   through. `overflow:hidden` is what lets the water be translated rather than
+   scaled without escaping the band. */
+.gauge { flex:none; position:relative; height:var(--gauge); overflow:hidden; }
+.water { position:absolute; inset:0; height:100%;
   transform:translateY(calc(100% - var(--used,0%)));
   background:linear-gradient(to bottom, var(--d1), var(--d3) 60%, var(--d4)); }
 .water::before { content:""; position:absolute; inset:0 0 auto 0; height:1px;
@@ -256,20 +277,25 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
      Spread upward it washed the air over the rows the list scrolls across and
      dropped their text under AA. */
   box-shadow:0 6px 12px -4px rgba(74,140,190,.32); }
-/* Sibling of .water, not a child: as a child its percentage height resolved
-   against the water's own height, so the band shrank as the watch emptied.
-   It is a fraction of total capacity, so it measures against the wall. */
-.water__pending { position:absolute; left:0; right:0; z-index:1;
-  bottom:var(--used,0%); height:var(--pending,0%);
+/* Still a sibling of .water and a child of .gauge, never a child of .water:
+   as a child its percentage height resolved against the water's own height,
+   so the band shrank as the watch emptied. It is a fraction of total
+   capacity, so it measures against the gauge.
+   The 2px floor is new and is a consequence of the gauge: a 3% selection was
+   ~20px of a 668px wall and is 4px of a 132px gauge, so without a floor a
+   small-but-real selection would round to nothing. */
+.water__pending { position:absolute; left:0; right:0;
+  bottom:var(--used,0%); height:max(2px, var(--pending,0%));
   background:repeating-linear-gradient(-45deg,
     rgba(74,140,190,.20) 0 4px, rgba(74,140,190,.07) 4px 8px);
   border-top:1px dashed rgba(74,140,190,.5); }
 
-/* Opaque backing: .water is anchored to the same bottom edge, so on a nearly
-   empty watch its lightest stop (--d1) rises behind this line and dropped the
-   over-capacity warning to 4.18:1. */
-.capacity { position:relative; z-index:2; padding:12px 18px 16px;
-  background:var(--d3); }
+/* Opaque backing, still. The water can no longer get behind this block — it
+   is confined to the gauge above — but the panel's own d3→d2 gradient reaches
+   its darkest at the bottom, which is exactly where this sits. An opaque
+   --d3 makes the ratio a property of this rule rather than of the gradient
+   stop that happens to land here. */
+.capacity { padding:12px 18px 16px; background:var(--d3); }
 .capacity__big { display:block; font-size:var(--fs-cap); font-weight:640;
   letter-spacing:-.024em; line-height:1; }
 .capacity__unit { font-size:12px; color:var(--ink-dim); font-weight:400; }
@@ -405,15 +431,17 @@ input, .seek { caret-color:var(--sun); }
    all. Nothing loops or pulses while idle. */
 
 /* The one animation the design cares about, and it is compositor-only.
-   `.water` is full height and slides down to the level rather than being a
-   gradient squeezed into a short box. Two things fall out: the 1px waterline
-   stays exactly 1px at any level, and the depth ramp is truthful — a nearly
-   empty watch shows only near-surface tones instead of cramming --d1 through
-   --d4 into a sliver. Verified 53.4/233.8/587.8/668px of a 668px wall at
-   8/35/88/100%.
+   `.water` is full height *of the gauge* and slides down to the level rather
+   than being a gradient squeezed into a short box. Two things fall out: the
+   1px waterline stays exactly 1px at any level, and the depth ramp is
+   truthful — a nearly empty watch shows only near-surface tones instead of
+   cramming --d1 through --d4 into a sliver. In the 132px gauge, levels of
+   8/35/88/100% expose 10.6/46.2/116.2/132px of water.
    The initial level is the CSS fallback, 0% — before the first device scan it
    is genuinely unknown. The markup carries no inline `--used`: the CSP is
-   style-src 'self' with no 'unsafe-inline', so style attributes are dropped. */
+   style-src 'self' with no 'unsafe-inline', so style *attributes* are
+   dropped. app.js sets it through the CSSOM, which the policy does not
+   touch. */
 .water { transition:transform var(--t-tide) var(--ease); }
 /* The pending band snaps and fades. Animating its height would be a layout
    animation for a hatch pattern that would distort under scaleY anyway. */
@@ -472,13 +500,10 @@ input, .seek { caret-color:var(--sun); }
     grid-template-areas: "titlebar" "rail" "channel" "wall" "player";
   }
   .wall { border-left:0; border-top:1px solid var(--hairline-2); }
-  /* Narrow: the wall sits below the channel, so the water becomes a fixed
-     band behind the capacity readout rather than a fill behind the whole
-     panel — at 40vh it rose over the track list and cut through titles.
-     The band is a fixed height, so it does NOT translate; the level is
-     carried by the readout beside it instead. */
-  .water { height:84px; transform:none; }
-  .water__pending { bottom:84px; }
+  /* One mechanism at every width. Only the band's height changes: the water
+     is a translated full-height fill inside the gauge here exactly as it is
+     at 1440, so the level is still carried by the water and not by prose. */
+  .wall { --gauge:84px; }
   .wall__list { max-height:32vh; }
 
   .hero { flex-wrap:wrap; gap:14px; }

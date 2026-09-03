@@ -17,7 +17,7 @@
   const app = $('.app');
   const transfer = $('.transfer');
   const selection = $('[data-selection]');
-  const water = $('.water');
+  const gauge = $('.gauge');
   const pending = $('.water__pending');
   const status = $('.device__status');
   const deviceName = $('.device__name');
@@ -110,10 +110,15 @@
      converted lands far smaller than it starts. */
   const sizeOf = (row) => Number(row.dataset.bytes || 0);
 
-  /* Drives transform, not height — see app.css. The element is full height and
-     slides down to the level, so nothing lays out on an animation frame. */
-  const setLevel = (el, pct) => {
-    if (el) el.style.transform = `translateY(${(100 - pct).toFixed(2)}%)`;
+  /* One custom property on the gauge, and the stylesheet does the rest: the
+     water translates by it and the pending band sits on it. It used to be an
+     inline `transform` here and an inline `bottom` there, two mechanisms for
+     one number that could only ever disagree.
+     A CSSOM write, not a style attribute — the CSP is style-src 'self' with
+     no 'unsafe-inline', which drops attributes in markup and does not touch
+     this. */
+  const setLevel = (pct) => {
+    if (gauge) gauge.style.setProperty('--used', pct.toFixed(2) + '%');
   };
 
   /* ── selection ──────────────────────────────────────────────────────── */
@@ -193,15 +198,16 @@
     const about = est ? 'about ' : '';
 
     /* The band sits on top of the current level and is measured against
-       total capacity, so it answers "will this fit" directly. */
+       total capacity, so it answers "will this fit" directly. The percentage
+       goes into --pending rather than straight onto `height`, so the
+       stylesheet's `max(2px, …)` floor can do its job: in a 132px gauge a
+       3% selection is 4px, and a real selection must not round to nothing. */
     if (pending && known) {
-      const usedPct = (state.total - state.free) / state.total * 100;
-      pending.style.bottom = usedPct.toFixed(2) + '%';
       const pct = Math.min(100, bytes / state.total * 100);
-      pending.style.height = pct.toFixed(2) + '%';
+      pending.style.setProperty('--pending', pct.toFixed(2) + '%');
       pending.style.opacity = pct > 0 ? '1' : '0';
     } else if (pending) {
-      pending.style.height = '0%';
+      pending.style.setProperty('--pending', '0%');
       pending.style.opacity = '0';
     }
 
@@ -527,7 +533,7 @@
     if (wall) wall.classList.toggle('is-empty', state.connected && items.length === 0);
 
     if (state.total > 0) {
-      setLevel(water, (state.total - state.free) / state.total * 100);
+      setLevel((state.total - state.free) / state.total * 100);
       const free = fmtParts(state.free);
       const big = $('[data-cap-big]');
       big.textContent = '';

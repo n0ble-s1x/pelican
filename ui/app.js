@@ -30,6 +30,8 @@
   const wall = $('.wall');
   const wallList = $('[data-wall-list]');
   const wallCount = $('[data-wall-count]');
+  const wallbar = $('[data-wallbar]');
+  const confirmBox = $('[data-confirm]');
   const audio = $('#audio');
   const seek = $('.seek');
   const playpause = $('.playpause');
@@ -492,30 +494,67 @@
     return 'Sent ' + d.toLocaleDateString();
   }
 
+  /* What the user has ticked in the wall, and the two kinds are not the same
+     action. A device path can be deleted; a journal name has nothing behind
+     it to delete, so the only honest thing on offer is for Pelican to forget
+     its own record. Keeping them in separate sets is what stops the second
+     being dressed up as the first. */
+  const wallPicks = new Set();    /* device paths  — deletable */
+  const wallGhosts = new Set();   /* journal names — forgettable */
+
   function renderWall() {
     const items = wallItems();
     const tpl = $('#tpl-wall');
-    const brokenTpl = $('#tpl-wall-broken');
+
+    /* Prune the selection to what still exists. A snapshot arrives on
+       connect, after a delete and after a sync, and rows the device no longer
+       lists must not stay in a set that a later Delete would act on. */
+    const livePaths = new Set(items.filter((i) => i.path).map((i) => i.path));
+    const liveGhosts = new Set(items.filter((i) => !i.onDevice).map((i) => i.name));
+    for (const p of [...wallPicks]) if (!livePaths.has(p)) wallPicks.delete(p);
+    for (const n of [...wallGhosts]) if (!liveGhosts.has(n)) wallGhosts.delete(n);
 
     wallList.textContent = '';
     for (const it of items) {
-      const frag = (it.broken ? brokenTpl : tpl).content.cloneNode(true);
+      const frag = tpl.content.cloneNode(true);
       const li = frag.querySelector('li');
       $('.t', li).textContent = it.name;
       /* The row clips at the measure, so the full name has to stay reachable.
          CSS truncation does not touch the accessible name, so the text node
          is still complete for a screen reader; this is for the pointer. */
       li.title = it.raw;
+
+      const pick = $('[data-pick]', li);
       if (it.broken) {
-        const btn = $('[data-delete]', li);
-        btn.dataset.delete = it.path;
-        btn.setAttribute('aria-label', `Delete ${it.name} from your watch`);
+        li.dataset.broken = 'true';
+        $('.s', li).textContent = 'The watch will not report this file';
+        /* Not fmt(0). `GetObjectInfo` failed for this handle, so the watch
+           never gave us a size — and "0 KB" would be one we invented. */
+        $('.z', li).textContent = '—';
+        pick.dataset.path = it.path;
+        pick.setAttribute('aria-label',
+          `Remove the unreadable file ${it.name} from your watch`);
+        pick.checked = wallPicks.has(it.path);
+      } else if (it.onDevice) {
+        $('.s', li).textContent = it.note || '';
+        $('.z', li).textContent = fmt(it.bytes);
+        li.dataset.bytes = String(it.bytes);
+        pick.dataset.path = it.path;
+        pick.setAttribute('aria-label', `Remove ${it.name} from your watch`);
+        pick.checked = wallPicks.has(it.path);
       } else {
         $('.s', li).textContent = it.note || '';
         $('.z', li).textContent = fmt(it.bytes);
+        pick.dataset.ghost = it.name;
+        /* Never "delete": there is nothing on the watch to delete. */
+        pick.setAttribute('aria-label',
+          `Forget that Pelican sent ${it.name}`);
+        pick.checked = wallGhosts.has(it.name);
       }
+      li.classList.toggle('is-picked', pick.checked);
       wallList.appendChild(frag);
     }
+    updateWallbar();
 
     const brokenCount = items.filter((i) => i.broken).length;
     /* Count only what the device reported. A journal row is Pelican's own
@@ -523,9 +562,18 @@
        two together answers "what is on my watch" with a number the watch did
        not give. */
     const onWatch = items.filter((i) => !i.broken && i.onDevice).length;
-    wallCount.textContent = brokenCount
-      ? `${plural(onWatch, 'track')} aboard · ${brokenCount} unreadable`
+    const stubLink = $('[data-pick-stubs]');
+    wallCount.firstChild.textContent = brokenCount
+      ? `${plural(onWatch, 'track')} aboard · ${brokenCount} unreadable · `
       : `${plural(onWatch, 'track')} aboard`;
+    if (stubLink) {
+      stubLink.hidden = brokenCount === 0;
+      stubLink.textContent = brokenCount === 1
+        ? 'select it' : `select all ${brokenCount}`;
+      stubLink.setAttribute('aria-label', brokenCount === 1
+        ? 'Select the unreadable file'
+        : `Select all ${brokenCount} unreadable files`);
+    }
 
     /* One scroll region does the work. A "Show all 20" link under a list that
        is already cut off by its own scroll promises a reveal that scrolling
@@ -550,6 +598,171 @@
   }
 
   const stripExt = (n) => { const i = n.lastIndexOf('.'); return i <= 0 ? n : n.slice(0, i); };
+
+  /* ── the wall's selection, and the one irreversible action ──────────── */
+
+  /* Everything the bar and the confirm need to say, read off the DOM once so
+     the two can never describe different selections. */
+  function picked() {
+    const rows = $$('.wall__list li').filter((li) => $('[data-pick]', li).checked);
+    const files = rows.filter((li) => !li.dataset.broken && $('[data-pick]', li).dataset.path);
+    const stubs = rows.filter((li) => li.dataset.broken);
+    const ghosts = rows.filter((li) => $('[data-pick]', li).dataset.ghost);
+    return {
+      rows, files, stubs, ghosts,
+      n: rows.length,
+      /* Stubs contribute no bytes and must not contribute zeros: the watch
+         never told us their size, and adding 0 would quietly assert it did. */
+      bytes: files.reduce((t, li) => t + Number(li.dataset.bytes || 0), 0),
+      names: (list) => list.map((li) => $('.t', li).textContent),
+    };
+  }
+
+  function updateWallbar() {
+    if (!wallbar) return;
+    const p = picked();
+    /* The bar and the confirm are alternatives, never both. */
+    const confirming = confirmBox && !confirmBox.hidden;
+    wallbar.hidden = p.n === 0 || confirming;
+    if (p.n === 0) { closeConfirm(false); return; }
+
+    const parts = [`${p.n} selected`];
+    if (p.files.length) parts.push(`${fmt(p.bytes)} (${plural(p.files.length, 'file')})`);
+    if (p.stubs.length) parts.push(`${p.stubs.length} unreadable, size unknown`);
+    if (p.ghosts.length) parts.push(`${p.ghosts.length} not on the watch`);
+    $('[data-wallbar-n]').textContent = parts.join(' · ');
+
+    /* Nothing on the device means nothing to delete, and the button must not
+       say a word Pelican cannot honour. */
+    const onlyGhosts = p.files.length === 0 && p.stubs.length === 0;
+    $('[data-wall-delete]').textContent = onlyGhosts
+      ? 'Forget these' : 'Delete from watch';
+  }
+
+  function nameList(names) {
+    const shown = names.slice(0, 3).join(', ');
+    return names.length > 3 ? `${shown} and ${names.length - 3} more` : shown;
+  }
+
+  /* Three facts, no euphemism, and a different sentence for each kind of
+     selection — "delete 3 files" is not what a broken stub is, and a journal
+     row with nothing behind it is not a deletion at all. */
+  function confirmCopy(p) {
+    const body = $('[data-confirm-body]');
+    body.textContent = '';
+    /* The tag names what is at stake, and for a journal-only selection that
+       is not the watch. Leaving "This cannot be undone" on it would put an
+       alarm on an action that changes nothing on the device. */
+    $('#confirm-tag').textContent =
+      (p.files.length || p.stubs.length)
+        ? 'This cannot be undone'
+        : 'This clears Pelican’s record';
+    const strong = (t) => Object.assign(document.createElement('strong'), { textContent: t });
+    const text = (t) => document.createTextNode(t);
+
+    const onDevice = [...p.files, ...p.stubs];
+    if (onDevice.length === 0) {
+      $('[data-confirm-go]').textContent = 'Forget';
+      body.append(
+        text('Pelican will forget that it sent '),
+        strong(nameList(p.names(p.ghosts))),
+        text('. Nothing on your watch changes — the watch is not listing '
+          + (p.ghosts.length === 1 ? 'this file' : 'these files')
+          + ', so there is nothing there to remove.'));
+      return;
+    }
+
+    $('[data-confirm-go]').textContent = 'Delete';
+    if (p.files.length === 0) {
+      body.append(
+        strong(`${plural(p.stubs.length, 'unreadable file')}`),
+        text(' will be removed from your watch. These are leftovers from '
+          + 'uploads the watch rejected: they take up space and can never '
+          + 'play. Pelican cannot undo this.'));
+    } else {
+      body.append(
+        strong(nameList(p.names(onDevice))),
+        text(' will be removed from your watch. Pelican cannot undo this, and '
+          + 'the watch has no trash. Your copies on this Mac are not touched.'));
+    }
+    if (p.ghosts.length) {
+      body.append(text(' Pelican will also forget that it sent '),
+        strong(nameList(p.names(p.ghosts))),
+        text(' — nothing on your watch changes for '
+          + (p.ghosts.length === 1 ? 'that one' : 'those')
+          + ', because the watch is not listing '
+          + (p.ghosts.length === 1 ? 'it' : 'them') + '.'));
+    }
+  }
+
+  function openConfirm() {
+    const p = picked();
+    if (!p.n) return;
+    confirmCopy(p);
+    confirmBox.hidden = false;
+    wallbar.hidden = true;
+    /* Focus lands on the safe option. */
+    $('[data-confirm-keep]').focus();
+  }
+
+  function closeConfirm(restoreFocus) {
+    if (!confirmBox || confirmBox.hidden) return;
+    confirmBox.hidden = true;
+    updateWallbar();
+    if (restoreFocus && !wallbar.hidden) $('[data-wall-delete]').focus();
+  }
+
+  function runDelete() {
+    const p = picked();
+    const paths = p.rows.map((li) => $('[data-pick]', li).dataset.path).filter(Boolean);
+    const names = p.rows.map((li) => $('[data-pick]', li).dataset.ghost).filter(Boolean);
+    confirmBox.hidden = true;
+    /* Both post to the one device thread and are handled in order. The
+       snapshot each produces is what closes the loop on screen; nothing here
+       predicts the outcome. */
+    if (paths.length) {
+      invoke('delete_remote', { paths })
+        .catch((e) => showError('Could not delete that', String(e)));
+    }
+    if (names.length) {
+      invoke('forget_uploads', { names })
+        .catch((e) => showError('Could not update Pelican’s record', String(e)));
+    }
+  }
+
+  wallList.addEventListener('change', (e) => {
+    const pick = e.target.closest('[data-pick]');
+    if (!pick) return;
+    const li = pick.closest('li');
+    li.classList.toggle('is-picked', pick.checked);
+    const key = pick.dataset.path || pick.dataset.ghost;
+    const set = pick.dataset.path ? wallPicks : wallGhosts;
+    if (pick.checked) set.add(key); else set.delete(key);
+    /* A change to the selection invalidates the sentence the confirm is
+       showing, so it closes rather than confirming a stale list. */
+    closeConfirm(false);
+    updateWallbar();
+  });
+
+  $('[data-wall-clear]')?.addEventListener('click', () => {
+    wallPicks.clear(); wallGhosts.clear();
+    $$('.wall__list [data-pick]').forEach((c) => {
+      c.checked = false; c.closest('li').classList.remove('is-picked');
+    });
+    closeConfirm(false);
+    updateWallbar();
+  });
+
+  $('[data-wall-delete]')?.addEventListener('click', openConfirm);
+  $('[data-confirm-keep]')?.addEventListener('click', () => closeConfirm(true));
+  $('[data-confirm-go]')?.addEventListener('click', runDelete);
+
+  $('[data-pick-stubs]')?.addEventListener('click', () => {
+    $$('.wall__list li[data-broken] [data-pick]').forEach((c) => {
+      if (!c.checked) { c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+    $('[data-wall-delete]')?.focus();
+  });
 
   /* ── playback ───────────────────────────────────────────────────────── */
 
@@ -868,6 +1081,9 @@
   $('[data-dismiss]')?.addEventListener('click', dismissRun);
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    /* The confirm outranks the report: Escape's first job is always to back
+       out of the irreversible thing. */
+    if (confirmBox && !confirmBox.hidden) { closeConfirm(true); return; }
     if (state.run && state.run.phase === 'finished' && !state.run.dismissed) {
       dismissRun();
     }
@@ -1163,14 +1379,6 @@
     invoke('pick_folder')
       .then((path) => { if (path) return invoke('scan_folder', { path }); })
       .catch((err) => showError('Could not open that folder', String(err)));
-  });
-
-  wallList.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-delete]');
-    if (!btn) return;
-    btn.disabled = true;
-    invoke('delete_remote', { paths: [btn.dataset.delete] })
-      .catch((err) => { btn.disabled = false; showError('Could not delete that', String(err)); });
   });
 
   /* ── startup ────────────────────────────────────────────────────────── */

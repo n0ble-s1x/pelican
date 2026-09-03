@@ -331,12 +331,30 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
 .transfer__head { display:flex; align-items:baseline; gap:12px; }
 .transfer__head h2 { font-size:13.5px; font-weight:640; }
 .transfer__of { margin-left:auto; font-size:11.5px; color:var(--ink-dim); }
+/* A finished run with anything to report stays until it is dismissed — it
+   must not vanish on a timer — so it needs a way out. There was none. */
+.transfer__dismiss { align-self:center; }
+.transfer__dismiss[hidden] { display:none; }
+/* Hidden on a finished run rather than re-enabled: a live-looking Stop on a
+   run that has already drained controls nothing. */
+.transfer__foot .btn[hidden] { display:none; }
 .meter { height:3px; border-radius:2px; background:var(--surface-2);
   margin:11px 0 6px; overflow:hidden; }
 /* scaleX rather than width: a solid fill with no gradient or border looks
    identical scaled, and it animates on the compositor. */
 .meter i { display:block; height:100%; width:100%; background:var(--sun);
   transform-origin:left center; transform:scaleX(0); }
+/* Brass is the action colour. The bar's *length* is now the true delivered
+   fraction, but a short brass bar still reads as an action that succeeded as
+   far as it went. On a run that did not deliver everything the fill drops to
+   ink, so nothing about it claims more than the length does. Measured on the
+   real composite: the track is --surface-2 over the card's near-opaque
+   #0d1622 ground = #1e2733, where --ink-dim is 5.23:1 — well clear of
+   1.4.11's 3:1 for a graphical object. No new token and no new hue; the
+   outcome itself is stated in words in the heading directly above. */
+.meter[data-outcome="failed"] i,
+.meter[data-outcome="partial"] i,
+.meter[data-outcome="stopped"] i { background:var(--ink-dim); }
 .transfer__now { display:flex; justify-content:space-between; gap:16px;
   font-size:11.5px; color:var(--ink-dim); }
 .transfer__foot { display:flex; align-items:center; gap:14px; margin-top:11px;

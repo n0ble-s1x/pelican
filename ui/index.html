@@ -31,6 +31,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <g id="i-pause"><path d="M4.6 3h1.9v8H4.6zM8.5 3h1.9v8H8.5z"/></g>
   <g id="i-prev"><path d="M4 3.2v7.6M11 3.4 5.4 7l5.6 3.6Z"/></g>
   <g id="i-next"><path d="M11 3.2v7.6M4 3.4 9.6 7 4 10.6Z"/></g>
+  <g id="i-close"><path d="M4 3.5 11 10.5M11 3.5 4 10.5"/></g>
 </defs></svg>
 <div class="shell">
 <!-- Starts detached. The USB poller answers within a tick; opening on
@@ -141,10 +142,21 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     </p>
   </aside>
 
+  <!-- `aria-live` is set to "off" once the run ends: a finished report that
+       is still announced as a live region tells a screen-reader user a
+       transfer is in progress when none is. app.js turns it back on for the
+       next run. -->
   <section class="transfer" aria-labelledby="transfer-h" aria-live="polite" hidden>
     <div class="transfer__head">
-      <h2 id="transfer-h">Sending to your watch</h2>
-      <p class="transfer__of num"><span data-transfer-done>0</span> of <span data-transfer-total>0</span><span data-transfer-eta></span></p>
+      <h2 id="transfer-h" data-transfer-h>Sending to your watch</h2>
+      <!-- Never a bare "N of M". The numerator is position in the batch — a
+           skip and a failure advance it too — so the breakdown rides beside
+           it and says which. -->
+      <p class="transfer__of num"><span data-transfer-done>0</span> of <span data-transfer-total>0</span><span data-transfer-breakdown></span><span data-transfer-eta></span></p>
+      <!-- A finished run with failures stays until it is dismissed. There was
+           no affordance for that at all, so the report simply sat there. -->
+      <button class="iconbtn transfer__dismiss" type="button" data-dismiss hidden
+        aria-label="Dismiss this transfer report"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="meter" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
          aria-label="Transfer progress" data-meter><i></i></div>

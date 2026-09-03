@@ -174,8 +174,11 @@ The product's promises are load-bearing on the visuals. Nothing leaves the
 machine, which means no webfont, no remote image, no telemetry pixel; the
 frontend is vanilla HTML/CSS/JS with no framework and no bundler, so the
 system has to be expressible in one 494-line stylesheet and custom properties
-on `:root`. And the app ships zero rasters: album art is a code-drawn frame
-filled at runtime from the user's own files. The measured comp spec records
+on `:root`. And the app ships zero rasters: album art is a code-drawn
+frame; **this build never fills it.** `read_fast` passes
+`read_cover_art(false)`, `SourceInfo` has no picture field, `TrackDto` has no
+art field, and nothing in `ui/app.js` sets a background or a `src` on
+`.cover`. The frame is the whole of it. The measured comp spec records
 10 regions and 0 plates.
 
 **Key Characteristics:**

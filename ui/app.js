@@ -56,7 +56,19 @@
     tracks: [], root: null,
     encoder: null, encoderVerified: false,
     contention: null,
-    syncing: false,
+    /* The run, in `state` like everything else.
+       `transfer.hidden` used to be the one piece of UI set imperatively while
+       every other pixel was painted from here, and the two disagreed in a
+       reachable sequence: pull the cable mid-send and `detached` sets
+       data-device="none" while the card is still displayed over the channel,
+       so "Connect your watch to send music." painted underneath a card that
+       claimed a live transfer. Deriving both from one object is the fix;
+       hiding one of them would have been a patch over the same hole.
+         null, or
+         { phase:'running'|'finished', total, bytes, jobBytes, startedAt,
+           ok, skipped, failed, stopped, delivered, planned,
+           landed: [], dismissed: false } */
+    run: null,
   };
 
   /* ── IPC ────────────────────────────────────────────────────────────── */
@@ -114,6 +126,60 @@
      carry no title or artist. Surfaced at selection time, not mid-send. */
   const untagged = () => checked().filter((r) => r.dataset.untagged === 'true').length;
 
+  /* One reading of the situation, for both the send button's reason and the
+     transfer card's heading.
+
+     They were composed independently and could contradict each other on
+     screen: `updateSelection` ranked a `syncing` flag above the device check,
+     but that flag cleared when the run finished while the card deliberately
+     stayed up on failure — so a cable pull produced "Connect your watch to
+     send music." at the top of the channel with a card above it still saying
+     "Sending to your watch". Two sentences from one function cannot do that.
+
+     `sel` carries the selection facts, which the heading has no opinion on. */
+  function situation(sel) {
+    const connected = state.connected;
+    const r = state.run;
+    const running = !!r && r.phase === 'running';
+
+    let heading;
+    if (!r) heading = 'Sending to your watch';
+    else if (running) {
+      /* The card must never claim a live transfer to a watch that is gone.
+         The run is genuinely still draining — transfer::run continues past
+         every failure — so this says what is true of both. */
+      heading = connected ? 'Sending to your watch'
+                          : 'Sending — your watch is no longer connected';
+    } else heading = outcomeHeading(r);
+
+    let why = '';
+    let blocked = 'reason';
+    /* With no folder open there is nothing tickable, the hero already says
+       so, and a red line under it would be the app alarming about its own
+       first-run state. */
+    if (!state.tracks.length) why = '';
+    else if (running) why = 'A transfer is already running.';
+    else if (!connected) why = 'Connect your watch to send music.';
+    else if (!sel.rows.length) why = 'Tick a track to send it.';
+    else if (!sel.fits) {
+      why = `That is ${sel.about}${fmt(sel.bytes - state.free)} more than your watch has room for.`;
+      blocked = 'capacity';
+    }
+    return { heading, why, blocked, running, cardUp: !!r && !r.dismissed };
+  }
+
+  /* The terminal sentence. Past tense, and it names the outcome rather than
+     leaving a present-tense "Sending to your watch" over a finished run. */
+  function outcomeHeading(r) {
+    if (r.stopped) return `Stopped after ${plural(r.ok, 'track')}`;
+    const parts = [];
+    if (r.ok) parts.push(`${r.ok} sent`);
+    if (r.skipped) parts.push(`${r.skipped} skipped`);
+    if (r.failed) parts.push(`${r.failed} failed`);
+    if (!r.failed && !r.skipped) return `Sent ${plural(r.ok, 'track')}`;
+    return `Send finished — ${parts.length ? parts.join(', ') : 'nothing to send'}`;
+  }
+
   function updateSelection() {
     const rows = checked();
     const bytes = rows.reduce((n, r) => n + sizeOf(r), 0);
@@ -157,35 +223,30 @@
       }
     }
 
+    const sit = situation({ rows, bytes, fits, about });
+
     if (sendBtn) {
       sendBtn.textContent = rows.length ? `Send ${plural(rows.length, 'track')}` : 'Send';
       sendBtn.disabled =
-        !rows.length || !fits || app.dataset.device === 'none' || state.syncing;
+        !rows.length || !fits || app.dataset.device === 'none' || sit.running;
     }
 
     /* A disabled control that does not say why is a dead end. The reason is
        rendered in the DOM and referenced by aria-describedby, so it reaches
        pointer and screen reader alike. */
     if (sendWhy) {
-      let why = '';
-      let blocked = 'reason';
-      /* With no folder open there is nothing tickable, the hero already says
-         so, and a red line under it would be the app alarming about its own
-         first-run state. */
-      if (!state.tracks.length) why = '';
-      else if (state.syncing) why = 'A transfer is already running.';
-      else if (app.dataset.device === 'none') why = 'Connect your watch to send music.';
-      else if (!rows.length) why = 'Tick a track to send it.';
-      else if (!fits) {
-        why = `That is ${about}${fmt(bytes - state.free)} more than your watch has room for.`;
-        blocked = 'capacity';
-      }
-      sendWhy.textContent = why;
+      sendWhy.textContent = sit.why;
       /* Signal Red is spent on the over-capacity case only — the one reason
          on DESIGN.md's list for that ink. The rest are quiet statements of
          fact, not failures. */
-      sendWhy.dataset.blocked = blocked;
-      sendWhy.hidden = !why;
+      sendWhy.dataset.blocked = sit.blocked;
+      sendWhy.hidden = !sit.why;
+    }
+
+    /* The card and the line above are the same sentence, painted together. */
+    if (transfer) {
+      transfer.hidden = !sit.cardUp;
+      $('[data-transfer-h]').textContent = sit.heading;
     }
 
     if (prewarn) {
@@ -615,10 +676,19 @@
   /* ── transfer ───────────────────────────────────────────────────────── */
 
   /* The progress bar reported a static 43% to assistive tech for the whole
-     transfer. Keep the value and the bar in step from one place. */
-  function setProgress(pct) {
+     transfer. Keep the value and the bar in step from one place.
+
+     `aria-valuenow` is the same claim as the visible bar, aimed at the user
+     least able to check it: a control labelled "Transfer progress" reading
+     100 says the transfer completed. It must never be set to full by anything
+     other than a full transfer. */
+  function setProgress(pct, text) {
     if (!meter) return;
     meter.setAttribute('aria-valuenow', String(Math.round(pct)));
+    /* A percentage is not the fact the user wants read out. `aria-valuetext`
+       overrides it with the same sentence the sighted user gets. */
+    if (text) meter.setAttribute('aria-valuetext', text);
+    else meter.removeAttribute('aria-valuetext');
     const fill = meter.querySelector('i');
     if (fill) fill.style.transform = `scaleX(${(pct / 100).toFixed(3)})`;
   }
@@ -646,30 +716,48 @@
     other: 'Failed',
   };
 
-  let run = null;   /* { total, bytes, startedAt, doneBytes } */
-
   function startRun(total, bytes) {
-    run = { total, bytes, startedAt: Date.now(), jobBytes: 0 };
-    state.syncing = true;
+    state.run = {
+      phase: 'running', total, bytes, jobBytes: 0, startedAt: Date.now(),
+      ok: 0, skipped: 0, failed: 0, stopped: false,
+      delivered: 0, planned: bytes, landed: [], dismissed: false,
+    };
+    /* A finished report is superseded by the next run, and by nothing else —
+       never by a timer. See `finishRun`. */
     notices().textContent = '';
-    transfer.hidden = false;
+    /* Live again for the new run. `finishRun` turns it off, because a
+       finished report announced as a live region tells a screen-reader user a
+       transfer is in progress. */
+    transfer.setAttribute('aria-live', 'polite');
+    const stop = $('[data-stop]');
+    stop.hidden = false;
+    stop.disabled = false;
+    stop.textContent = 'Stop after this track';
+    $('[data-dismiss]').hidden = true;
     $('[data-transfer-total]').textContent = String(total);
     $('[data-transfer-done]').textContent = '0';
+    $('[data-transfer-breakdown]').textContent = '';
     $('[data-transfer-eta]').textContent = '';
     $('[data-now-label]').textContent = 'Preparing…';
     $('[data-now-bytes]').textContent = '';
+    meter.dataset.outcome = 'running';
     setProgress(0);
-    updateSelection();
+    applyState();
   }
 
   function paintRun(ev) {
+    const run = state.run;
+    if (!run) return;
+    run.ok = ev.ok; run.skipped = ev.skipped; run.failed = ev.failed;
+
     $('[data-transfer-done]').textContent = String(ev.completed);
     $('[data-transfer-total]').textContent = String(ev.total);
+    $('[data-transfer-breakdown]').textContent = breakdown(ev);
     /* Once there is a byte total, the byte-weighted figure is authoritative
        and monotone. Falling back to `completed / total` on the events that
        carry no `jobBytes` — fileStarted, fileStaging, fileDone — snapped the
        bar backwards every time a file finished. */
-    if (run && run.bytes > 0) {
+    if (run.bytes > 0) {
       if (typeof ev.jobBytes === 'number') run.jobBytes = Math.max(run.jobBytes, ev.jobBytes);
       setProgress(Math.min(100, run.jobBytes / run.bytes * 100));
     } else if (ev.total > 0) {
@@ -680,7 +768,22 @@
     $('[data-transfer-eta]').textContent = eta();
   }
 
+  /* "3 of 5" is where the run is, not how it is going: the numerator counts
+     skips and failures too — device.rs says so at length and the reasoning is
+     right. What it cannot do is stand alone, because read bare it says "3
+     sent". So the breakdown rides beside it whenever the two differ, and the
+     owner's sighting reads "1 of 1 · 1 failed" rather than "1 of 1". */
+  function breakdown(ev) {
+    if (!ev.skipped && !ev.failed) return '';
+    const parts = [];
+    if (ev.ok) parts.push(`${ev.ok} sent`);
+    if (ev.skipped) parts.push(`${ev.skipped} skipped`);
+    if (ev.failed) parts.push(`${ev.failed} failed`);
+    return ' · ' + parts.join(', ');
+  }
+
   function eta() {
+    const run = state.run;
     if (!run || !run.jobBytes) return '';
     const elapsed = (Date.now() - run.startedAt) / 1000;
     if (elapsed < 3) return '';
@@ -691,6 +794,78 @@
     if (left < 90) return ' · about a minute left';
     return ` · about ${Math.round(left / 60)} minutes left`;
   }
+
+  /* The run ends. Everything present-tense about the card has to stop being
+     present tense in the same breath: the heading, the Stop button that now
+     controls nothing, the live region, and the bar. */
+  function finishRun(ev) {
+    const run = state.run || { total: 0, bytes: 0 };
+    Object.assign(run, {
+      phase: 'finished',
+      ok: ev.ok, skipped: ev.skipped, failed: ev.failed, stopped: ev.stopped,
+      delivered: ev.deliveredBytes, planned: ev.plannedBytes,
+      landed: [], dismissed: false,
+    });
+    state.run = run;
+
+    /* A full bar means everything landed and nothing else. `setProgress(100)`
+       was unconditional here, so a run that sent nothing still finished full
+       — the same lie as the counter, and `aria-valuenow="100"` aimed it at
+       the person least able to check it. */
+    const pct = ev.plannedBytes > 0
+      ? (ev.deliveredBytes / ev.plannedBytes) * 100
+      : (run.total > 0 ? (ev.ok / run.total) * 100 : 0);
+    setProgress(Math.max(0, Math.min(100, pct)), outcomeHeading(run));
+    meter.dataset.outcome =
+      ev.stopped ? 'stopped'
+      : ev.failed ? 'failed'
+      : ev.skipped ? 'partial'
+      : 'clean';
+
+    $('[data-transfer-breakdown]').textContent = breakdown(ev);
+    $('[data-now-label]').textContent = outcomeHeading(run) + '.';
+    $('[data-now-bytes]').textContent = '';
+    $('[data-transfer-eta]').textContent = '';
+
+    /* Hidden, not re-enabled. Re-enabling it put a live-looking control on a
+       finished run that it no longer had anything to stop. */
+    const stop = $('[data-stop]');
+    stop.hidden = true;
+    $('[data-dismiss]').hidden = false;
+
+    /* Announce the terminal sentence, then stop claiming to be live. The
+       order matters: turning the region off first would swallow the one
+       announcement the user needs. */
+    setTimeout(() => {
+      if (state.run && state.run.phase === 'finished') {
+        transfer.setAttribute('aria-live', 'off');
+      }
+    }, 0);
+
+    /* A clean run fades out through the existing @starting-style transition.
+       A run with anything to report stays until it is dismissed or the next
+       run supersedes it — a failure record must not vanish on a timer. */
+    if (ev.failed === 0 && ev.skipped === 0 && !ev.stopped) {
+      setTimeout(() => {
+        if (state.run === run && run.phase === 'finished') dismissRun();
+      }, 1400);
+    }
+    applyState();
+  }
+
+  function dismissRun() {
+    if (!state.run) return;
+    state.run.dismissed = true;
+    applyState();
+  }
+
+  $('[data-dismiss]')?.addEventListener('click', dismissRun);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (state.run && state.run.phase === 'finished' && !state.run.dismissed) {
+      dismissRun();
+    }
+  });
 
   /* ── the send gesture ───────────────────────────────────────────────── */
 
@@ -730,6 +905,7 @@
     e.currentTarget.textContent = 'Stopping after this track…';
     invoke('stop_sync').catch(() => {});
   });
+
 
   /* ── errors ─────────────────────────────────────────────────────────── */
 
@@ -839,6 +1015,12 @@
         state.connected = true;
         state.contention = null;
         state.openFailed = null;
+        /* A successful open is direct evidence against "The watch would not
+           open", and leaving that box up over a watch that demonstrably just
+           opened is the same class of untruth as the wrong counter. It used
+           to be cleared only by an explicit Reconnect or by picking a folder,
+           so it survived every later success. */
+        clearError();
         state.model = ev.model || null;
         state.free = ev.free; state.total = ev.total;
         state.entries = ev.entries; state.uploads = ev.uploads;
@@ -914,32 +1096,45 @@
         }
         break;
 
-      case 'syncFinished': {
-        state.syncing = false;
-        const stop = $('[data-stop]');
-        stop.disabled = false;
-        stop.textContent = 'Stop after this track';
-        $('[data-now-label]').textContent = ev.stopped
-          ? `Stopped after ${plural(ev.ok, 'track')}.`
-          : `Sent ${plural(ev.ok, 'track')}.`;
-        $('[data-now-bytes]').textContent = '';
-        $('[data-transfer-eta]').textContent = '';
-        setProgress(100);
-        /* A run with failures stays on screen with its list. A clean one
-           fades out through the existing @starting-style transition. */
-        if (ev.failed === 0 && ev.skipped === 0) {
-          setTimeout(() => { transfer.hidden = true; }, 1400);
-        }
-        updateSelection();
+      case 'syncFinished':
+        finishRun(ev);
+        break;
+
+      /* The listing found files the run had given up on. The observation
+         beats the inference, and the sentence already on screen is revised
+         rather than left standing beside a wall that contradicts it. */
+      case 'syncReconciled': {
+        if (!state.run || !ev.landed.length) break;
+        state.run.landed = ev.landed;
+        state.run.dismissed = false;
+        const n = ev.landed.length;
+        $('[data-now-label]').textContent =
+          `Reported ${state.run.failed} failed, but the watch is listing ` +
+          `${n === 1 ? 'one of them' : n + ' of them'} — see the list below.`;
+        addNotice('Found on your watch after all',
+          `Pelican could not confirm ${n === 1 ? 'this file' : 'these files'} during the ` +
+          `send, and the watch is now listing ${n === 1 ? 'it' : 'them'}: ` +
+          ev.landed.join(', ') + '.');
+        applyState();
         break;
       }
+
+      case 'deleted':
+        if (ev.failed === 0 && ev.ok > 0) clearError();
+        break;
+
+      case 'deleteFailed':
+        /* Verbatim, same as fileFailed: the engine's message is the only
+           thing that says whether a retry is safe. */
+        showError('Could not delete that', `${ev.name}: ${ev.error}`);
+        break;
 
       case 'error':
         if (ev.contention) {
           state.connected = false;
           state.contention = ev.contention;
           applyState();
-        } else if (state.syncing) {
+        } else if (state.run && state.run.phase === 'running') {
           addNotice('Problem', ev.message);
         } else {
           showError('Pelican could not do that', ev.message);
@@ -968,7 +1163,7 @@
     const btn = e.target.closest('[data-delete]');
     if (!btn) return;
     btn.disabled = true;
-    invoke('delete_remote', { path: btn.dataset.delete })
+    invoke('delete_remote', { paths: [btn.dataset.delete] })
       .catch((err) => { btn.disabled = false; showError('Could not delete that', String(err)); });
   });
 
@@ -1000,9 +1195,13 @@
          it where the app puts it. */
       state.model = state.connected ? 'Forerunner 165 Music' : null;
       state.total = 3.71e9; state.free = 2.41e9;
+      state.run = s === 'transferring'
+        ? { phase: 'running', total: 5, bytes: 5e7, jobBytes: 1.7e7, startedAt: Date.now(),
+            ok: 2, skipped: 0, failed: 0, stopped: false,
+            delivered: 0, planned: 5e7, landed: [], dismissed: false }
+        : null;
       applyState();
       renderWall();
-      if (transfer) transfer.hidden = s !== 'transferring';
     };
     window.addEventListener('hashchange', applyHash);
     applyHash();

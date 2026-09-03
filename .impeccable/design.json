@@ -72,7 +72,7 @@
         "role": "tertiary",
         "displayName": "Signal Red",
         "canonical": "#d9634f",
-        "purpose": "Untagged-file warning, over-capacity readout, failure notice tag. 5.06:1 on --air, 4.77:1 on --notice-ground, 4.74:1 on the .07 tint, 5.08:1 on --d3. Always paired with a word.",
+        "purpose": "Untagged-file warning, over-capacity readout, failure notice tag. 5.06:1 on --air, 4.77:1 on --notice-ground, 4.74:1 on the .07 tint, 5.08:1 on --d3. Always paired with a word. Fourth use: the delete control and its confirmation, the only irreversible action in the app. Allowed only on opaque grounds — --d3 5.08:1, --notice-ground 4.77:1 — and forbidden on a wall row, where it is 3.80:1 selected and 4.12:1 hovered.",
         "tonalRamp": [
           "#3f150e",
           "#6d2418",
@@ -283,6 +283,22 @@
         "displayName": "Hairline 5.8%",
         "canonical": "rgba(226,236,247,.058)",
         "purpose": "Every structural divider and panel edge in the app."
+      },
+      "edge": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "rgba(226,236,247,.40)",
+        "purpose": "Control boundaries only — checkbox and button edges. Not a hairline and not a replacement for one: the same rgba(226,236,247,x) veil family, a new alpha rather than a new hue. Measured 3.40 on --air, 3.37 --air-2, 3.23 --d1, 3.34 --d2, 3.40 --d3, 3.37 --d4, 3.39 --notice-ground, 3.23 hovered wall row, 3.16 selected wall row. Worst case 3.16:1, over 1.4.11's 3:1. --hairline is 1.25-1.35:1 on the same grounds and identifies nothing. Disabled controls keep --hairline deliberately.",
+        "tonalRamp": [
+          "#1b232d",
+          "#2b3540",
+          "#3c4753",
+          "#4e5967",
+          "#606c79",
+          "#78838f",
+          "#9aa3ad",
+          "#c6ccd3"
+        ]
       }
     },
     "typographyMeta": {
@@ -482,6 +498,30 @@
       "description": "The water's whole world. Its height IS total capacity, so --used and --pending resolve against it. overflow:hidden lets the water be translated rather than scaled without escaping the band. Nothing inside it is text, which is the point: the waterline can never cross a row again. Measured 10.6 / 46.2 / 116.2 / 132px at 8 / 35 / 88 / 100%.",
       "html": "<div class=\"ds-gauge\" style=\"--used:35%\"><div class=\"ds-water\"></div><span class=\"ds-pending\" style=\"--pending:6%\"></span></div>",
       "css": ".ds-gauge{position:relative;height:132px;overflow:hidden;background:#101f2e}.ds-water{position:absolute;inset:0;height:100%;transform:translateY(calc(100% - var(--used,0%)));background:linear-gradient(to bottom,#16283a,#0a1622 60%,#060e17);transition:transform 900ms cubic-bezier(.22,.61,.36,1)}.ds-water::before{content:'';position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,rgba(74,140,190,.2),#4a8cbe 25%,#4a8cbe);box-shadow:0 6px 12px -4px rgba(74,140,190,.32)}.ds-pending{position:absolute;left:0;right:0;bottom:var(--used,0%);height:max(2px,var(--pending,0%));background:repeating-linear-gradient(-45deg,rgba(74,140,190,.20) 0 4px,rgba(74,140,190,.07) 4px 8px);border-top:1px dashed rgba(74,140,190,.5)}"
+    },
+    {
+      "name": "Selection Bar",
+      "kind": "toolbar",
+      "refersTo": "wallbar",
+      "description": "Appears above the wall's list when anything is ticked. Opaque --d3, because the destructive control lives here and its ratio must be a property of this rule rather than of whatever veil a row is wearing. The readout takes its own line: the wall is 300px and the count is three clauses long. Stub sizes are skipped rather than added as zeros — the watch never reported one.",
+      "html": "<div class=\"ds-wallbar\"><p class=\"ds-wallbar-n\">3 selected · 41.2 MB (2 files) · 1 unreadable, size unknown</p><button class=\"ds-btn2 ds-sm\">Clear</button><button class=\"ds-danger ds-sm\">Delete from watch</button></div>",
+      "css": ".ds-wallbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px 10px 18px;background:#0a1622;border-top:1px solid rgba(226,236,247,.058);border-bottom:1px solid rgba(226,236,247,.058)}.ds-wallbar-n{flex:1 1 100%;font-size:11.5px;color:#8b9bab}.ds-sm{padding:5px 11px;font-size:11.5px;border-radius:6px;font:590 11.5px/1.45 -apple-system,system-ui,sans-serif}.ds-btn2{color:#e3eaf2;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078)}.ds-danger{margin-left:auto;background:transparent;border:1px solid rgba(226,236,247,.40);color:#d9634f}.ds-danger:hover{background:transparent;border-color:#8b9bab}"
+    },
+    {
+      "name": "Delete Confirmation",
+      "kind": "alertdialog",
+      "refersTo": "confirm",
+      "description": "Inline, above the list, never a modal — 'Never Cover The Number' forbids anything floating over the capacity readout, and the free-space figure is what someone deciding whether to delete wants in view. Opaque --notice-ground: --alert 4.77:1, --ink-dim 6.02:1, --ink 14.14:1. Focus lands on 'Keep them'; Escape cancels and returns focus to the Delete button. The body is the part that scrolls in a short window, so the two buttons are never below the fold. Three copies, because a broken stub is not a file and a journal row with nothing behind it is not a deletion at all.",
+      "html": "<div class=\"ds-confirm\" role=\"alertdialog\"><p class=\"ds-confirm-tag\">This cannot be undone</p><p class=\"ds-confirm-body\"><strong>01 - Iva Davies, 02 - Great Southern Land and 1 more</strong> will be removed from your watch. Pelican cannot undo this, and the watch has no trash. Your copies on this Mac are not touched.</p><div class=\"ds-confirm-acts\"><button class=\"ds-btn2 ds-sm\">Keep them</button><button class=\"ds-danger ds-sm\">Delete</button></div></div>",
+      "css": ".ds-confirm{display:flex;flex-direction:column;padding:12px 18px 14px;background:#191b25;border-top:1px solid rgba(217,99,79,.34);border-bottom:1px solid rgba(217,99,79,.34)}.ds-confirm-tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:640;color:#d9634f}.ds-confirm-body{margin-top:5px;font-size:11.5px;color:#8b9bab;overflow-y:auto}.ds-confirm-body strong{color:#e3eaf2;font-weight:590}.ds-confirm-acts{display:flex;gap:8px;margin-top:10px}.ds-sm{padding:5px 11px;font-size:11.5px;border-radius:6px;font:590 11.5px/1.45 -apple-system,system-ui,sans-serif}.ds-btn2{color:#e3eaf2;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078)}.ds-danger{background:transparent;border:1px solid rgba(226,236,247,.40);color:#d9634f}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Two rules. It never lives in a row — only on an opaque ground, so its contrast is a property of its own rule (--d3 5.08:1, --notice-ground 4.77:1; a selected row is 3.80:1 and a hovered one 4.12:1). And it never tints its own ground — an alert-hued 10% wash drops those to 4.60 and 4.28, so hover moves the border to --ink-dim (6.41:1 / 6.02:1) instead. The word carries the meaning, so 'colour never signals alone' holds without a fill.",
+      "html": "<button class=\"ds-danger2\">Delete from watch</button>",
+      "css": ".ds-danger2{font:590 11.5px/1.45 -apple-system,system-ui,sans-serif;padding:5px 11px;border-radius:6px;background:transparent;border:1px solid rgba(226,236,247,.40);color:#d9634f}.ds-danger2:hover{background:transparent;border-color:#8b9bab}.ds-danger2:focus-visible{outline:2px solid #d8963f;outline-offset:2px}"
     }
   ],
   "narrative": {

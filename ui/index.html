@@ -117,8 +117,36 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <aside class="wall" aria-label="On your watch">
     <div class="wall__head">
       <h2>On your watch</h2>
-      <p class="wall__count num" data-wall-count>0 tracks aboard</p>
+      <p class="wall__count num" data-wall-count>0 tracks aboard
+        <!-- Broken stubs are the one thing nothing else on this Mac can
+             remove. Folding them into a general selection would bury that
+             behind 22 rows of scroll, so there is one gesture for them.
+             Underlined, so it is not identified by colour alone. -->
+        <button class="linkbtn" type="button" data-pick-stubs hidden></button></p>
     </div>
+
+    <!-- Selection and its confirmation sit above the list and below the head:
+         inline, never a modal. DESIGN.md's "Never Cover The Number" rule
+         forbids anything floating over the capacity readout, and the free
+         figure is exactly what a person deciding whether to delete wants to
+         see while they decide. -->
+    <div class="wallbar" data-wallbar hidden>
+      <p class="wallbar__n num" data-wallbar-n></p>
+      <button class="btn btn--sm" type="button" data-wall-clear>Clear</button>
+      <button class="btn btn--sm btn--danger" type="button" data-wall-delete>Delete from watch</button>
+    </div>
+
+    <div class="confirm" role="alertdialog" aria-labelledby="confirm-tag"
+         aria-describedby="confirm-body" data-confirm hidden>
+      <p class="confirm__tag" id="confirm-tag">This cannot be undone</p>
+      <p class="confirm__body" id="confirm-body" data-confirm-body></p>
+      <div class="confirm__acts">
+        <!-- The safe option takes focus. -->
+        <button class="btn btn--sm" type="button" data-confirm-keep>Keep them</button>
+        <button class="btn btn--sm btn--danger" type="button" data-confirm-go>Delete</button>
+      </div>
+    </div>
+
     <ul class="wall__list" data-wall-list></ul>
     <p class="wall__empty">
       <span class="wall__empty-h" data-empty-h>No watch connected</span>
@@ -223,20 +251,19 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   </tr>
 </template>
 
+<!-- One row shape for everything the wall lists, including broken stubs.
+     "Tick on the left sends to the watch, tick on the right removes from it"
+     is one symmetrical idea; two row vocabularies made it two.
+     A stub is this row with data-broken, its own subtitle, and "—" for a
+     size — `GetObjectInfo` failed, and "0 KB" would be a weight the watch
+     never gave us. -->
 <template id="tpl-wall">
-  <li><span class="cover cover--xs" aria-hidden="true"></span>
+  <li>
+    <input type="checkbox" class="pick" data-pick>
+    <span class="cover cover--xs" aria-hidden="true"></span>
     <span class="t"></span><span class="s"></span>
-    <span class="z num"></span></li>
-</template>
-
-<!-- A handle the watch reports but whose metadata it refuses to read: a stub
-     left by an upload the firmware rejected. It occupies space and can never
-     play, so the only thing to offer is removal. Uses the existing grid
-     areas — `.z` puts the control where the size would be. -->
-<template id="tpl-wall-broken">
-  <li><span class="cover cover--xs" aria-hidden="true"></span>
-    <span class="t"></span><span class="s">The watch will not report this file</span>
-    <button type="button" class="btn btn--sm z" data-delete>Delete</button></li>
+    <span class="z num"></span>
+  </li>
 </template>
 
 <template id="tpl-notice">

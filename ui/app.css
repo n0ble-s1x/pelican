@@ -9,6 +9,17 @@
   --line:#4a8cbe;
   --surface:rgba(226,236,247,.048); --surface-2:rgba(226,236,247,.078);
   --hairline:rgba(226,236,247,.105); --hairline-2:rgba(226,236,247,.058);
+  /* The edge of something you can press, at a ratio that identifies it as
+     one. Measured against every ground a control sits on in this app:
+       --air 3.40   --air-2 3.37   --d1 3.23   --d2 3.34   --d3 3.40
+       --d4 3.37    --notice-ground 3.39
+       hovered wall row #1a2938 3.23   selected wall row #202f3e 3.16
+     Worst case 3.16:1, clear of 1.4.11's 3:1. --hairline (10.5%) measures
+     1.25–1.35:1 on those same grounds and identifies nothing; it stays what
+     it is, a structural divider, and this is not a replacement for it.
+     Same rgba(226,236,247, x) veil family as both hairlines — a new alpha,
+     not a new hue. */
+  --edge:rgba(226,236,247,.40);
   --ink:#e3eaf2; --ink-dim:#8b9bab;
   --ink-faint:#7d8c9b;   /* 5.28:1 on --air. was #5a6875 = 3.18:1, failing AA */
   --sun:#d8963f; --sun-ink:#160f06;
@@ -182,9 +193,16 @@ body {
   display:grid; place-items:center; padding:2px; border-radius:4px; }
 .iconbtn:hover { color:var(--ink); }
 
+/* Every checkbox in the app, on both sides of the window. --hairline was
+   1.29–1.34:1 against the grounds these sit on, which is a boundary you
+   cannot see; that was a small problem in the library table and became the
+   wall's main affordance the moment 22 rows on a darker ground grew one. */
 input[type=checkbox] { appearance:none; width:15px; height:15px; border-radius:4px;
-  border:1px solid var(--hairline); background:var(--surface); }
+  border:1px solid var(--edge); background:var(--surface); }
 input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
+/* Deliberately keeps --hairline: a control that cannot be operated should
+   not advertise a 3:1 boundary as if it could. */
+input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
 
 /* ── the watch wall ──────────────────────────────────────────────────── */
 .wall { grid-area:wall; position:relative; display:flex; flex-direction:column;
@@ -203,11 +221,29 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
    floor is --ink-dim throughout, because the list beneath it is hoverable and
    selectable and those veils are darker ground than the gradient. */
 .wall__count { font-size:11.5px; color:var(--ink-dim); margin-top:1px; }
-.wall__list { list-style:none; flex:1; overflow-y:auto; padding:0 10px 8px;
-  font-size:var(--fs-wall); }
-.wall__list li { display:grid; grid-template-columns:24px minmax(0,1fr) auto;
-  grid-template-areas:"art title size" "art album size"; gap:0 11px;
-  align-items:center; padding:6px 8px; }
+/* --ink-dim on the head's --d3 = 6.41:1, and underlined, so the control is
+   not identified by colour alone. */
+.linkbtn { font:inherit; font-size:11.5px; padding:0; background:none; border:0;
+  color:var(--ink-dim); text-decoration:underline; }
+.linkbtn:hover { color:var(--ink); }
+.linkbtn[hidden] { display:none; }
+ /* min-height:0 is load-bearing: the bar, the confirm, the gauge and the
+    capacity readout are all flex:none, so without it the list refuses to
+    shrink below its content and pushes the capacity figure out of the panel
+    exactly when the confirm is open — which is the one moment DESIGN.md's
+    "Never Cover The Number" rule says it must be visible. */
+.wall__list { list-style:none; flex:1; min-height:0; overflow-y:auto;
+  padding:0 10px 8px; font-size:var(--fs-wall); }
+.wall__list li { display:grid;
+  grid-template-columns:15px 24px minmax(0,1fr) auto;
+  grid-template-areas:"pick art title size" "pick art album size"; gap:0 11px;
+  align-items:center; padding:6px 8px; border-radius:var(--r-sm); }
+/* The class is set in JS rather than `li:has(.pick:checked)`: one line in the
+   change handler, and it does not depend on `:has` in whatever WKWebView the
+   user's macOS happens to ship. */
+.wall__list li:hover { background:var(--surface); }
+.wall__list li.is-picked { background:var(--surface-2); }
+.wall__list .pick { grid-area:pick; }
 .wall__list .cover { grid-area:art; }
 /* The grid column is minmax(0,1fr), which holds the column but not the text:
    a 56-char sanitized stem wrapped to two lines, collided with the row below
@@ -242,6 +278,8 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
   color:var(--ink); margin-bottom:6px; }
 [data-device="none"] .wall__list,
 [data-device="none"] .wall__count,
+[data-device="none"] .wallbar,
+[data-device="none"] .confirm,
 [data-device="none"] .gauge,
 [data-device="none"] .capacity { display:none; }
 [data-device="none"] .wall__empty { display:block; }
@@ -262,12 +300,70 @@ input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
    stays exactly 1px at any level, and the depth ramp becomes truthful: a
    nearly empty watch shows only the near-surface tones instead of cramming
    d1 through d4 into a sliver, because shallow water is not abyssal. */
+/* ── selection, and the one irreversible action in the app ───────────── */
+
+/* Opaque --d3, because the destructive control lives here and its ratio must
+   be a property of this rule rather than of whatever veil a row happens to be
+   wearing. --ink-dim 6.41:1, --alert 5.08:1. */
+.wallbar { flex:none; display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  padding:8px 12px 10px 18px; background:var(--d3);
+  border-top:1px solid var(--hairline-2); border-bottom:1px solid var(--hairline-2); }
+.wallbar[hidden] { display:none; }
+/* Its own line. The wall is 300px and the readout is three clauses long, so
+   sharing a row with two buttons wrapped "Delete from watch" onto two lines
+   and doubled the bar's height. */
+.wallbar__n { flex:1 1 100%; font-size:11.5px; color:var(--ink-dim); }
+.wallbar .btn { white-space:nowrap; }
+.wallbar .btn--danger { margin-left:auto; }
+
+/* Inline, never a modal: DESIGN.md's "Never Cover The Number" rule forbids
+   anything floating over the capacity readout, and the free-space figure is
+   exactly what someone deciding whether to delete wants in view while they
+   decide.
+   Opaque --notice-ground, the token that exists for precisely this: alert ink
+   whose ratio is a property of the rule and not of what is three layers
+   behind it. --alert 4.77:1, --ink-dim 6.02:1, --ink 14.14:1. */
+/* A column, so that in a short window the *body* is what scrolls and the tag
+   and the two buttons stay put. A confirmation whose "Keep them" is below the
+   fold is not a confirmation. */
+.confirm { flex:0 1 auto; min-height:0; display:flex; flex-direction:column;
+  padding:12px 18px 14px; background:var(--notice-ground);
+  border-top:1px solid rgba(217,99,79,.34);
+  border-bottom:1px solid rgba(217,99,79,.34); }
+.confirm[hidden] { display:none; }
+.confirm__tag { flex:none; font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; font-weight:640; color:var(--alert); }
+.confirm__body { flex:0 1 auto; min-height:0; overflow-y:auto;
+  margin-top:5px; font-size:11.5px; color:var(--ink-dim); }
+.confirm__body strong { color:var(--ink); font-weight:590; }
+.confirm__acts { flex:none; display:flex; gap:8px; margin-top:10px; }
+
+/* THE DESTRUCTIVE CONTROL HAS TWO RULES.
+   One: it never lives in a row. It lives in the bar (--d3, --alert 5.08:1)
+   and in the confirm (--notice-ground, 4.77:1) — both opaque. On a selected
+   row --alert is 3.80:1 and on a hovered one 4.12:1, so a row is a ground it
+   is not allowed on.
+   Two: it never tints its own ground. A 10% alert-hued hover wash drops those
+   figures to 4.60 and 4.28, so hover moves the border instead. --ink-dim as a
+   border is 6.41:1 on --d3 and 6.02:1 on --notice-ground, well clear of 3:1.
+   The word "Delete" carries the meaning on its own, so "colour never signals
+   alone" holds without a fill. */
+.btn--danger { background:transparent; border-color:var(--edge); color:var(--alert); }
+.btn--danger:hover:not(:disabled) { background:transparent; border-color:var(--ink-dim); }
+
 /* The gauge is the capacity scale, and it is the water's whole world. Its
    own height is 100% of the watch, so --used and --pending resolve against
    it; nothing inside it is text, so the waterline has nothing left to cut
    through. `overflow:hidden` is what lets the water be translated rather than
    scaled without escaping the band. */
-.gauge { flex:none; position:relative; height:var(--gauge); overflow:hidden; }
+/* Shrinks before the capacity readout does. In a short window with the
+   confirm open, the panel cannot fit head + confirm + gauge + readout, and
+   something has to give; DESIGN.md's "Never Cover The Number" rule settles
+   which. The gauge's height *is* the capacity scale, and --used is a
+   percentage of it, so a shorter gauge is still a true one — a hidden
+   free-space figure is not. */
+.gauge { flex:0 1 var(--gauge); height:var(--gauge); min-height:34px;
+  position:relative; overflow:hidden; }
 .water { position:absolute; inset:0; height:100%;
   transform:translateY(calc(100% - var(--used,0%)));
   background:linear-gradient(to bottom, var(--d1), var(--d3) 60%, var(--d4)); }

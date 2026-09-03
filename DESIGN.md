@@ -22,6 +22,7 @@ colors:
   surface-2: "rgba(226,236,247,.078)"
   hairline: "rgba(226,236,247,.105)"
   hairline-2: "rgba(226,236,247,.058)"
+  edge: "rgba(226,236,247,.40)"
 typography:
   display:
     fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, sans-serif"
@@ -218,8 +219,32 @@ with one warm accent and two status values that never carry meaning alone.
 - **Kelp** (`#5aa8a0`): the connection dot when a watch is present, 7px. Never
   used for text.
 - **Signal Red** (`#d9634f`): the untagged-file warning, the over-capacity
-  selection readout, and the failure notice's tag and hairline. Always paired
-  with a word: `Needs a title`, `26 MB too much`.
+  selection readout, the failure notice's tag and hairline, and — the fourth
+  use — **the delete control and its confirmation, the only irreversible
+  action in the app.** Always paired with a word: `Needs a title`, `26 MB too
+  much`, `Delete`.
+
+  The destructive control is allowed on exactly two grounds, and both are
+  opaque: the selection bar's `--d3` (**5.08:1**) and the confirm's
+  `--notice-ground` (**4.77:1**). It is **forbidden** on a wall row, where the
+  ratio is a property of whatever veil the row is wearing rather than of the
+  rule: `--alert` is **3.80:1** on a selected row (`--surface-2` over `--d2` =
+  `#202f3e`) and **4.12:1** on a hovered one. A 10% alert-hued hover tint on
+  its two legal grounds drops them to 4.60 and 4.28, so **hover moves the
+  border, never the ground** — `--ink-dim` as a border is 6.41:1 on `--d3` and
+  6.02:1 on `--notice-ground`.
+
+- **Edge** (`rgba(226,236,247,.40)`): **control boundaries only.** Not a
+  hairline and not a replacement for one — the same
+  `rgba(226,236,247, x)` veil family, a new alpha rather than a new hue.
+  Measured on every ground a control sits on: `--air` 3.40, `--air-2` 3.37,
+  `--d1` 3.23, `--d2` 3.34, `--d3` 3.40, `--d4` 3.37, `--notice-ground` 3.39,
+  hovered wall row 3.23, selected wall row 3.16. Worst case **3.16:1**, clear
+  of 1.4.11's 3:1. `--hairline` measures **1.25–1.35:1** on those same grounds
+  and identifies nothing; it stays a structural divider. This token exists
+  because the wall grew a checkbox on all 22 rows, on a darker ground, which
+  turned a small pre-existing problem in the library table into the panel's
+  main affordance.
 
 ### Neutral
 - **Fjord Ground** (`#070c13`): the body behind the app; visible only at the
@@ -468,7 +493,11 @@ seek thumb.
 
 Borders are hairlines, never lines: `rgba(226,236,247,.058)` for structure
 (every panel edge and grid divider in the app is this one value) and `.105`
-for the edge of something you can press.
+for a button's resting edge. **The edge of a control you tick or press is
+`--edge` at 40%**, which is the only one of the three that measures over 3:1
+against the grounds it sits on. A disabled control keeps `--hairline`
+deliberately: something that cannot be operated should not advertise a
+3:1 boundary as if it could.
 
 The cover frame is the system's one drawn object: a 155° blue gradient with a
 9% hairline and an inner top highlight, standing in for artwork that is read
@@ -485,6 +514,15 @@ An element smaller than about 16px in its short dimension takes a radius from
 its own geometry instead, and that exception is registered rather than
 assumed. Adding a fifth off-scale radius means registering it too, or it is
 drift.
+
+**The Destructive Control Rule.** The one irreversible action in the app has
+two constraints and they are not negotiable. It never lives in a row — only
+on an opaque ground, so its contrast is a property of its own rule. And it
+never tints its own ground — hover moves the border, because every alert-hued
+wash tested drops the ink under AA. There is also no modal: the confirmation
+is inline, above the list, because "Never Cover The Number" forbids anything
+floating over the capacity readout and the free-space figure is exactly what
+someone deciding whether to delete needs in view while they decide.
 
 **The No Applied Ornament Rule.** No borders that do not separate, no
 gradients that do not describe depth, no rounded corner larger than 14px, no
@@ -517,7 +555,15 @@ answer in 120ms with a veil, never a jump.
 
 ### Inputs / Fields
 - **Checkbox:** appearance-none, 15px square, 4px radius, 4.8% veil with a
-  10.5% hairline; checked is a solid brass fill with a brass border.
+  **`--edge` (40%)** border; checked is a solid brass fill with a brass
+  border, `--sun` being 5.43:1 on the darkest ground a checkbox sits on.
+  Disabled drops back to `--hairline` at 45% opacity. The same control appears
+  on both sides of the window on purpose: a tick on the left sends to the
+  watch and a tick on the right removes from it, which is one symmetrical
+  idea. Two row vocabularies made it two.
+- **Danger button:** transparent ground, `--edge` border, `--alert` text.
+  Hover moves the border to `--ink-dim` and never fills. See Signal Red above
+  for the two grounds it is allowed on and the two it is not.
 - **Seek slider:** a 3px track painted as a live gradient (`--ink-dim` up to
   the played fraction, 10% ink after). The 11px ink thumb is `opacity: 0` at
   rest and appears on hover and `:focus-visible` — an idle player should be a

@@ -14,6 +14,7 @@ fn main() {
             "connect",
             "disconnect",
             "delete_remote",
+            "forget_uploads",
             "pick_folder",
             "scan_folder",
             "start_sync",

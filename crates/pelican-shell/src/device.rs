@@ -35,8 +35,17 @@ pub enum DeviceOp {
         serial: Option<String>,
     },
     Disconnect,
+    /// Remove objects from the watch. A batch, because the wall selects a
+    /// batch: N separate ops would be N separate `snapshot()` round trips and
+    /// N chances for the list under the user's cursor to shift mid-gesture.
     Delete {
-        path: String,
+        paths: Vec<String>,
+    },
+    /// Drop journal rows. A row the device does not list has nothing to
+    /// delete; clearing Pelican's own record is the only honest action left,
+    /// and it must not be dressed up as touching the watch.
+    Forget {
+        names: Vec<String>,
     },
     StartSync {
         paths: Vec<PathBuf>,
@@ -109,7 +118,8 @@ impl Worker {
                     self.device = None;
                     self.sink.send(UiEvent::Detached);
                 }
-                DeviceOp::Delete { path } => self.delete(&path),
+                DeviceOp::Delete { paths } => self.delete(&paths),
+                DeviceOp::Forget { names } => self.forget(&names),
                 DeviceOp::StartSync {
                     paths,
                     skip_tag_check,
@@ -163,16 +173,73 @@ impl Worker {
         }
     }
 
-    fn delete(&mut self, path: &str) {
-        // Two statements, because `snapshot` needs the same `&mut self` the
-        // backend borrow would still be holding.
-        let outcome = match self.backend.as_mut() {
-            Some(b) => b.delete(path),
-            None => return self.sink.send_error("no watch is connected"),
-        };
-        match outcome {
-            Ok(()) => self.snapshot(),
-            Err(e) => self.fail(&e),
+    /// Delete a batch, then reconcile the journal, then snapshot once.
+    ///
+    /// The journal write matters as much as the device write. Without it a
+    /// file removed from the watch reappears in the wall the same second, as
+    /// "Sent today · the watch is not listing it now" — a true statement
+    /// about Pelican's record and a useless one to the person who just
+    /// removed it.
+    fn delete(&mut self, paths: &[String]) {
+        let serial = self.serial();
+        let mut removed: Vec<String> = Vec::new();
+        let mut failures: Vec<(String, anyhow::Error)> = Vec::new();
+
+        // The braces are still load-bearing: `snapshot` below needs the same
+        // `&mut self` this borrow of `backend` would otherwise still hold.
+        {
+            let Some(b) = self.backend.as_mut() else {
+                return self.sink.send_error("no watch is connected");
+            };
+            for path in paths {
+                match b.delete(path) {
+                    Ok(()) => removed.push(path.clone()),
+                    Err(e) => failures.push((leaf(path), e)),
+                }
+            }
+        }
+
+        for (name, e) in &failures {
+            self.sink.send(UiEvent::DeleteFailed {
+                name: name.clone(),
+                // Verbatim, same contract as `FileFailed`: the engine's text
+                // is the only thing that says whether a retry is safe.
+                error: dto::err(e),
+            });
+        }
+        if !removed.is_empty() {
+            if let Err(e) = history::forget_paths(&serial, &removed) {
+                self.sink.send_error(&format!(
+                    "Removed from your watch, but Pelican could not update its own record: {e:#}"
+                ));
+            }
+        }
+        self.sink.send(UiEvent::Deleted {
+            ok: removed.len() as u32,
+            failed: failures.len() as u32,
+        });
+        self.snapshot();
+    }
+
+    /// Forget journal rows. Nothing on the watch is touched, and the UI's
+    /// copy for this action says so.
+    fn forget(&mut self, names: &[String]) {
+        let serial = self.serial();
+        if let Err(e) = history::forget(&serial, names) {
+            return self.fail(&e);
+        }
+        // The wall reads `uploads` off the snapshot, so this is what makes
+        // the forgotten rows leave the screen.
+        if self.backend.is_some() {
+            self.snapshot();
+        } else {
+            self.sink.send(UiEvent::Snapshot {
+                free: 0,
+                total: 0,
+                model: None,
+                entries: Vec::new(),
+                uploads: history::load(&serial).uploads,
+            });
         }
     }
 
@@ -218,26 +285,126 @@ impl Worker {
     }
 
     fn start_sync(&mut self, paths: Vec<PathBuf>, skip_tag_check: bool) {
+        // `busy` is claimed synchronously by the command, not here — see
+        // `commands::start_sync`. So every exit from this function has to
+        // release it, and a missed early return would leave Send dead for the
+        // life of the process. The guard makes that structural instead of a
+        // thing to remember.
+        let _busy = BusyGuard(self.busy.clone());
+
         let Some(device) = self.device.clone() else {
             return self.sink.send_error("no watch is connected");
         };
+
+        // What the watch was listing *before* the run. Reconciliation below
+        // only credits a stem that appears afterwards and was not here
+        // already: MTP has no overwrite, so a same-named object from an
+        // earlier send can sit in /Music, and crediting it would turn a real
+        // failure into a false "it landed after all".
+        let before = self.music_stems();
 
         // Release the browsing session *before* the first file, structurally.
         // `transfer::run` opens its own session per file and would otherwise
         // be contending with us for the one slot the firmware offers.
         self.backend = None;
         self.cancel.store(false, Ordering::SeqCst);
-        self.busy.store(true, Ordering::SeqCst);
 
-        let outcome = self.drain_plan(&device, paths, skip_tag_check);
+        let (outcome, ledger) = self.drain_plan(&device, paths, skip_tag_check);
 
-        self.busy.store(false, Ordering::SeqCst);
         self.sink.send(outcome);
 
         // Reopen so the wall and the waterline reflect what actually landed.
         let serial = device.serial.clone();
         self.device = Some(device);
         self.connect(serial.as_deref());
+
+        // The observation beats the inference. `connect` has just emitted the
+        // authoritative listing; anything the run called failed or uncertain
+        // that the watch is now listing, and was not listing before, is on the
+        // watch — and the sentence already on screen has to be revised rather
+        // than left standing. PRODUCT.md's tie-breaker is explicit about
+        // which of the two wins.
+        self.reconcile(&ledger, before);
+    }
+
+    /// Lowercased stems of the non-broken files in `/Music`, or `None` when
+    /// the listing could not be read.
+    ///
+    /// `None` is not an empty set. Without a *before* picture there is no
+    /// evidence a stem is new, so reconciliation declines to run rather than
+    /// guessing — the whole point of it is that it is an observation.
+    fn music_stems(&mut self) -> Option<std::collections::HashSet<String>> {
+        let backend = self.backend.as_mut()?;
+        let entries = backend.list_dir(MUSIC_FOLDER).ok()?;
+        Some(
+            entries
+                .iter()
+                .filter(|e| !e.is_folder && !e.is_broken)
+                .map(|e| stem_key(&e.name))
+                .collect(),
+        )
+    }
+
+    fn reconcile(
+        &mut self,
+        ledger: &[JobOutcome],
+        before: Option<std::collections::HashSet<String>>,
+    ) {
+        let unresolved: Vec<&JobOutcome> = ledger
+            .iter()
+            .filter(|j| matches!(j.outcome, Outcome::Failed | Outcome::Uncertain))
+            .collect();
+        if unresolved.is_empty() {
+            return;
+        }
+        let Some(before) = before else { return };
+        let Some(backend) = self.backend.as_mut() else {
+            return;
+        };
+        let Ok(entries) = backend.list_dir(MUSIC_FOLDER) else {
+            return;
+        };
+        // stem → size, from the fresh listing. Broken handles are excluded:
+        // a stub is the failure, not a recovery from one.
+        let after: std::collections::HashMap<String, u64> = entries
+            .iter()
+            .filter(|e| !e.is_folder && !e.is_broken)
+            .map(|e| (stem_key(&e.name), e.size))
+            .collect();
+
+        let serial = self.serial();
+        let mut landed = Vec::new();
+        let mut journal_problem = false;
+        for job in unresolved {
+            let key = job.stem.to_lowercase();
+            if before.contains(&key) {
+                continue;
+            }
+            let Some(&size) = after.get(&key) else {
+                continue;
+            };
+            // The reconciliation write from the ruling: additive only. A row
+            // is never removed here, because a crash between `Done` and this
+            // listing must not be able to lose one.
+            if history::record_upload(&serial, &job.stem, size, job.tags.as_ref()).is_err() {
+                journal_problem = true;
+            }
+            landed.push(job.stem.clone());
+        }
+        if journal_problem {
+            self.sink.send_error(
+                "Pelican sent the file but could not record it. Its list of what it has sent \
+                 may be incomplete.",
+            );
+        }
+        if !landed.is_empty() {
+            // Re-emit the picture, because the journal rows just written are
+            // part of it and the snapshot `connect` sent predates them. Only
+            // on a correction: a run with nothing to reconcile has already
+            // paid for one listing and does not need a second.
+            self.snapshot();
+            self.sink.send(UiEvent::SyncReconciled { landed });
+        }
     }
 
     /// Run the plan one file at a time, so Stop has an honest place to act.
@@ -247,7 +414,12 @@ impl Worker {
     /// behave identically to one call of N jobs. The only things that differ
     /// are the `Planned`/`Finished` bookkeeping and the `done`/`total`
     /// counters, all of which this layer is rewriting anyway.
-    fn drain_plan(&self, device: &Device, paths: Vec<PathBuf>, skip_tag_check: bool) -> UiEvent {
+    fn drain_plan(
+        &self,
+        device: &Device,
+        paths: Vec<PathBuf>,
+        skip_tag_check: bool,
+    ) -> (UiEvent, Vec<JobOutcome>) {
         // `skip_tag_check` is true by default and the interface depends on it:
         // the copy promises an untagged file *transfers* and merely stays
         // invisible. With it false the engine would silently skip such files
@@ -262,12 +434,17 @@ impl Worker {
             Ok(j) => j,
             Err(e) => {
                 self.fail(&e);
-                return UiEvent::SyncFinished {
-                    ok: 0,
-                    skipped: 0,
-                    failed: 0,
-                    stopped: false,
-                };
+                return (
+                    UiEvent::SyncFinished {
+                        ok: 0,
+                        skipped: 0,
+                        failed: 0,
+                        stopped: false,
+                        delivered_bytes: 0,
+                        planned_bytes: 0,
+                    },
+                    Vec::new(),
+                );
             }
         };
 
@@ -288,6 +465,11 @@ impl Worker {
         let mut tally = Tally::default();
         let mut base_bytes = 0u64;
         let mut stopped = false;
+        let mut ledger: Vec<JobOutcome> = Vec::new();
+        // One `Error` per run, not one per file. A journal that cannot be
+        // written is worth saying once; saying it twenty times would bury the
+        // failures the user actually has to act on.
+        let mut journal_problem = false;
 
         for (job, src_len) in jobs.into_iter().zip(sizes) {
             if self.cancel.load(Ordering::SeqCst) {
@@ -307,6 +489,14 @@ impl Worker {
             // wall, which dedupes the journal against the listing, would show
             // every synced track twice under two different names.
             let stem = journal_stem(&job.remote_name, &name);
+            // Read the source's tags here, because `job` is moved into the
+            // scoped thread below. Same `read_fast` call `scan.rs` already
+            // makes per file — one cheap metadata read per upload, on a
+            // worker thread, and never on the webview's.
+            let meta = pelican_core::transcode::tags::read_fast(&job.src)
+                .ok()
+                .map(|i| i.tags);
+            let mut outcome = Outcome::Skipped;
 
             let (tx, rx) = transfer::channel();
             let mut last_emit = Instant::now() - PROGRESS_MIN_INTERVAL;
@@ -331,6 +521,9 @@ impl Worker {
                             self.sink.send(UiEvent::FileStarted {
                                 completed: tally.in_flight(),
                                 total,
+                                ok: tally.ok,
+                                skipped: tally.skipped,
+                                failed: tally.failed,
                                 name: name.clone(),
                                 path: path.clone(),
                             });
@@ -339,6 +532,9 @@ impl Worker {
                             self.sink.send(UiEvent::FileStaging {
                                 completed: tally.in_flight(),
                                 total,
+                                ok: tally.ok,
+                                skipped: tally.skipped,
+                                failed: tally.failed,
                                 name: name.clone(),
                             });
                         }
@@ -360,6 +556,9 @@ impl Worker {
                             self.sink.send(UiEvent::FileProgress {
                                 completed: tally.in_flight(),
                                 total,
+                                ok: tally.ok,
+                                skipped: tally.skipped,
+                                failed: tally.failed,
                                 name: name.clone(),
                                 file_bytes: transferred,
                                 file_total: total_bytes,
@@ -369,23 +568,40 @@ impl Worker {
                         }
                         transfer::Event::Done { bytes, .. } => {
                             let completed = tally.done();
+                            outcome = Outcome::Ok;
+                            // Byte-weighted progress advances only here. It
+                            // used to advance for every job, which walked the
+                            // meter to full on a run where nothing landed.
+                            base_bytes += src_len;
                             // `transfer::run` never writes history. This is
                             // our own record that we sent the file; whether
                             // it is still on the watch is answered by the
-                            // next listing, not by this.
-                            history::record(&serial, &stem, bytes);
+                            // next listing, not by this. Kept optimistic on
+                            // purpose: a crash between here and the post-run
+                            // listing must not lose the only record there is.
+                            if history::record_upload(&serial, &stem, bytes, meta.as_ref()).is_err()
+                            {
+                                journal_problem = true;
+                            }
                             self.sink.send(UiEvent::FileDone {
                                 completed,
                                 total,
+                                ok: tally.ok,
+                                skipped: tally.skipped,
+                                failed: tally.failed,
                                 name: name.clone(),
                                 bytes,
                             });
                         }
                         transfer::Event::Skipped { reason, .. } => {
                             let completed = tally.skip();
+                            outcome = Outcome::Skipped;
                             self.sink.send(UiEvent::FileSkipped {
                                 completed,
                                 total,
+                                ok: tally.ok,
+                                skipped: tally.skipped,
+                                failed: tally.failed,
                                 name: name.clone(),
                                 kind: dto::classify_skip(&reason),
                                 reason,
@@ -393,13 +609,26 @@ impl Worker {
                         }
                         transfer::Event::Failed { error, .. } => {
                             let completed = tally.fail();
+                            let kind = dto::classify_fail(&error);
+                            // "Uncertain" is the drained-but-unconfirmed
+                            // case: every byte crossed the wire and the watch
+                            // did not answer. The post-run listing is what
+                            // resolves it, which is why it is recorded rather
+                            // than collapsed into a plain failure here.
+                            outcome = match kind {
+                                dto::FailKind::Unconfirmed => Outcome::Uncertain,
+                                _ => Outcome::Failed,
+                            };
                             // Never terminal: `transfer::run` continues past
                             // every failure, and so does this loop.
                             self.sink.send(UiEvent::FileFailed {
                                 completed,
                                 total,
+                                ok: tally.ok,
+                                skipped: tally.skipped,
+                                failed: tally.failed,
                                 name: name.clone(),
-                                kind: dto::classify_fail(&error),
+                                kind,
                                 error,
                             });
                         }
@@ -407,15 +636,65 @@ impl Worker {
                 }
             });
 
-            base_bytes += src_len;
+            ledger.push(JobOutcome {
+                stem,
+                outcome,
+                tags: meta,
+            });
         }
 
-        UiEvent::SyncFinished {
-            ok: tally.ok,
-            skipped: tally.skipped,
-            failed: tally.failed,
-            stopped,
+        if journal_problem {
+            self.sink.send_error(
+                "Pelican sent the file but could not record it. Its list of what it has sent \
+                 may be incomplete.",
+            );
         }
+
+        (
+            UiEvent::SyncFinished {
+                ok: tally.ok,
+                skipped: tally.skipped,
+                failed: tally.failed,
+                stopped,
+                delivered_bytes: base_bytes,
+                planned_bytes: job_total,
+            },
+            ledger,
+        )
+    }
+}
+
+/// One job's fate, kept so the post-run listing can revise it.
+struct JobOutcome {
+    /// The sanitized remote stem — the name the watch will report, and the
+    /// key both the journal and the wall use.
+    stem: String,
+    outcome: Outcome,
+    /// Read from the source at send time, so a reconciled row is journalled
+    /// with the same tags an immediately-successful one would have been.
+    tags: Option<pelican_core::transcode::tags::Tags>,
+}
+
+enum Outcome {
+    Ok,
+    Skipped,
+    Failed,
+    /// The bytes drained but the watch never confirmed the write. Not a
+    /// success and not yet a failure — only the listing can say.
+    Uncertain,
+}
+
+/// Releases `busy` however `start_sync` returns.
+///
+/// The flag is claimed on the webview thread, in the command, to close the
+/// window where two fast clicks both pass an `is_busy()` check and both queue
+/// a run. That makes releasing it this thread's job on every path, including
+/// the panicking one.
+struct BusyGuard(Arc<AtomicBool>);
+
+impl Drop for BusyGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
     }
 }
 
@@ -429,6 +708,12 @@ impl Worker {
 ///
 /// A skip or a failure advances it too. The user asked how many files are
 /// behind them, not how many succeeded — that is what `SyncFinished` is for.
+///
+/// `in_flight` is position in the batch, not a success count, and that is why
+/// it is **never rendered on its own**. `ok`/`skipped`/`failed` ride alongside
+/// it on every `file*` event so the interface can say which of the three a
+/// given position was: "3 of 5" is a true statement about where the run is,
+/// and reading it as "3 sent" is the defect. Fixed in the rendering, not here.
 #[derive(Default)]
 struct Tally {
     ok: u32,
@@ -484,6 +769,22 @@ fn journal_stem(remote_name: &str, fallback: &str) -> String {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| fallback.to_string());
     pelican_core::transcode::sanitize_filename_stem(&stem)
+}
+
+/// The dedupe key both sides of the wall use: last path segment, extension
+/// removed, lowercased. Matches `history::forget`'s key and `stemOf` in
+/// `ui/app.js`. A leading dot is not an extension separator.
+fn stem_key(name: &str) -> String {
+    let leaf = name.rsplit('/').next().unwrap_or(name);
+    match leaf.rfind('.') {
+        Some(i) if i > 0 => leaf[..i].to_lowercase(),
+        _ => leaf.to_lowercase(),
+    }
+}
+
+/// Last path segment, for a message that has no room for a device path.
+fn leaf(path: &str) -> String {
+    path.rsplit('/').next().unwrap_or(path).to_string()
 }
 
 /// Size on disk, or 0 for anything we cannot stat. A zero just makes that

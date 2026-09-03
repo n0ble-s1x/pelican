@@ -87,6 +87,7 @@ fn main() {
             commands::connect,
             commands::disconnect,
             commands::delete_remote,
+            commands::forget_uploads,
             commands::pick_folder,
             commands::scan_folder,
             commands::start_sync,

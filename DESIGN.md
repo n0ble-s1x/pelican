@@ -176,11 +176,12 @@ machine, which means no webfont, no remote image, no telemetry pixel; the
 frontend is vanilla HTML/CSS/JS with no framework and no bundler, so the
 system has to be expressible in one 494-line stylesheet and custom properties
 on `:root`. And the app ships zero rasters: album art is a code-drawn
-frame; **this build never fills it.** `read_fast` passes
-`read_cover_art(false)`, `SourceInfo` has no picture field, `TrackDto` has no
-art field, and nothing in `ui/app.js` sets a background or a `src` on
-`.cover`. The frame is the whole of it. The measured comp spec records
-10 regions and 0 plates.
+frame, filled at play time from a picture embedded in the user's own file —
+never from the network, and never from a bundled asset. **The fill is a
+`data:` URL, and it has to be:** the CSP is `img-src 'self' data:`, and
+`asset:` appears in `media-src` only, so reaching for `asset:` here is a
+silent block. When a file carries no picture the frame stays a frame; nothing
+is substituted. The measured comp spec records 10 regions and 0 plates.
 
 **Key Characteristics:**
 - Depth as the only spatial metaphor; five named grounds, no shadow ladder.
@@ -500,9 +501,20 @@ deliberately: something that cannot be operated should not advertise a
 3:1 boundary as if it could.
 
 The cover frame is the system's one drawn object: a 155° blue gradient with a
-9% hairline and an inner top highlight, standing in for artwork that is read
-from the user's own files at runtime. The gradient is a value stand-in, not a
-graphic.
+9% hairline and an inner top highlight. When the playing file carries an
+embedded picture it fills the 132px hero frame and the 38px player frame from
+one `data:` URL — the same string that goes to `MediaMetadata.artwork`, so the
+read happens once. Otherwise the gradient stands, and it is a value stand-in
+rather than a graphic. The 24px wall frame is never filled: the watch reports
+names and sizes over MTP and no picture, so there is nothing there to fill it
+with.
+
+**The art is read on demand, never during a scan.** `read_fast` asks for
+`read_cover_art(false)` because a FLAC carrying a 1 MB JPEG spends almost all
+of its parse time on a picture a library scan throws away, and the scan pays
+that per file. `read_cover` is the separate, per-file, at-play-time path, and
+it is capped at 2 MB of source picture — a 12 MB hi-res cover would cross IPC
+as a 16 MB base64 string to be drawn at 132px.
 
 ### Named Rules
 **The Hairline Rule.** Structural separation is a 5.8%-ink 1px line. Not a
@@ -697,6 +709,29 @@ ground the text actually sits on:
 | hovered row, `--surface` over `--d2` = `#1a2938` | 12.21 | **5.20** | **4.30 FAIL** |
 | selected row, `--surface-2` over `--d2` = `#202f3e` | 11.26 | **4.80** | **3.97 FAIL** |
 
+### Media keys and Control Center
+The transport is published to macOS through `navigator.mediaSession`, so F7 /
+F8 / F9 and the Control Center card drive the same `next()` and `prev()` the
+footer buttons and the `ended` handler do — three surfaces, one definition of
+"next", and no way for them to diverge. Before this, Previous and Next were
+enabled controls with no click handler anywhere, and `ended` did not advance.
+
+`nexttrack` and `previoustrack` are **re-registered on every change of the
+queue or the index**, and set to `null` at the ends. macOS greys the Control
+Center buttons from the published command set, so a permanently-registered
+handler would show two always-lit buttons, one of which silently does nothing.
+
+`playbackState` is left alone. It is writable, but WebKit re-derives it from
+the element — it read back `paused` after a tone ended despite being set to
+`playing` — so the element's own play/pause events are the source of truth.
+`setPositionState` is guarded on a finite duration, so the scrubber is an
+absence rather than a lie when the duration is unknown.
+
+The remote path is synchronous by construction: `set_now_playing`'s answer is
+memoised onto the row on first play, so a media key's user-activation token
+does not have to survive an IPC round trip before `play()` on a fresh `src`.
+The invoke still runs once per row, so the scope check is never skipped.
+
 ### Motion
 Scandinavian restraint applies to time as well as ink. One thing moves with
 intent — the water — and everything else settles quickly or not at all.
@@ -801,9 +836,14 @@ element was given an opaque ground rather than a hopeful number.
   one, and depth is tonal.
 - **Don't** introduce a second font family, a webfont, or an icon font. The
   no-network promise and the auditable dependency surface both depend on it.
-- **Don't** ship a raster. Album art is a code-drawn frame filled from the
-  user's own files at runtime; the build records 0 plates and should stay
-  there.
+- **Don't** ship a raster. Album art is a code-drawn frame filled at play time
+  from a picture inside the user's own file; the build records 0 plates and
+  should stay there.
+- **Don't** reach for `asset:` to fill the cover frame. The CSP has `asset:`
+  in `media-src` only — `img-src` is `'self' data:` — so it is a silent block,
+  and the `data:` URL is the one scheme that works.
+- **Don't** re-enable cover art in `read_fast`. It is off for a measured
+  reason and the scan pays its cost per file.
 - **Don't** make the pending band a child of `.water`: its percentage height
   resolves against the water's own height, so the band shrinks as the watch
   empties. It is a fraction of total capacity, so it measures against the

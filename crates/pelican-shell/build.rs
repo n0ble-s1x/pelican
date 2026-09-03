@@ -20,6 +20,7 @@ fn main() {
             "start_sync",
             "stop_sync",
             "set_now_playing",
+            "cover_art",
         ]),
     ))
     .expect("tauri build failed");

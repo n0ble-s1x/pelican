@@ -56,6 +56,11 @@
     free: 0, total: 0,
     entries: [], uploads: [],
     tracks: [], root: null,
+    /* Which question the library is answering, and whether one answer is
+       open. Grouping is pure JS over `tracks`, computed on demand: no new
+       parse, no new IPC, no persistence, and emphatically no network. */
+    view: 'all',            /* 'all' | 'albums' | 'artists' */
+    focus: null,            /* null, or { kind:'albums'|'artists', key } */
     encoder: null, encoderVerified: false,
     contention: null,
     /* The run, in `state` like everything else.
@@ -356,8 +361,173 @@
     updateSelection();
   }
 
-  function renderHero() {
-    const n = state.tracks.length;
+  /* ── library grouping ───────────────────────────────────────────────── */
+
+  const parentDir = (p) => {
+    const parts = p.split('/').filter(Boolean);
+    return parts.length > 1 ? parts[parts.length - 2] : '';
+  };
+
+  /* `artist` arrives already resolved album-artist-first (tags.rs:41-46,
+     deliberately, so a soundtrack with per-track composer credits does not
+     fragment into several albums). Nothing here re-derives it. */
+  function libraryGroups(kind) {
+    const map = new Map();
+    for (const t of state.tracks) {
+      const artist = (t.artist || '').trim();
+      if (kind === 'artists') {
+        const key = artist.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            key,
+            /* Never silently merged into someone else's rows, and never
+               labelled with a name the file does not carry. */
+            label: artist || 'No artist tag',
+            byFolder: false,
+            artist,
+            tracks: [],
+          });
+        }
+        map.get(key).tracks.push(t);
+        continue;
+      }
+      const album = (t.album || '').trim();
+      /* No album tag: group by the folder the files are actually in, which
+         is free and is what a folder of untagged rips genuinely is — and say
+         so in the header rather than inventing an album name. */
+      const folder = parentDir(t.path);
+      const label = album || folder || 'No album tag';
+      const key = album
+        ? `a\u0000${album.toLowerCase()}\u0000${artist.toLowerCase()}`
+        : `f\u0000${folder.toLowerCase()}`;
+      if (!map.has(key)) {
+        map.set(key, { key, label, artist, byFolder: !album, date: t.date || '', tracks: [] });
+      }
+      map.get(key).tracks.push(t);
+    }
+    /* Explicit tuple comparison, not a joined sort key: a NUL separator is
+       ignored by `localeCompare`, which silently collapsed the tuple and
+       sorted an untagged group as if its artist were its album's first
+       letter. Albums go (artist, date, album); an unknown artist sorts last,
+       which is where a "we do not know" bucket belongs. */
+    const cmp = (x, y) =>
+      String(x || '').toLowerCase().localeCompare(String(y || '').toLowerCase());
+    const groups = [...map.values()].sort((a, b) => {
+      if (kind === 'artists') {
+        return cmp(a.artist || '\uffff', b.artist || '\uffff');
+      }
+      return cmp(a.artist || '\uffff', b.artist || '\uffff')
+        || cmp((a.date || '').slice(0, 4), (b.date || '').slice(0, 4))
+        || cmp(a.label, b.label);
+    });
+    /* disc, then track, then path. `path` is the stable tiebreak, matching
+       scan.rs's own "arbitrary but stable" discipline — and a missing track
+       number sorts last rather than as zero, because absent and 0 are
+       different facts. */
+    for (const g of groups) g.tracks.sort(trackOrder);
+    return groups;
+  }
+
+  function trackOrder(a, b) {
+    const disc = (t) => Number(String(t.disc || '1').split('/')[0]) || 1;
+    if (disc(a) !== disc(b)) return disc(a) - disc(b);
+    const n = (t) => (typeof t.track === 'number' ? t.track : Number.MAX_SAFE_INTEGER);
+    if (n(a) !== n(b)) return n(a) - n(b);
+    return a.path.localeCompare(b.path);
+  }
+
+  function currentGroups() {
+    return state.view === 'all' ? [] : libraryGroups(state.view);
+  }
+
+  function renderGroups(groups) {
+    const list = $('[data-groups]');
+    const tpl = $('#tpl-group');
+    list.textContent = '';
+    for (const g of groups) {
+      const frag = tpl.content.cloneNode(true);
+      const btn = frag.querySelector('.group');
+      btn.dataset.key = g.key;
+      $('.t', btn).textContent = g.label;
+      const mins = Math.round(g.tracks.reduce((n, t) => n + (t.durationSecs || 0), 0) / 60);
+      if (state.view === 'albums') {
+        $('.s', btn).textContent =
+          [g.artist || null, g.byFolder ? 'grouped by folder — no album tag' : null]
+            .filter(Boolean).join(' · ') || 'No artist tag';
+      } else {
+        /* Count only albums the files actually name. An untagged track has no
+           album, and counting its absence as "1 album" would report a fact
+           the library does not hold. */
+        const albums = new Set(
+          g.tracks.map((t) => (t.album || '').trim().toLowerCase()).filter(Boolean));
+        $('.s', btn).textContent = albums.size
+          ? plural(albums.size, 'album')
+          : 'no album tags';
+      }
+      $('.group__n', btn).textContent =
+        `${plural(g.tracks.length, 'track')}${mins ? ` · ${mins} min` : ''}`;
+      btn.addEventListener('click', () => {
+        state.focus = { kind: state.view, key: g.key };
+        applyLibraryView();
+      });
+      list.appendChild(frag);
+    }
+  }
+
+  /* Owns everything that differs between the three views, so no caller has to
+     remember which of the table, the group list and the crumb belongs to
+     which. `renderTracks`'s row contract is untouched — same template, same
+     data-*, same checkbox and send path — so selection, the waterline and the
+     transfer need no knowledge of any of this. */
+  function applyLibraryView() {
+    app.dataset.view = state.view;
+    $$('[data-view]').forEach((a) => {
+      const on = a.dataset.view === state.view;
+      a.classList.toggle('is-current', on);
+      if (on) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+
+    const groups = currentGroups();
+    const focused = state.focus && state.focus.kind === state.view
+      ? groups.find((g) => g.key === state.focus.key)
+      : null;
+    if (state.focus && !focused) state.focus = null;
+
+    const showGroups = state.view !== 'all' && !focused;
+    $('[data-groups]').hidden = !showGroups;
+    $('[data-tracks]').hidden = showGroups;
+
+    const crumb = $('[data-crumb]');
+    crumb.hidden = !focused;
+    if (focused) {
+      $('[data-crumb-back]').textContent =
+        state.view === 'albums' ? '← All albums' : '← All artists';
+    }
+
+    if (showGroups) {
+      renderGroups(groups);
+      renderTracks([]);
+    } else {
+      renderTracks(focused ? focused.tracks : state.tracks);
+    }
+    renderHero(focused);
+  }
+
+  $$('.rail [data-view]').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      state.view = a.dataset.view;
+      state.focus = null;
+      applyLibraryView();
+    });
+  });
+  $('[data-crumb-back]')?.addEventListener('click', () => {
+    state.focus = null;
+    applyLibraryView();
+  });
+
+  function renderHero(focused) {
     const title = $('[data-hero-title]');
     const by = $('[data-hero-by]');
     const facts = $('[data-hero-facts]');
@@ -368,19 +538,30 @@
       facts.textContent = '';
       return;
     }
-    title.textContent = state.root.split('/').filter(Boolean).pop() || state.root;
+    const scope = focused ? focused.tracks : state.tracks;
+    title.textContent = focused
+      ? focused.label
+      : (state.root.split('/').filter(Boolean).pop() || state.root);
 
-    const artists = [...new Set(state.tracks.map((t) => t.artist).filter(Boolean))];
+    const artists = [...new Set(scope.map((t) => t.artist).filter(Boolean))];
     by.textContent = artists.length === 0 ? 'No artist tags in this folder'
       : artists.length <= 3 ? artists.join(', ')
       : `${artists.slice(0, 2).join(', ')} and ${artists.length - 2} more`;
 
-    const secs = state.tracks.reduce((s, t) => s + (t.durationSecs || 0), 0);
+    /* A folder-grouped album is not an album Pelican was told about, and the
+       hero is where that has to be said — the alternative is a heading that
+       looks like a tag the files do not carry. */
+    if (focused && focused.byFolder) {
+      by.textContent = (by.textContent === 'No artist tags in this folder' ? '' : by.textContent + ' · ')
+        + 'grouped by folder — these files carry no album tag';
+    }
+
+    const secs = scope.reduce((s, t) => s + (t.durationSecs || 0), 0);
     const hrs = Math.floor(secs / 3600);
     const mins = Math.round((secs % 3600) / 60);
-    const fmts = [...new Set(state.tracks.map((t) => t.fmt.split(' ')[0]))];
+    const fmts = [...new Set(scope.map((t) => t.fmt.split(' ')[0]))];
     facts.textContent = [
-      plural(n, 'track'),
+      plural(scope.length, 'track'),
       secs ? (hrs ? `${hrs} hr ${mins} min` : `${mins} min`) : null,
       fmts.length > 3 ? `${fmts.slice(0, 3).join(' · ')} +${fmts.length - 3} more`
         : fmts.join(' · '),
@@ -452,12 +633,20 @@
 
      Broken stubs come first — they are the only rows with anything to do. */
   function wallItems() {
+    /* The journal, keyed the way the device names things. `history::forget`
+       in Rust lowercases the same stem, which is what keeps a delete on this
+       side and a forget on that side talking about the same file. */
+    const byStem = new Map();
+    for (const u of state.uploads) byStem.set(u.name.toLowerCase(), u);
+
     const seen = new Set();
     const broken = [];
     const onDevice = [];
     for (const e of state.entries) {
       if (e.isFolder) continue;
-      seen.add(stemOf(e.name));
+      const stem = stemOf(e.name);
+      seen.add(stem);
+      const u = byStem.get(stem);
       (e.isBroken ? broken : onDevice).push({
         broken: e.isBroken,
         /* Only a device entry carries an extension; a journal name is
@@ -468,6 +657,14 @@
         path: e.path,
         bytes: e.size,
         onDevice: true,
+        /* Two independent facts, and the wall's grouping depends on telling
+           them apart: whether Pelican has any record of sending this file,
+           and whether that record carried tags. A file with no journal row
+           is never guessed at — see `wallGroups`. */
+        journalled: !!u,
+        title: u?.title || null,
+        artist: u?.artist || null,
+        album: u?.album || null,
         note: e.isBroken ? null : 'In /Music on the watch',
       });
     }
@@ -476,13 +673,112 @@
       if (seen.has(u.name.toLowerCase())) continue;
       journal.push({
         broken: false, name: u.name, raw: u.name, bytes: u.bytes, at: u.at,
-        onDevice: false,
+        onDevice: false, journalled: true,
+        title: u.title || null, artist: u.artist || null, album: u.album || null,
         note: `${sentWhen(u.at)} · the watch is not listing it now`,
       });
     }
     journal.sort((a, b) => (b.at || 0) - (a.at || 0));
     return [...broken, ...onDevice, ...journal];
   }
+
+  /* Files / Album / Artist. `files` is the default and stays the default: it
+     is the observed truth, the order `list_dir("Music")` came back in, and
+     the app should open on the device's answer rather than on Pelican's
+     memory of it. */
+  let arrange = 'files';
+
+  /* Exactly five provenance classes, in this order, each naming its source.
+     The point of the ordering and the labels is that no row is ever placed
+     under a claim the device did not make: a file the watch reports and
+     Pelican has no record of goes into "Not from Pelican" with the filename
+     the watch gave, never into an album group and never under "Unknown
+     Artist" — which would read as a tag rather than as an absence. */
+  function wallGroups(items) {
+    const key = arrange === 'artist' ? 'artist' : 'album';
+    const unreadable = items.filter((i) => i.broken);
+    const rest = items.filter((i) => !i.broken);
+
+    const tagged = [];
+    const untagged = [];
+    const foreign = [];
+    const gone = [];
+    for (const it of rest) {
+      if (!it.onDevice) gone.push(it);
+      else if (!it.journalled) foreign.push(it);
+      else if (it[key]) tagged.push(it);
+      else untagged.push(it);
+    }
+
+    /* Album key is album+artist, so two different "Greatest Hits" stay
+       separate. Artist key is the artist alone. */
+    const groups = new Map();
+    for (const it of tagged) {
+      const k = key === 'album'
+        ? `${it.album.trim().toLowerCase()} \u0000 ${(it.artist || '').trim().toLowerCase()}`
+        : it.artist.trim().toLowerCase();
+      if (!groups.has(k)) {
+        groups.set(k, {
+          kind: 'tagged',
+          label: key === 'album'
+            ? (it.artist ? `${it.album} — ${it.artist}` : it.album)
+            : it.artist,
+          sort: key === 'album'
+            ? `${(it.artist || '').toLowerCase()} ${it.album.toLowerCase()}`
+            : it.artist.toLowerCase(),
+          items: [],
+        });
+      }
+      groups.get(k).items.push(it);
+    }
+    const out = [...groups.values()].sort((a, b) => a.sort.localeCompare(b.sort));
+    for (const g of out) g.items.sort((a, b) => a.name.localeCompare(b.name));
+
+    const blocks = [];
+    if (unreadable.length) {
+      blocks.push({
+        label: `Unreadable (${unreadable.length})`,
+        sub: 'The watch reports these handles but refuses their metadata. '
+           + 'They take up space and can never play.',
+        items: unreadable,
+      });
+    }
+    blocks.push(...out.map((g) => ({
+      label: g.label,
+      sub: `${plural(g.items.length, 'file')} · ${fmt(sumBytes(g.items))}`,
+      items: g.items,
+    })));
+    if (untagged.length) {
+      blocks.push({
+        label: `${key === 'album' ? 'Album' : 'Artist'} unknown (${untagged.length})`,
+        sub: 'Pelican sent these but did not record their tags.',
+        items: untagged,
+      });
+    }
+    if (foreign.length) {
+      blocks.push({
+        label: `Not from Pelican (${foreign.length})`,
+        sub: 'Your watch reports these by filename only. Pelican has no record '
+           + 'of sending them, so it does not know their album or artist.',
+        items: foreign,
+      });
+    }
+    if (gone.length) {
+      blocks.push({
+        label: `Sent, not on the watch now (${gone.length})`,
+        sub: 'Pelican’s own record. The watch is not listing these, so there '
+           + 'is nothing on it to delete — only the record to forget.',
+        items: gone,
+      });
+    }
+    return blocks;
+  }
+
+  /* Device-reported sizes only. A journal row's byte count is what Pelican
+     sent, not what the watch holds, and summing the two together would
+     produce a total the device never gave. */
+  const sumBytes = (items) =>
+    items.reduce((t, i) => t + (i.onDevice && !i.broken ? i.bytes : 0), 0);
 
   function sentWhen(secs) {
     if (!secs) return 'Sent';
@@ -502,6 +798,66 @@
   const wallPicks = new Set();    /* device paths  — deletable */
   const wallGhosts = new Set();   /* journal names — forgettable */
 
+  function wallRow(tpl, it) {
+    const frag = tpl.content.cloneNode(true);
+    const li = frag.querySelector('li');
+    $('.t', li).textContent = it.name;
+    /* The row clips at the measure, so the full name has to stay reachable.
+       CSS truncation does not touch the accessible name, so the text node is
+       still complete for a screen reader; this is for the pointer. */
+    li.title = it.raw;
+
+    const pick = $('[data-pick]', li);
+    if (it.broken) {
+      li.dataset.broken = 'true';
+      $('.s', li).textContent = 'The watch will not report this file';
+      /* Not fmt(0). `GetObjectInfo` failed for this handle, so the watch
+         never gave us a size — and "0 KB" would be one we invented. */
+      $('.z', li).textContent = '—';
+      pick.dataset.path = it.path;
+      pick.setAttribute('aria-label',
+        `Remove the unreadable file ${it.name} from your watch`);
+      pick.checked = wallPicks.has(it.path);
+    } else if (it.onDevice) {
+      $('.s', li).textContent = it.note || '';
+      $('.z', li).textContent = fmt(it.bytes);
+      li.dataset.bytes = String(it.bytes);
+      pick.dataset.path = it.path;
+      pick.setAttribute('aria-label', `Remove ${it.name} from your watch`);
+      pick.checked = wallPicks.has(it.path);
+    } else {
+      $('.s', li).textContent = it.note || '';
+      $('.z', li).textContent = fmt(it.bytes);
+      pick.dataset.ghost = it.name;
+      /* Never "delete": there is nothing on the watch to delete. */
+      pick.setAttribute('aria-label', `Forget that Pelican sent ${it.name}`);
+      pick.checked = wallGhosts.has(it.name);
+    }
+    li.classList.toggle('is-picked', pick.checked);
+    return frag;
+  }
+
+  function wallGroupHead(block) {
+    const frag = $('#tpl-wall-group').content.cloneNode(true);
+    const li = frag.querySelector('li');
+    $('.t', li).textContent = block.label;
+    $('.s', li).textContent = block.sub;
+    const pick = $('[data-pick-group]', li);
+    pick.setAttribute('aria-label', `Select everything under ${block.label}`);
+    /* Selects only this group's *deletable* members. A "Sent, not on the
+       watch now" group has none on the device, so its members go into the
+       forget set instead — the two are never conflated. */
+    pick.dataset.keys = JSON.stringify(block.items.map(
+      (i) => (i.onDevice ? { path: i.path } : { ghost: i.name })));
+    const total = block.items.length;
+    const on = block.items.filter(
+      (i) => (i.onDevice ? wallPicks.has(i.path) : wallGhosts.has(i.name))).length;
+    pick.checked = total > 0 && on === total;
+    /* The standard signal for a partial selection, and no new visual. */
+    pick.indeterminate = on > 0 && on < total;
+    return frag;
+  }
+
   function renderWall() {
     const items = wallItems();
     const tpl = $('#tpl-wall');
@@ -515,44 +871,13 @@
     for (const n of [...wallGhosts]) if (!liveGhosts.has(n)) wallGhosts.delete(n);
 
     wallList.textContent = '';
-    for (const it of items) {
-      const frag = tpl.content.cloneNode(true);
-      const li = frag.querySelector('li');
-      $('.t', li).textContent = it.name;
-      /* The row clips at the measure, so the full name has to stay reachable.
-         CSS truncation does not touch the accessible name, so the text node
-         is still complete for a screen reader; this is for the pointer. */
-      li.title = it.raw;
-
-      const pick = $('[data-pick]', li);
-      if (it.broken) {
-        li.dataset.broken = 'true';
-        $('.s', li).textContent = 'The watch will not report this file';
-        /* Not fmt(0). `GetObjectInfo` failed for this handle, so the watch
-           never gave us a size — and "0 KB" would be one we invented. */
-        $('.z', li).textContent = '—';
-        pick.dataset.path = it.path;
-        pick.setAttribute('aria-label',
-          `Remove the unreadable file ${it.name} from your watch`);
-        pick.checked = wallPicks.has(it.path);
-      } else if (it.onDevice) {
-        $('.s', li).textContent = it.note || '';
-        $('.z', li).textContent = fmt(it.bytes);
-        li.dataset.bytes = String(it.bytes);
-        pick.dataset.path = it.path;
-        pick.setAttribute('aria-label', `Remove ${it.name} from your watch`);
-        pick.checked = wallPicks.has(it.path);
-      } else {
-        $('.s', li).textContent = it.note || '';
-        $('.z', li).textContent = fmt(it.bytes);
-        pick.dataset.ghost = it.name;
-        /* Never "delete": there is nothing on the watch to delete. */
-        pick.setAttribute('aria-label',
-          `Forget that Pelican sent ${it.name}`);
-        pick.checked = wallGhosts.has(it.name);
+    if (arrange === 'files') {
+      for (const it of items) wallList.appendChild(wallRow(tpl, it));
+    } else {
+      for (const block of wallGroups(items)) {
+        wallList.appendChild(wallGroupHead(block));
+        for (const it of block.items) wallList.appendChild(wallRow(tpl, it));
       }
-      li.classList.toggle('is-picked', pick.checked);
-      wallList.appendChild(frag);
     }
     updateWallbar();
 
@@ -604,7 +929,10 @@
   /* Everything the bar and the confirm need to say, read off the DOM once so
      the two can never describe different selections. */
   function picked() {
-    const rows = $$('.wall__list li').filter((li) => $('[data-pick]', li).checked);
+    /* Group headers are excluded: their checkbox is a bulk control over the
+       rows beneath, not a selection of its own. */
+    const rows = $$('.wall__list li:not(.wallgroup)')
+      .filter((li) => $('[data-pick]', li).checked);
     const files = rows.filter((li) => !li.dataset.broken && $('[data-pick]', li).dataset.path);
     const stubs = rows.filter((li) => li.dataset.broken);
     const ghosts = rows.filter((li) => $('[data-pick]', li).dataset.ghost);
@@ -731,6 +1059,19 @@
   }
 
   wallList.addEventListener('change', (e) => {
+    const group = e.target.closest('[data-pick-group]');
+    if (group) {
+      for (const k of JSON.parse(group.dataset.keys)) {
+        if (k.path) { if (group.checked) wallPicks.add(k.path); else wallPicks.delete(k.path); }
+        else { if (group.checked) wallGhosts.add(k.ghost); else wallGhosts.delete(k.ghost); }
+      }
+      /* Repaint from the sets rather than walking siblings: the group's rows
+         are the ones between this header and the next, and depending on that
+         adjacency would break the first time a group renders empty. */
+      renderWall();
+      closeConfirm(false);
+      return;
+    }
     const pick = e.target.closest('[data-pick]');
     if (!pick) return;
     const li = pick.closest('li');
@@ -742,12 +1083,38 @@
        showing, so it closes rather than confirming a stale list. */
     closeConfirm(false);
     updateWallbar();
+    /* A group header's tri-state is a function of its members, so it has to
+       be recomputed whenever one of them changes. */
+    if (arrange !== 'files') refreshGroupChecks();
+  });
+
+  function refreshGroupChecks() {
+    for (const g of $$('[data-pick-group]')) {
+      const keys = JSON.parse(g.dataset.keys);
+      const on = keys.filter(
+        (k) => (k.path ? wallPicks.has(k.path) : wallGhosts.has(k.ghost))).length;
+      g.checked = keys.length > 0 && on === keys.length;
+      g.indeterminate = on > 0 && on < keys.length;
+    }
+  }
+
+  $$('[data-arrange]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      arrange = chip.dataset.arrange;
+      $$('[data-arrange]').forEach((c) =>
+        c.setAttribute('aria-pressed', String(c === chip)));
+      /* The note explains a claim that only exists in the grouped modes. */
+      $('[data-wall-note]').hidden = arrange === 'files';
+      closeConfirm(false);
+      renderWall();
+    });
   });
 
   $('[data-wall-clear]')?.addEventListener('click', () => {
     wallPicks.clear(); wallGhosts.clear();
-    $$('.wall__list [data-pick]').forEach((c) => {
-      c.checked = false; c.closest('li').classList.remove('is-picked');
+    $$('.wall__list [data-pick], .wall__list [data-pick-group]').forEach((c) => {
+      c.checked = false; c.indeterminate = false;
+      c.closest('li').classList.remove('is-picked');
     });
     closeConfirm(false);
     updateWallbar();
@@ -1255,9 +1622,11 @@
         state.tracks = ev.tracks;
         state.encoder = ev.encoder;
         state.encoderVerified = ev.encoderVerified;
+        state.focus = null;
         $('[data-count-all]').textContent = String(ev.found);
-        renderHero();
-        renderTracks(ev.tracks);
+        $('[data-count-albums]').textContent = String(libraryGroups('albums').length);
+        $('[data-count-artists]').textContent = String(libraryGroups('artists').length);
+        applyLibraryView();
         renderEncoderNote();
         if (ev.truncated) {
           /* The omitted files are the tail of a path-sorted list, so opening
@@ -1422,7 +1791,7 @@
   }
 
   applyState();
-  renderHero();
+  applyLibraryView();
   updateSelection();
   /* Nothing is loaded yet, so the transport is a Play control. Left to the
      markup alone it shipped showing Pause, which told both the eye and a

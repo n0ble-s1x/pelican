@@ -227,6 +227,22 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
   color:var(--ink-dim); text-decoration:underline; }
 .linkbtn:hover { color:var(--ink); }
 .linkbtn[hidden] { display:none; }
+
+/* A segmented view toggle, not navigation: the set does not change, only its
+   arrangement. The rail's `.nav` is the other thing, and DESIGN.md §Navigation
+   records why they are deliberately different controls.
+   --ink-dim on the head's --d3 is 6.41:1; pressed, --ink on --surface-2 over
+   --d3 (#1b2733) is 12.51:1. The --edge border is 3.40:1 and 3.27:1. */
+.chips { display:flex; gap:4px; margin-top:9px; }
+.chip { font:inherit; font-size:11px; font-weight:590; padding:4px 9px;
+  border-radius:var(--r-sm); border:1px solid var(--edge);
+  background:transparent; color:var(--ink-dim); }
+.chip:hover { color:var(--ink); }
+.chip[aria-pressed="true"] { background:var(--surface-2); color:var(--ink); }
+/* The claim only exists in the grouped modes, so the disclosure only appears
+   there. --ink-dim on --d3 = 6.41:1. */
+.wall__note { margin-top:8px; font-size:11px; line-height:1.4; color:var(--ink-dim); }
+.wall__note[hidden] { display:none; }
  /* min-height:0 is load-bearing: the bar, the confirm, the gauge and the
     capacity readout are all flex:none, so without it the list refuses to
     shrink below its content and pushes the capacity figure out of the panel
@@ -244,6 +260,16 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
 .wall__list li:hover { background:var(--surface); }
 .wall__list li.is-picked { background:var(--surface-2); }
 .wall__list .pick { grid-area:pick; }
+/* A provenance header. No art column, no hover tint: it is a label with one
+   control, not a row you can act on by itself. */
+.wall__list .wallgroup { grid-template-columns:15px minmax(0,1fr);
+  grid-template-areas:"pick title" "pick album";
+  padding:11px 8px 5px; margin-top:7px; border-radius:0;
+  border-top:1px solid var(--hairline-2); }
+.wall__list .wallgroup:first-child { margin-top:0; border-top:0; padding-top:2px; }
+.wall__list .wallgroup:hover { background:none; }
+.wall__list .wallgroup .t { font-weight:590; color:var(--ink);
+  white-space:normal; overflow:visible; }
 .wall__list .cover { grid-area:art; }
 /* The grid column is minmax(0,1fr), which holds the column but not the text:
    a 56-char sanitized stem wrapped to two lines, collided with the row below
@@ -300,6 +326,26 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
    stays exactly 1px at any level, and the depth ramp becomes truthful: a
    nearly empty watch shows only the near-surface tones instead of cramming
    d1 through d4 into a sliver, because shallow water is not abyssal. */
+/* ── albums and artists in the channel ───────────────────────────────── */
+
+.crumb { margin:0 24px 10px; }
+.crumb[hidden] { display:none; }
+.groups { list-style:none; padding:0 14px 16px; }
+.groups[hidden] { display:none; }
+.group { width:100%; display:grid; grid-template-columns:38px minmax(0,1fr) auto;
+  gap:0 12px; align-items:center; text-align:left; font:inherit;
+  padding:7px 10px; border:0; border-radius:var(--r-sm);
+  background:none; color:var(--ink); }
+.group:hover { background:var(--surface); }
+.group__meta { min-width:0; }
+.group__meta .t { display:block; font-size:13px; font-weight:590;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* --ink-dim, not --ink-faint: the hover veil composites to #1b2634 where
+   --ink-faint is 4.44:1 and this text is 11.5px. */
+.group__meta .s { display:block; font-size:11.5px; color:var(--ink-dim);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.group__n { font-size:11.5px; color:var(--ink-dim); }
+
 /* ── selection, and the one irreversible action in the app ───────────── */
 
 /* Opaque --d3, because the destructive control lives here and its ratio must
@@ -611,6 +657,8 @@ input, .seek { caret-color:var(--sun); }
   .hero__actions { margin-left:0; width:100%; }
   .hero__actions .btn { flex:1; }
 
+  .crumb { margin:0 16px 10px; }
+  .groups { padding:0 10px 12px; }
   .prewarn { grid-template-columns:minmax(0,1fr); margin:0 16px 12px; }
   .prewarn .btn { justify-self:start; }
   .sendwhy { margin:0 16px 10px; }

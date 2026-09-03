@@ -56,6 +56,16 @@ pub struct TrackDto {
     /// `playable_in_library`.
     pub artist: String,
     pub album: String,
+    /// Track number, already reduced from Vorbis's `3/12` form. `None` when
+    /// the file carries none — which is a different fact from track 0, and
+    /// the ordering below treats it as such.
+    pub track: Option<u32>,
+    /// Disc number, verbatim. Read for local ordering only; it is not in the
+    /// six-field allowlist written to the watch, and `tags.rs` says why.
+    pub disc: Option<String>,
+    /// Whatever the file calls its date. Used to order albums by year, never
+    /// parsed into a claim about a release.
+    pub date: Option<String>,
     pub duration_secs: u64,
     /// Presentation label for the format column: "FLAC 24/96", "MP3 320".
     pub fmt: String,

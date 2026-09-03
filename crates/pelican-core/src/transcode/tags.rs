@@ -21,16 +21,27 @@ use lofty::probe::Probe;
 
 use super::sanitize_tag_value;
 
-/// The only fields that reach the device.
+/// The fields we read from a source file.
 ///
-/// `album_artist` is written as well as `artist`, from the same resolved
-/// value — see [`Tags::read`] for why they are deliberately the same string.
+/// Six of them are the allowlist that reaches the device — title, artist,
+/// album, track, date, genre — and `album_artist` is written as well as
+/// `artist` from the same resolved value; see [`Tags::read`] for why they are
+/// deliberately the same string.
+///
+/// `disc` is the exception and is **deliberately not in the allowlist**. It is
+/// read so a local album view can order a multi-disc set correctly, and it is
+/// never written to the watch: Garmin's indexer rejects files whose tag
+/// carries frames outside the set it expects, and widening that set to fix a
+/// sorting problem on *this* side would risk the file landing invisible on
+/// the other. Nothing in `as_ffmpeg_args`, `write_id3v23` or `write_mp4`
+/// touches it, and that is the point.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Tags {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
     pub track: Option<String>,
+    pub disc: Option<String>,
     pub date: Option<String>,
     pub genre: Option<String>,
 }
@@ -83,6 +94,9 @@ impl Tags {
             artist: resolved_artist,
             album: first(&|t| t.album().map(|s| s.into_owned())),
             track: first(&|t| t.track().map(|n| n.to_string())),
+            // Local ordering only — never written to the device. One more
+            // read of tags already in memory, no extra file I/O.
+            disc: first(&|t| t.get_string(ItemKey::DiscNumber).map(str::to_owned)),
             // Garmin only ever shows a year. Prefer whatever literal string
             // the file carries, so "1979" from a Vorbis DATE survives intact,
             // and fall back to the parsed timestamp's year component.
@@ -266,6 +280,23 @@ mod tests {
             artist.1, album_artist.1,
             "a soundtrack fragments into several albums if these diverge"
         );
+    }
+
+    /// `disc` is read for local ordering and must never reach the watch.
+    /// Garmin's indexer refuses files carrying frames outside the set it
+    /// expects, so widening the allowlist to fix a sorting problem on this
+    /// side would risk the file landing invisible on the other.
+    #[test]
+    fn disc_is_read_but_never_written_to_the_device() {
+        let t = Tags {
+            title: Some("t".into()),
+            artist: Some("a".into()),
+            disc: Some("2".into()),
+            ..Default::default()
+        };
+        let keys: Vec<&str> = t.as_ffmpeg_args().iter().map(|(k, _)| *k).collect();
+        assert!(!keys.iter().any(|k| k.contains("disc")), "{keys:?}");
+        assert_eq!(keys, vec!["title", "artist", "album_artist"]);
     }
 
     #[test]

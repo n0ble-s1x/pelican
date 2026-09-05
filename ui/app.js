@@ -183,6 +183,19 @@
   /* The terminal sentence. Past tense, and it names the outcome rather than
      leaving a present-tense "Sending to your watch" over a finished run. */
   function outcomeHeading(r) {
+    const base = terminalSentence(r);
+    const n = r.landed ? r.landed.length : 0;
+    if (!n) return base;
+    /* Reconciliation revises this sentence at its source, so every reading of
+       the card is revised at once: the heading `applyState` paints, the
+       `aria-valuetext` the meter announces, and the now-line. A correction
+       written into only one of those is the same wrong sentence, moved from
+       the eye to the ear. */
+    return `${base} — but ${n === 1 ? 'one of those is' : n + ' of those are'} `
+         + 'on your watch';
+  }
+
+  function terminalSentence(r) {
     if (r.stopped) return `Stopped after ${plural(r.ok, 'track')}`;
     const parts = [];
     if (r.ok) parts.push(`${r.ok} sent`);
@@ -602,19 +615,29 @@
         (refused ? ` ${plural(refused, 'file')} still cannot be converted at all.` : '');
       return;
     }
-    /* Naming the untested path is the point. afconvert produces AAC that
-       Garmin lists as playable, but no watch has confirmed it — presenting
-       it as equivalent to the verified profile would be a claim we have not
-       earned. What the engine actually observed is narrower than "ffmpeg is
-       not installed": it tried to spawn `ffmpeg` off this process's PATH and
+    /* Naming the untested path is the point — but the sentence has to name
+       which half is untested, because the two halves now have different
+       evidence behind them.
+
+       Transfer is observed: afconvert-produced M4A files have landed on the
+       attached FR165 and are listed by the device. What is still unverified
+       is the other subsystem — `docs/macos-port.md` says it outright, that
+       "upload acceptance and library indexing are different subsystems", and
+       the MP3 profile is pinned to CBR 192 kbps precisely because the
+       indexer is fussy. So `encoder_verified` stays false for afconvert and
+       means *the watch plays it*, not *it arrives*.
+
+       What the engine observed about ffmpeg is also narrower than "not
+       installed": it tried to spawn `ffmpeg` off this process's PATH and
        failed, and a Finder-launched .app does not inherit the PATH a
        Homebrew ffmpeg lives on. Say the observation, not the inference. */
-    tag.textContent = `Converting with ${state.encoder} — unconfirmed`;
+    tag.textContent = `Converting with ${state.encoder} — playback unconfirmed`;
     body.textContent =
       'Pelican could not find ffmpeg on its PATH, so conversions use macOS’s own ' +
-      'afconvert and land as AAC in M4A. Garmin lists that format as playable, but ' +
-      'Pelican has not confirmed it on a real watch. An app launched from Finder does ' +
-      'not see a Homebrew ffmpeg.' +
+      'afconvert and land as AAC in M4A. Files in this format have transferred to a ' +
+      'Forerunner 165 successfully, but Pelican has not confirmed that the watch’s ' +
+      'music app indexes and plays them — arriving and playing are different ' +
+      'subsystems. An app launched from Finder does not see a Homebrew ffmpeg.' +
       (refused ? ` ${plural(refused, 'file')} cannot be converted at all.` : '');
   }
 
@@ -629,10 +652,11 @@
      observed: the handle came back from `list_dir("Music")` and its metadata
      read. What the journal holds is inferred — a local record that Pelican
      wrote when an upload completed, which is not evidence the file is still
-     there. On the attached FR165 `/Music` is durable (all 20 of the owner's
-     tracks sit in it across sessions), so a journal row the listing does not
-     confirm most likely means the file has gone, and it says so rather than
-     being counted as aboard.
+     there. On the attached FR165 `/Music` is durable — the owner's tracks
+     survive across sessions and replugs — so a journal row the listing does
+     not confirm most likely means the file has gone, and it says so rather
+     than being counted as aboard. (No count here on purpose: the library
+     grows, and a comment that pins one goes stale the next time he syncs.)
 
      The dedupe key is the *sanitised remote stem* on both sides: the shell
      journals the name it actually wrote to the device, so `u.name` and
@@ -745,8 +769,17 @@
     if (unreadable.length) {
       blocks.push({
         label: `Unreadable (${unreadable.length})`,
+        /* The first sentence is what Pelican observed. The second is labelled
+           as inference, because it is one: the `is_broken` doc on
+           `RemoteEntry` (`crates/pelican-core/src/mtp.rs` lines 20-23) and
+           its DTO mirror (`crates/pelican-shell/src/dto.rs` lines 26-30) both
+           hedge the cause with "almost always". The third is the record, and
+           it is flat rather than hedged: `docs/garmin-mtp.md` §6 has every
+           attempt returning `Protocol GeneralError`. */
         sub: 'The watch reports these handles but refuses their metadata. '
-           + 'They take up space and can never play.',
+           + 'Most likely leftovers from rejected uploads. Your watch has '
+           + 'refused every request to remove one; it clears them itself, on '
+           + 'its own schedule.',
         items: unreadable,
       });
     }
@@ -822,8 +855,11 @@
          never gave us a size — and "0 KB" would be one we invented. */
       $('.z', li).textContent = '—';
       pick.dataset.path = it.path;
+      /* "Select … for removal", not "Remove": every stub-delete Pelican has
+         issued has come back Protocol GeneralError, and the accessible name
+         must not promise more than the visible confirmation does. */
       pick.setAttribute('aria-label',
-        `Remove the unreadable file ${it.name} from your watch`);
+        `Select the unreadable file ${it.name} for removal`);
       pick.checked = wallPicks.has(it.path);
     } else if (it.onDevice) {
       $('.s', li).textContent = it.note || '';
@@ -967,11 +1003,14 @@
     if (p.ghosts.length) parts.push(`${p.ghosts.length} not on the watch`);
     $('[data-wallbar-n]').textContent = parts.join(' · ');
 
-    /* Nothing on the device means nothing to delete, and the button must not
-       say a word Pelican cannot honour. */
-    const onlyGhosts = p.files.length === 0 && p.stubs.length === 0;
-    $('[data-wall-delete]').textContent = onlyGhosts
-      ? 'Forget these' : 'Delete from watch';
+    /* The button must not say a word Pelican cannot honour. Nothing on the
+       device means nothing to delete; nothing but stubs means an outcome the
+       firmware gets the last word on, and has so far always answered no
+       (docs/garmin-mtp.md §6). Hence "Ask", never "Delete". */
+    $('[data-wall-delete]').textContent =
+      p.files.length ? 'Delete from watch'
+        : p.stubs.length ? 'Ask the watch to remove'
+          : 'Forget these';
   }
 
   function nameList(names) {
@@ -981,19 +1020,56 @@
 
   /* Three facts, no euphemism, and a different sentence for each kind of
      selection — "delete 3 files" is not what a broken stub is, and a journal
-     row with nothing behind it is not a deletion at all. */
+     row with nothing behind it is not a deletion at all.
+
+     A stub is the one selection where Pelican must promise an *attempt* and
+     not a result, and must say which way the attempt has always gone.
+     `docs/garmin-mtp.md` §6 and `docs/status.md` both record the same
+     observation: every `DeleteObject` issued against a broken-stub handle on
+     FR165 FW 2506 has returned `Protocol GeneralError`, and cleanup is
+     watch-side and asynchronous. Pelican has never seen one succeed. So the
+     copy must not read as a coin flip either: "it has refused before" invites
+     a user to expect it might not this time, which is a claim nothing in the
+     record supports. Lead with the record, offer the ask anyway because a
+     finite sample on one firmware is not a law, and report whatever the watch
+     actually answers. Word the request, report the answer, and never dress a
+     documented refusal as a maybe. */
   function confirmCopy(p) {
     const body = $('[data-confirm-body]');
     body.textContent = '';
-    /* The tag names what is at stake, and for a journal-only selection that
-       is not the watch. Leaving "This cannot be undone" on it would put an
-       alarm on an action that changes nothing on the device. */
+    /* The tag names what is at stake. A journal-only selection does not touch
+       the watch at all, and a stub-only selection may not either — the watch
+       gets the last word on that one, so the tag must not pre-empt it. */
     $('#confirm-tag').textContent =
-      (p.files.length || p.stubs.length)
-        ? 'This cannot be undone'
-        : 'This clears Pelican’s record';
+      p.files.length ? 'This cannot be undone'
+        : p.stubs.length ? 'Your watch has always refused this'
+          : 'This clears Pelican’s record';
     const strong = (t) => Object.assign(document.createElement('strong'), { textContent: t });
     const text = (t) => document.createTextNode(t);
+
+    /* What Pelican observed about a stub is exactly one thing: the handle is
+       listed and `GetObjectInfo` fails on it. Everything else — that it is a
+       rejected upload, that it holds no playable audio — is inference, which
+       is why the engine hedges the cause rather than asserting it: see the
+       `is_broken` doc on `RemoteEntry` (`crates/pelican-core/src/mtp.rs`
+       lines 20-23) and its DTO mirror (`crates/pelican-shell/src/dto.rs`
+       lines 26-30), both of which say "almost always". */
+    const stubWhy = (n) => (n === 1
+      ? 'The watch lists this handle but will not report its metadata; it is '
+        + 'most likely a leftover from an upload the watch rejected. '
+      : 'The watch lists these handles but will not report their metadata; '
+        + 'they are most likely leftovers from uploads the watch rejected. ');
+    /* The record, not a probability. Every time Pelican has asked, the answer
+       was Protocol GeneralError. The ask is still offered — one firmware is
+       not every firmware — but it is offered as an ask that has never yet
+       worked, and the removal that does happen is the watch's own. */
+    const stubAsk = (n) => 'Your watch has refused to remove '
+      + (n === 1 ? 'a file like this' : 'files like these')
+      + ' every time Pelican has asked. Pelican will ask again and tell you '
+      + 'exactly what the watch says, but expect a refusal: on this firmware '
+      + (n === 1 ? 'the only thing that clears it is the watch itself, '
+                 : 'the only thing that clears them is the watch itself, ')
+      + 'on its own schedule.';
 
     const onDevice = [...p.files, ...p.stubs];
     if (onDevice.length === 0) {
@@ -1007,18 +1083,29 @@
       return;
     }
 
-    $('[data-confirm-go]').textContent = 'Delete';
     if (p.files.length === 0) {
+      /* Not "Delete": the button must not name an outcome the watch has never
+         once agreed to. "anyway" is doing real work — it says the expected
+         answer is no. */
+      $('[data-confirm-go]').textContent = 'Ask anyway';
       body.append(
         strong(`${plural(p.stubs.length, 'unreadable file')}`),
-        text(' will be removed from your watch. These are leftovers from '
-          + 'uploads the watch rejected: they take up space and can never '
-          + 'play. Pelican cannot undo this.'));
+        text('. ' + stubWhy(p.stubs.length) + stubAsk(p.stubs.length)));
     } else {
+      $('[data-confirm-go]').textContent = 'Delete';
       body.append(
-        strong(nameList(p.names(onDevice))),
+        strong(nameList(p.names(p.files))),
         text(' will be removed from your watch. Pelican cannot undo this, and '
           + 'the watch has no trash. Your copies on this Mac are not touched.'));
+      /* A mixed selection cannot inherit the readable files' certainty: the
+         same batch, two different confidences. */
+      if (p.stubs.length) {
+        body.append(text(' Pelican will also ask the watch to remove '),
+          strong(`${plural(p.stubs.length, 'unreadable file')}`),
+          text(' — but your watch has refused that every time it has been '
+            + 'asked, so expect it to stay. Pelican will report what the '
+            + 'watch says.'));
+      }
     }
     if (p.ghosts.length) {
       body.append(text(' Pelican will also forget that it sent '),
@@ -1562,7 +1649,10 @@
     const pct = ev.plannedBytes > 0
       ? (ev.deliveredBytes / ev.plannedBytes) * 100
       : (run.total > 0 ? (ev.ok / run.total) * 100 : 0);
-    setProgress(Math.max(0, Math.min(100, pct)), outcomeHeading(run));
+    /* Kept on the run so a later reconciliation can rewrite the meter's
+       `aria-valuetext` without inventing a second percentage. */
+    run.pct = Math.max(0, Math.min(100, pct));
+    setProgress(run.pct, outcomeHeading(run));
     meter.dataset.outcome =
       ev.stopped ? 'stopped'
       : ev.failed ? 'failed'
@@ -1853,20 +1943,50 @@
         break;
 
       /* The listing found files the run had given up on. The observation
-         beats the inference, and the sentence already on screen is revised
-         rather than left standing beside a wall that contradicts it. */
+         beats the inference, and every reading of the sentence already on
+         screen is revised rather than left standing beside a wall that
+         contradicts it.
+
+         "On screen" was the bug the first time. `finishRun` pins the meter's
+         `aria-valuetext` to the run's own outcome and then turns this card's
+         live region off, so a correction written only into the visible text
+         would be seen and never heard — the stale, wrong sentence surviving
+         for the one user least able to check it against the wall. Three
+         things therefore happen here, not one: `outcomeHeading` now carries
+         the correction so `applyState` repaints the heading with it, the
+         meter's announced text is rewritten through `setProgress`, and the
+         region is made live again for exactly as long as it takes to write
+         the now-line. */
       case 'syncReconciled': {
         if (!state.run || !ev.landed.length) break;
-        state.run.landed = ev.landed;
-        state.run.dismissed = false;
+        const run = state.run;
+        run.landed = ev.landed;
+        run.dismissed = false;
         const n = ev.landed.length;
+
+        /* Same percentage. Reconciliation changes what the run *means*, not
+           how many bytes crossed the cable — those were already counted, and
+           A2's drained-but-unconfirmed case is precisely a file whose bytes
+           all went. Only the sentence was wrong. */
+        setProgress(run.pct || 0, outcomeHeading(run));
+
+        transfer.setAttribute('aria-live', 'polite');
         $('[data-now-label]').textContent =
-          `Reported ${state.run.failed} failed, but the watch is listing ` +
+          `Reported ${run.failed} failed, but the watch is listing ` +
           `${n === 1 ? 'one of them' : n + ' of them'} — see the list below.`;
         addNotice('Found on your watch after all',
           `Pelican could not confirm ${n === 1 ? 'this file' : 'these files'} during the ` +
           `send, and the watch is now listing ${n === 1 ? 'it' : 'them'}: ` +
           ev.landed.join(', ') + '.');
+        /* Off again on the next tick, the same pattern `finishRun` uses: the
+           announcement is taken from the mutations above, and a report that
+           has stopped changing must not go on claiming to be a live
+           transfer. */
+        setTimeout(() => {
+          if (state.run === run && run.phase === 'finished') {
+            transfer.setAttribute('aria-live', 'off');
+          }
+        }, 0);
         applyState();
         break;
       }

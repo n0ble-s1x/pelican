@@ -136,7 +136,7 @@
         "role": "neutral",
         "displayName": "Depth 1",
         "canonical": "#16283a",
-        "purpose": "The lit surface of the water. The lightest ground below the line, and the one that rises behind the wall head, list and capacity as the watch fills.",
+        "purpose": "The top stop of the water gradient inside the gauge, and the lightest ground below the line. No text renders over it: the water used to be a full-panel fill behind the wall head, list and capacity, and the gauge confined it to a 132px band precisely so it sits behind nothing but itself.",
         "tonalRamp": [
           "#152637",
           "#244260",
@@ -216,7 +216,7 @@
         "role": "neutral",
         "displayName": "Ink",
         "canonical": "#e3eaf2",
-        "purpose": "Titles, primary text, the seek thumb. 14.99:1 on --air; never below 12.38:1 anywhere in the app.",
+        "purpose": "Titles, primary text, the seek thumb. 14.99:1 on --air; 11.26:1 at its worst ground, a selected wall row (--surface-2 over --d2 = #202f3e).",
         "tonalRamp": [
           "#182534",
           "#2a415b",
@@ -232,7 +232,7 @@
         "role": "neutral",
         "displayName": "Ink Dim",
         "canonical": "#8b9bab",
-        "purpose": "Secondary lines, and the required ink on every composite ground where --ink-faint fails: rail counts, wall head, wall list. 6.38:1 on --air, 5.27:1 on --d1.",
+        "purpose": "Secondary lines, and the required ink on every composite ground where --ink-faint fails: rail counts, wall head, wall list, the channel's album and artist rows. 6.38:1 on --air; 4.79:1 at its worst ground, a selected wall row (#202f3e). Still AA.",
         "tonalRamp": [
           "#20262c",
           "#38424d",
@@ -248,7 +248,7 @@
         "role": "neutral",
         "displayName": "Ink Faint",
         "canonical": "#7d8c9b",
-        "purpose": "The quietest legible tier: wordmark, rail heads, formats, timecodes, connection status. 5.28:1 on --air, 4.93:1 at its worst shipped ground (the transfer card over bright artwork). Was #5a6875 = 3.18:1.",
+        "purpose": "The quietest legible tier: wordmark, rail heads, formats, timecodes, connection status. 5.28:1 on --air. Its floor where it ships is 4.75:1 — .tracks__fmt on a hovered library row, where --surface composites over the channel's --air to #17202c. The transfer card over bright artwork is a second data point at 4.93:1. Banned inside .wall__list and on the channel's .group rows, where hover and selection veils take it under AA. Was #5a6875 = 3.18:1.",
         "tonalRamp": [
           "#21262b",
           "#3a424b",
@@ -276,7 +276,7 @@
         "role": "neutral",
         "displayName": "Hairline 10.5%",
         "canonical": "rgba(226,236,247,.105)",
-        "purpose": "The edge of something you can press."
+        "purpose": "The transfer card's firmer rim, and the border of a control that cannot be operated. Those are its only two uses in the app \u2014 structural dividers and panel edges are --hairline-2 at 5.8%, and the cover frame's rim is its own inline 9%. Not a control boundary: it measures 1.32-1.63:1 through the fills of the controls in this app and identifies nothing, which is why --edge exists. A disabled control keeps it deliberately — something that cannot be operated should not advertise a 3:1 boundary as if it could."
       },
       "hairline-2": {
         "role": "neutral",
@@ -288,7 +288,7 @@
         "role": "neutral",
         "displayName": "Control Edge",
         "canonical": "rgba(226,236,247,.40)",
-        "purpose": "Control boundaries only — checkbox and button edges. Not a hairline and not a replacement for one: the same rgba(226,236,247,x) veil family, a new alpha rather than a new hue. Measured 3.40 on --air, 3.37 --air-2, 3.23 --d1, 3.34 --d2, 3.40 --d3, 3.37 --d4, 3.39 --notice-ground, 3.23 hovered wall row, 3.16 selected wall row. Worst case 3.16:1, over 1.4.11's 3:1. --hairline is 1.25-1.35:1 on the same grounds and identifies nothing. Disabled controls keep --hairline deliberately.",
+        "purpose": "The boundary of every control that draws a box, and nothing else: the checkbox, .chip, .btn, .btn--danger and .playpause. Not \"everything operable\" — .iconbtn, .linkbtn, .nav and .rail__new are operable and carry border:0 with no rest-state fill, so they draw no box for an edge to bound; their affordance is carried by what is drawn instead, and that is what clears 3:1. Worst case each, on the real composite: .iconbtn's glyph --ink-faint 4.75:1 (hovered track row, --surface over --air = #17202c), .rail__new --ink-faint 4.98:1 (rail gradient's --air-2 stop), .nav's label --ink-dim 4.95:1 (.is-current #212c3a), .linkbtn's underlined label --ink-dim 6.41:1 (--d3). Range 4.75-6.41:1. Adding a border there would invent a box the design does not have. Not a hairline and not a replacement for one — the same rgba(226,236,247,x) veil family, a new alpha rather than a new hue. A 1px border-box border has two adjacencies and is painted over the control's own fill, so bare-ground figures are correct only for a transparent-background control. Transparent (.chip at rest, .btn--danger): 3.40 on --d3, 3.39 on --notice-ground. Filled, as outside/inside: .btn on --air 3.94/3.26, .btn:hover 3.72/3.35, .chip pressed on --d3 3.94/3.27, .playpause on --d4 3.91/3.35, checkbox on --air 3.72/3.35, on --d2 3.65/3.23, on a hovered wall row 3.48/3.07. Worst case 3.07:1, over 1.4.11's 3:1. A selected wall row is not in that list: .is-picked follows the checkbox's own checked state, so an --edge box never sits on #202f3e — there the box is brass, 5.43:1. The primary button is the exception: its brass fill is 7.23:1 and is its own boundary in both states.",
         "tonalRamp": [
           "#1b232d",
           "#2b3540",
@@ -420,23 +420,23 @@
       "refersTo": "button-primary",
       "description": "The send action. The only brass fill on any screen.",
       "html": "<button class=\"ds-btn ds-btn-primary\">Send 12 tracks</button>",
-      "css": ".ds-btn{font:590 12.5px/1.45 var(--font,-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif);padding:8px 16px;border-radius:6px;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078);color:#e3eaf2;transition:background-color 120ms linear,color 120ms linear,opacity 120ms linear}.ds-btn-primary{background:#d8963f;border-color:#d8963f;color:#160f06}.ds-btn-primary:hover{filter:brightness(1.08)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}"
+      "css": ".ds-btn{font:590 12.5px/1.45 var(--font,-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif);padding:8px 16px;border-radius:6px;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.078);color:#e3eaf2;transition:background-color 120ms linear,color 120ms linear,opacity 120ms linear}.ds-btn-primary{background:#d8963f;border-color:#d8963f;color:#160f06}.ds-btn-primary:hover{filter:brightness(1.08)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}"
     },
     {
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button",
-      "description": "Every non-primary action. Hover drops it to the lighter veil, so the surface recedes under the cursor rather than brightening.",
+      "description": "Every non-primary action. Hover drops it to the lighter veil, so the surface recedes under the cursor rather than brightening. Border is --edge (40%), not --hairline: through the button's own 7.8% fill a hairline measured 1.35:1 against that fill and 1.63:1 against --air, and the fill itself is 1.21:1, so the control had no visible edge from either side. --edge reads 3.26:1 inside and 3.94:1 outside. Disabled drops back to --hairline.",
       "html": "<button class=\"ds-btn2\">Eject</button> <button class=\"ds-btn2\" disabled>Send</button>",
-      "css": ".ds-btn2{font:590 12.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:8px 16px;border-radius:6px;color:#e3eaf2;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078);transition:background-color 120ms linear,color 120ms linear,opacity 120ms linear}.ds-btn2:hover:not(:disabled){background:rgba(226,236,247,.048)}.ds-btn2:active:not(:disabled){transform:translateY(1px)}.ds-btn2:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}.ds-btn2:disabled{opacity:.45;cursor:default}"
+      "css": ".ds-btn2{font:590 12.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:8px 16px;border-radius:6px;color:#e3eaf2;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.078);transition:background-color 120ms linear,color 120ms linear,opacity 120ms linear}.ds-btn2:hover:not(:disabled){background:rgba(226,236,247,.048)}.ds-btn2:active:not(:disabled){transform:translateY(1px)}.ds-btn2:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}.ds-btn2:disabled{opacity:.45;cursor:default;border-color:rgba(226,236,247,.105)}"
     },
     {
       "name": "Play / Pause",
       "kind": "button",
       "refersTo": "button-playpause",
-      "description": "A 31px circle on the 7.8% veil. It was a filled white disc and was demoted for outshouting the brass primary it is meant to sit beneath.",
+      "description": "A 31px circle on the 7.8% veil. It was a filled white disc and was demoted for outshouting the brass primary it is meant to sit beneath — which left it with no boundary at all: on --d4 the fill is 1.17:1 and a hairline border 1.56:1. The --edge border reads 3.35:1 against its fill and 3.91:1 against --d4.",
       "html": "<button class=\"ds-playpause\" aria-label=\"Play\"><svg class=\"ds-ic\" viewBox=\"0 0 15 14\" aria-hidden=\"true\"><path d=\"M4 2.5l8 4.5-8 4.5z\"/></svg></button>",
-      "css": ".ds-playpause{width:31px;height:31px;border-radius:50%;background:rgba(226,236,247,.078);color:#e3eaf2;border:1px solid rgba(226,236,247,.105);display:grid;place-items:center;transition:background-color 120ms linear}.ds-playpause:hover{background:rgba(226,236,247,.048)}.ds-playpause:focus-visible{outline:2px solid #d8963f;outline-offset:2px}.ds-ic{width:15px;height:14px;fill:currentColor;display:block}"
+      "css": ".ds-playpause{width:31px;height:31px;border-radius:50%;background:rgba(226,236,247,.078);color:#e3eaf2;border:1px solid rgba(226,236,247,.40);display:grid;place-items:center;transition:background-color 120ms linear}.ds-playpause:hover{background:rgba(226,236,247,.048)}.ds-playpause:focus-visible{outline:2px solid #d8963f;outline-offset:2px}.ds-ic{width:15px;height:14px;fill:currentColor;display:block}"
     },
     {
       "name": "Rail Navigation",
@@ -450,7 +450,7 @@
       "name": "Checkbox",
       "kind": "input",
       "refersTo": "checkbox",
-      "description": "The selection control on both sides of the window: a tick on the left sends to the watch, a tick on the right removes from it — one symmetrical idea. Border is --edge (40%), not --hairline: --hairline measures 1.25-1.35:1 against the grounds these sit on and identifies nothing, which was a small problem in the track table and became the wall's main affordance the moment 22 rows on a darker ground grew one. Checked is a solid brass fill, one of the four places brass is allowed. Disabled keeps --hairline deliberately: a control that cannot be operated should not advertise a 3:1 boundary.",
+      "description": "The selection control on both sides of the window: a tick on the left sends to the watch, a tick on the right removes from it — one symmetrical idea. Border is --edge (40%), not --hairline: through this box's 4.8% fill a hairline measures 1.32-1.35:1 against that fill and 1.47-1.53:1 against the panel outside it, and identifies nothing, which was a small problem in the track table and became the wall's main affordance the moment every row on a darker ground grew one. Checked is a solid brass fill, one of the four places brass is allowed. Disabled keeps --hairline deliberately: a control that cannot be operated should not advertise a 3:1 boundary.",
       "html": "<input class=\"ds-check\" type=\"checkbox\" checked aria-label=\"Select track\"> <input class=\"ds-check\" type=\"checkbox\" aria-label=\"Select track\"> <input class=\"ds-check\" type=\"checkbox\" disabled aria-label=\"Cannot send\">",
       "css": ".ds-check{appearance:none;width:15px;height:15px;border-radius:4px;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.048)}.ds-check:checked{background:#d8963f;border-color:#d8963f}.ds-check:disabled{border-color:rgba(226,236,247,.105);opacity:.45}.ds-check:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}"
     },
@@ -511,7 +511,7 @@
       "name": "Delete Confirmation",
       "kind": "alertdialog",
       "refersTo": "confirm",
-      "description": "Inline, above the list, never a modal — 'Never Cover The Number' forbids anything floating over the capacity readout, and the free-space figure is what someone deciding whether to delete wants in view. Opaque --notice-ground: --alert 4.77:1, --ink-dim 6.02:1, --ink 14.14:1. Focus lands on 'Keep them'; Escape cancels and returns focus to the Delete button. The body is the part that scrolls in a short window, so the two buttons are never below the fold. Three copies, because a broken stub is not a file and a journal row with nothing behind it is not a deletion at all.",
+      "description": "Inline, above the list, never a modal — 'Never Cover The Number' forbids anything floating over the capacity readout, and the free-space figure is what someone deciding whether to delete wants in view. Opaque --notice-ground: --alert 4.77:1, --ink-dim 6.02:1, --ink 14.14:1. Focus lands on 'Keep them'; Escape cancels and returns focus to the Delete button. The body is the part that scrolls in a short window, so the two buttons are never below the fold. Three copies, because a broken stub is not a file and a journal row with nothing behind it is not a deletion at all. The stub copy leads with the record rather than a probability \u2014 tag \"Your watch has always refused this\", button \"Ask anyway\" \u2014 because docs/garmin-mtp.md \u00a76 has every DeleteObject against a stub handle coming back Protocol GeneralError, and \"it has refused before\" would invite the user to expect otherwise.",
       "html": "<div class=\"ds-confirm\" role=\"alertdialog\"><p class=\"ds-confirm-tag\">This cannot be undone</p><p class=\"ds-confirm-body\"><strong>01 - Iva Davies, 02 - Great Southern Land and 1 more</strong> will be removed from your watch. Pelican cannot undo this, and the watch has no trash. Your copies on this Mac are not touched.</p><div class=\"ds-confirm-acts\"><button class=\"ds-btn2 ds-sm\">Keep them</button><button class=\"ds-danger ds-sm\">Delete</button></div></div>",
       "css": ".ds-confirm{display:flex;flex-direction:column;padding:12px 18px 14px;background:#191b25;border-top:1px solid rgba(217,99,79,.34);border-bottom:1px solid rgba(217,99,79,.34)}.ds-confirm-tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:640;color:#d9634f}.ds-confirm-body{margin-top:5px;font-size:11.5px;color:#8b9bab;overflow-y:auto}.ds-confirm-body strong{color:#e3eaf2;font-weight:590}.ds-confirm-acts{display:flex;gap:8px;margin-top:10px}.ds-sm{padding:5px 11px;font-size:11.5px;border-radius:6px;font:590 11.5px/1.45 -apple-system,system-ui,sans-serif}.ds-btn2{color:#e3eaf2;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078)}.ds-danger{background:transparent;border:1px solid rgba(226,236,247,.40);color:#d9634f}"
     },
@@ -558,7 +558,7 @@
       },
       {
         "name": "The Ground You Actually Sit On Rule",
-        "body": "A contrast ratio is measured against the composite an element renders over, not against the token named in its parent's rule. Three failures in this build came from measuring against the wrong ground: `--alert` inside `.notice` inside a translucent `.transfer` read 5.06:1 on paper and 4.18:1 on the real three-layer composite; `--ink-faint` in the rail read 5.28:1 on `--air` and 4.09:1 on `--surface-2` over the rail gradient; the capacity readout read fine until `.water`'s `--d1` stop rose behind it at 4.18:1. Where a stack cannot be pinned down — the transfer card floats over scrolling album art — give the element an opaque ground and the question stops being open.",
+        "body": "A contrast ratio is measured against the composite an element renders over, not against the token named in its parent's rule. Three failures in this build came from measuring against the wrong ground: `--alert` inside `.notice` inside a translucent `.transfer` read 5.06:1 on paper and 4.18:1 on the real three-layer composite; `--ink-faint` in the rail read 5.28:1 on `--air` and 4.09:1 on `--surface-2` over the rail gradient; the capacity readout read fine until `.water`'s `--d1` stop rose behind it at 4.18:1 (the gauge has since taken that ground away entirely). Two more were caught in review: the channel's `.group` rows were quoting the rail's `#1b2634` hover composite when `.channel` inherits `--air` and composites to `#17202c`, and `--edge` on a filled control was quoted against bare panel colour when a border-box border is painted over the control's own fill. Where a stack cannot be pinned down — the transfer card floats over scrolling album art — give the element an opaque ground and the question stops being open.",
         "section": "colors"
       },
       {
@@ -629,9 +629,9 @@
     ],
     "dos": [
       "Do place a new surface on the depth ladder (`--air`, `--air-2`, `--d1`–`--d4`) and let its colour state how deep it is.",
-      "Do use the two white veils (4.8% / 7.8%) for raised and current states, and the two hairlines (5.8% structural / 10.5% control) for edges.",
+      "Do use the two white veils (4.8% / 7.8%) for raised and current states. Edge tokens come in three and the distinction is contrast, not taste: 5.8% structural, 10.5% for the transfer card's firmer rim and a disabled control's border, and --edge at 40% for the boundary of any control that draws a box — labelled buttons included, not just tick boxes. Only the last measures over 3:1. Two things sit outside that set on purpose: the cover frame's inline rgba(226,236,247,.09) rim, which belongs to the drawn object rather than to the border system, and the borderless controls (.iconbtn, .linkbtn, .nav, .rail__new), whose glyph or underline carries the affordance because there is no box to put an edge on.",
       "Do pair every colour-carried state with its word, and check the screen in greyscale before calling it done.",
-      "Do keep `--ink-faint` at `#7d8c9b`; the 5.28:1 ratio is the reason it is that value.",
+      "Do keep --ink-faint at #7d8c9b; the 5.28:1 ratio is the reason it is that value. Its shipped floor is 4.75:1 on a hovered library row (#17202c).",
       "Do write new breakpoints as `@container shell (max-width: …)`.",
       "Do mark comparable numerals `.num`.",
       "Do draw new icons as inline SVG paths in the sprite, `fill/stroke: currentColor` at 15×14 (17×16 large), stroke-width 1.4, round caps.",

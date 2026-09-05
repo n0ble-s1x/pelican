@@ -410,11 +410,20 @@ mod mtp_rs_impl {
             let storage_id = self.storage.id();
             let session = self.device.session();
 
-            // Two-phase listing so broken stubs stay visible (and deletable):
+            // Two-phase listing so broken stubs stay visible:
             // 1. GetObjectHandles → every handle, including ones whose info errors
             // 2. GetObjectInfo per handle → real entry on success, synthetic
-            //    "unreadable" entry on failure (still carries the handle so
-            //    delete() works against it later).
+            //    "unreadable" entry on failure.
+            //
+            // The synthetic entry still carries the handle so delete() can be
+            // *attempted* against it — not because that attempt works. Every
+            // DeleteObject we have issued against a broken-stub handle on
+            // FR165 FW 2506 has come back Protocol GeneralError; see
+            // docs/garmin-mtp.md §6 and examples/wipe_stubs.rs, which counts
+            // those refusals because refusal is what it expects. Surfacing
+            // the handle is what lets the UI name the file and report the
+            // firmware's answer verbatim; it is not a claim that the file can
+            // be removed. Cleanup is watch-side and asynchronous.
             let (handles, infos): (Vec<_>, Vec<_>) = self
                 .rt
                 .block_on(async {

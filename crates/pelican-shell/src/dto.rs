@@ -202,10 +202,18 @@ pub enum UiEvent {
         truncated: bool,
         /// Best encoder available on this machine, or `None`.
         encoder: Option<String>,
-        /// True only for the ffmpeg MP3 profile, which is the one verified
-        /// against real hardware. The afconvert fallback works but has never
-        /// been confirmed on a watch, and the UI must not present the two as
-        /// equally trustworthy.
+        /// True only for the ffmpeg MP3 profile.
+        ///
+        /// "Verified" here means **the watch's music app indexes and plays
+        /// the result**, which is a stronger claim than "the file arrives".
+        /// `docs/macos-port.md` records those as different subsystems, and
+        /// the MP3 profile is pinned to CBR 192 kbps precisely because the
+        /// indexer is fussy about what upload acceptance will happily take.
+        ///
+        /// So this stays `false` for afconvert even though afconvert-produced
+        /// M4A files have demonstrably transferred to the reference FR165 and
+        /// are listed by it. Transfer is observed; playback is not. The UI
+        /// says exactly that rather than collapsing the two.
         encoder_verified: bool,
     },
 

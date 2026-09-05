@@ -235,17 +235,45 @@ with one warm accent and two status values that never carry meaning alone.
   border, never the ground** — `--ink-dim` as a border is 6.41:1 on `--d3` and
   6.02:1 on `--notice-ground`.
 
-- **Edge** (`rgba(226,236,247,.40)`): **control boundaries only.** Not a
-  hairline and not a replacement for one — the same
-  `rgba(226,236,247, x)` veil family, a new alpha rather than a new hue.
-  Measured on every ground a control sits on: `--air` 3.40, `--air-2` 3.37,
-  `--d1` 3.23, `--d2` 3.34, `--d3` 3.40, `--d4` 3.37, `--notice-ground` 3.39,
-  hovered wall row 3.23, selected wall row 3.16. Worst case **3.16:1**, clear
-  of 1.4.11's 3:1. `--hairline` measures **1.25–1.35:1** on those same grounds
-  and identifies nothing; it stays a structural divider. This token exists
-  because the wall grew a checkbox on all 22 rows, on a darker ground, which
-  turned a small pre-existing problem in the library table into the panel's
-  main affordance.
+- **Edge** (`rgba(226,236,247,.40)`): **the boundary of every control that
+  draws a box, and nothing else** — checkbox, `.chip`, `.btn`,
+  `.btn--danger`, `.playpause`. Not "everything operable": `.iconbtn`,
+  `.linkbtn`, `.nav` and `.rail__new` carry `border:0` and no rest-state
+  fill, so they draw no box for an edge to bound, and their affordance is
+  carried by what *is* drawn — the glyph, the underline, the label — which is
+  what has to clear 3:1 there instead, and does, at 4.75–6.41:1 (figures in
+  §Accessibility). Not a hairline and not a replacement
+  for one — the same `rgba(226,236,247, x)` veil family, a new alpha rather
+  than a new hue.
+
+  A 1px border-box border has **two** adjacencies, the panel outside it and
+  the control's own fill inside it, and it is painted *over that fill*. So a
+  bare-ground figure is only correct for a control with a transparent
+  background, and quoting one for a filled control is the same mistake §The
+  Ground You Actually Sit On exists to stop.
+
+  | control | ground | vs outside | vs own fill |
+  |---|---|---|---|
+  | `.chip` at rest, `.btn--danger` | `--d3` | 3.40 | *(transparent)* |
+  | `.btn--danger` in the confirm | `--notice-ground` | 3.39 | *(transparent)* |
+  | `.btn` | `--air` | 3.94 | 3.26 |
+  | `.btn:hover` | `--air` | 3.72 | 3.35 |
+  | `.chip[aria-pressed]` | `--d3` | 3.94 | 3.27 |
+  | `.playpause` | `--d4` | 3.91 | 3.35 |
+  | checkbox | `--air` | 3.72 | 3.35 |
+  | checkbox | `--d2` | 3.65 | 3.23 |
+  | checkbox | hovered wall row `#1a2938` | 3.48 | 3.07 |
+
+  Worst case **3.07:1**, clear of 1.4.11's 3:1. A *selected* wall row is not
+  in the table: `.is-picked` is toggled from the checkbox's own checked state,
+  so an `--edge` box never sits on `#202f3e` — when the row is that colour the
+  box is brass (5.43:1 there). `--hairline` measures **1.32–1.63:1** through
+  the same fills and identifies nothing; it stays a structural divider and the
+  border of a disabled control. This token exists because the wall grew a
+  checkbox on every row on a darker ground, which turned a small pre-existing
+  problem in the library table into the panel's main affordance — and once it
+  existed, leaving `.btn` and `.playpause` on the boundary it had just called
+  unusable was a contradiction, not a scope line.
 
 ### Neutral
 - **Fjord Ground** (`#070c13`): the body behind the app; visible only at the
@@ -491,13 +519,31 @@ as visually constant as the frame grows. Circles are reserved for exactly
 three things: the 7px connection dot, the 31px play/pause control and the 11px
 seek thumb.
 
-Borders are hairlines, never lines: `rgba(226,236,247,.058)` for structure
-(every panel edge and grid divider in the app is this one value) and `.105`
-for a button's resting edge. **The edge of a control you tick or press is
-`--edge` at 40%**, which is the only one of the three that measures over 3:1
-against the grounds it sits on. A disabled control keeps `--hairline`
-deliberately: something that cannot be operated should not advertise a
-3:1 boundary as if it could.
+Borders are hairlines, never lines. Three tokens carry them:
+`rgba(226,236,247,.058)` for structure (every panel edge and grid divider in
+the app is this one value), `.105` for the one container that needs a slightly
+firmer rim — the transfer card, which floats over scrolling content — plus the
+border of a control that is **disabled**, and `--edge` at 40% for control
+boundaries. The cover frame's rim is a fourth value and is deliberately not a
+token: `rgba(226,236,247,.09)`, written inline, because it belongs to the
+drawn object rather than to the border system — it is described with the frame
+below, and nothing else in the app uses it.
+
+**Every control that draws a box takes `--edge`**: checkbox, `.chip`, `.btn`,
+`.btn--danger`, `.playpause`. It is the only one of the three tokens that
+measures over 3:1 against the grounds it sits on, and the rule is not "boxes
+get it and buttons don't" — a labelled button's extent is as much a 1.4.11
+question as a tick box's. It is also not "everything operable". `.iconbtn`,
+`.linkbtn`, `.nav` and `.rail__new` are operable and carry no border and no
+rest-state fill; they draw no box, so there is no boundary to measure and
+adding one would invent a box the design does not have. Their affordance is
+carried by what *is* drawn, and that is what clears 3:1 instead, at
+**4.75–6.41:1** measured on each one's real composite — the per-control
+figures are in §Accessibility. A disabled control keeps
+`--hairline` deliberately: something that cannot be operated should not
+advertise a 3:1 boundary as if it could. The primary is the one exception in
+both directions — its brass fill is 7.23:1 on `--air` and is its own boundary,
+so it carries a brass border enabled *and* disabled and never an `--edge`.
 
 The cover frame is the system's one drawn object: a 155° blue gradient with a
 9% hairline and an inner top highlight. When the playing file carries an
@@ -545,22 +591,33 @@ The feel is refined and restrained: controls are quiet at rest, and they
 answer in 120ms with a veil, never a jump.
 
 ### Buttons
-- **Shape:** small, quiet radius (6px), 1px hairline edge.
+- **Shape:** small, quiet radius (6px), 1px `--edge` boundary.
 - **Primary:** brass fill (`#d8963f`) with near-black ink (`#160f06`), 590
   weight, 12.5px, `8px 16px` padding. Hover brightens the fill 8%; there is no
-  second brass button on any screen.
-- **Secondary:** 7.8% veil with a 10.5% hairline and ink text; hover *drops*
+  second brass button on any screen. Its border is brass, not `--edge` — the
+  fill already carries the boundary at 7.23:1.
+- **Secondary:** 7.8% veil with an `--edge` border and ink text; hover *drops*
   to the 4.8% veil rather than brightening — the surface recedes under the
-  cursor.
+  cursor. It held a 10.5% hairline until the round that introduced `--edge`,
+  which left the app arguing with itself: the same sentence that called the
+  hairline unusable on a checkbox left it on "Clear", "Stop after this track"
+  and the delete confirmation's "Keep them". Through the button's own fill
+  that border measured **1.35:1** against the fill and **1.63:1** against
+  `--air`, and the fill is 1.21:1 — no visible edge from either side. `--edge`
+  gives **3.26:1** inside and **3.94:1** outside.
 - **Small:** `5px 11px`, 11.5px face. Used inside notices and warnings.
 - **Active:** `translateY(1px)`. That is the whole press feedback.
-- **Disabled:** 45% opacity, `cursor: default`, and it keeps pointer events on
-  purpose. `pointer-events: none` would hide the reason from a mouse user as
-  well as from a screen reader; the reason is rendered as real text and wired
-  with `aria-describedby`.
-- **Play/pause:** a 31px circle on the 7.8% veil with a hairline, ink glyph.
-  It was a filled white disc and was demoted: it was the brightest object on
-  screen, outshouting the brass primary it is meant to sit beneath.
+- **Disabled:** 45% opacity, `cursor: default`, `--hairline` border, and it
+  keeps pointer events on purpose. `pointer-events: none` would hide the
+  reason from a mouse user as well as from a screen reader; the reason is
+  rendered as real text and wired with `aria-describedby`.
+- **Play/pause:** a 31px circle on the 7.8% veil with an `--edge` border, ink
+  glyph. It was a filled white disc and was demoted: it was the brightest
+  object on screen, outshouting the brass primary it is meant to sit beneath.
+  Demoting it also left it with no boundary — on `--d4` the fill is 1.17:1 and
+  a hairline 1.56:1 — so the app's most-used control was invisible until you
+  knew where it was. `--edge` reads **3.35:1** against its fill and **3.91:1**
+  against `--d4`.
 - **Icon button:** no background, no border, `--ink-faint` at rest, ink on
   hover, brass when its row is playing.
 
@@ -611,8 +668,11 @@ paragraph first.
 - Section heads are 10px/0.14em uppercase `--ink-faint`.
 - **The album / artist list** in the channel is a `.group` button per row: a
   38px cover frame, title at 13px/590, a `--ink-dim` subtitle and a
-  `--ink-dim` count. `--ink-faint` is out of bounds here too — the hover veil
-  composites to `#1b2634` where it measures 4.44:1.
+  `--ink-dim` count. `--ink-faint` is out of bounds here too, though for the
+  channel's own ground and not the rail's: `.channel` sets no background, so
+  it inherits `.app`'s `--air`, and the hover veil composites to `#17202c`
+  where `--ink-faint` is 4.75:1 against `--ink-dim`'s 5.76:1. The rail's
+  `#1b2634` is `--surface` over `--air-2` and describes the rail alone.
 - **Crumb.** One `.linkbtn`, underlined, `--ink-dim`. Leaving an album is
   navigation inside the view the rail already chose, so it is a link and not a
   button.
@@ -633,6 +693,13 @@ paragraph first.
   control appears — `Escape` does the same. A clean run fades on its own; a
   run with anything to report **stays until it is dismissed or the next run
   supersedes it.** A failure record must not vanish on a timer.
+
+  There is one thing that can still change after that: the post-run listing.
+  When it reconciles files the run gave up on, the outcome sentence is
+  rewritten at its source, so the heading, the meter's `aria-valuetext` and
+  the now-line revise together and the region is briefly made live again to
+  say so. A correction only a sighted user receives is the same wrong sentence
+  standing, moved from the eye to the ear.
 
   Its heading and the send button's reason line are produced by **one
   function**. Composed separately they could contradict each other on screen:
@@ -802,9 +869,13 @@ element was given an opaque ground rather than a hopeful number.
 
 - **`--ink-faint` is `#7d8c9b`: 5.28:1 on `--air`.** It was `#5a6875` = 3.18:1
   and failed AA on every count, size, duration and the connection status. This
-  value is not a tone choice and must not be "tidied" darker. Where it ships,
-  its worst real ground is the transfer card over bright album art (4.93:1);
-  on the player's `--d4` it is 5.63:1 and on the rail gradient 4.98–5.28:1.
+  value is not a tone choice and must not be "tidied" darker. Its **floor
+  where it ships is 4.75:1** — `.tracks__fmt` on a hovered library row, where
+  `--surface` composites over the channel's `--air` to `#17202c`. The transfer
+  card over bright album art is 4.93:1 (`rgba(13,22,34,.97)` over white =
+  `#141d29`), the player's `--d4` is 5.63:1, and the rail gradient 4.98–5.28:1.
+  A hover state is a real ground, so the hovered row is the number that
+  governs, not the resting one.
 - **`--ink-faint` is banned from the grounds it used to sit on**, because on
   those composites it fails. The rail's item count: 4.09:1 current, 4.44:1
   hover, against `--ink-dim`'s 4.95 and 5.37. And the whole of the watch
@@ -815,12 +886,19 @@ element was given an opaque ground rather than a hopeful number.
   (`--surface` over `--d2` = `#1a2938`) and **3.97:1** on a selected one
   (`--surface-2` over `--d2` = `#202f3e`), where `--ink-dim` is 5.20 and 4.80.
   **Inside `.wall__list`, every ink is `--ink` or `--ink-dim`.** The album and
-  artist list in the channel is the same story: its hover veil composites to
-  `#1b2634`, 4.44:1. No palette token changed for any of it.
-- **Ink `#e3eaf2`** is 14.99:1 on `--air` and never below 12.38:1 anywhere in
-  the app (its darkest-ratio ground is `--d1`, the lit surface of the water).
-  **`--ink-dim`** is 6.38:1 on `--air` and 5.27:1 at its worst ground (`--d1`).
-  **Brass** is 7.23:1 on `--air`; `--sun-ink` on brass is 7.56:1.
+  artist list in the channel is the same story on its own ground: `.channel`
+  inherits `--air`, so its hover veil composites to `#17202c`, 4.75:1. No
+  palette token changed for any of it.
+- **Ink `#e3eaf2`** is 14.99:1 on `--air`, and **11.26:1 at its worst ground —
+  a selected wall row**, `--surface-2` over `--d2` = `#202f3e`.
+  **`--ink-dim`** is 6.38:1 on `--air` and **4.79:1 on that same row**, still
+  clear of AA. Both worst cases used to be quoted against `--d1`, the lit
+  surface of the water (12.38 and 5.27); the gauge confined the water to a
+  132px band and no text renders over `--d1` at all now, so those figures
+  described a ground that no longer exists *and* understated the real floor.
+  The selected row is the number that governs, and it is the one §The Wall's
+  table already gives. **Brass** is 7.23:1 on `--air`; `--sun-ink` on brass is
+  7.56:1.
 - **`--alert` is `#d9634f`.** It shipped as `#d0574a` = 4.45:1 on `--air`, just
   under AA. It now measures 5.06:1 on `--air` (the send-blocked reason),
   4.77:1 on the opaque `--notice-ground` (the failure headline), 4.74:1 on the
@@ -833,11 +911,26 @@ element was given an opaque ground rather than a hopeful number.
   headline still read 3.99:1. The ratio has to be a property of the rule.
 - **`--line` (`#4a8cbe`) is 5.01:1 on `--air`** but is never used as text, and
   should not be. It is a 1px rule and a hatch.
-- **`--edge` (`rgba(226,236,247,.40)`) is the control boundary**, and it is a
-  1.4.11 figure rather than a text one: 3.16–3.40:1 across every ground a
-  control sits on, worst case a selected wall row. `--hairline` is 1.25–1.35:1
-  on the same grounds and identifies nothing, which is why it stays a
-  structural divider and why disabled controls keep it deliberately.
+- **`--edge` (`rgba(226,236,247,.40)`) is the boundary of every control that
+  draws a box**, and it is a 1.4.11 figure rather than a text one:
+  **3.07–3.94:1** across both adjacencies of every control that carries it,
+  worst case a checkbox against its own fill on a hovered wall row. The
+  per-control table is in §Colors, and it is measured through each control's
+  fill rather than against bare panel colour, because that is what a
+  border-box border is painted over. `--hairline` is 1.32–1.63:1 through those
+  same fills and identifies nothing, which is why it stays the transfer card's
+  rim and why disabled controls keep it deliberately.
+- **The borderless controls satisfy 1.4.11 through what they draw, not
+  through an edge.** `.iconbtn`, `.linkbtn`, `.nav` and `.rail__new` carry
+  `border:0` and no rest-state fill, so there is no boundary to measure; the
+  drawn thing carries the ratio instead. Worst case each, on the real
+  composite: `.iconbtn`'s glyph at `--ink-faint` **4.75:1** (a hovered track
+  row, `--surface` over `--air` = `#17202c`), `.rail__new` at `--ink-faint`
+  **4.98:1** (the rail gradient's `--air-2` stop), `.nav`'s label at
+  `--ink-dim` **4.95:1** (`.is-current`, `#212c3a`), `.linkbtn`'s underlined
+  label at `--ink-dim` **6.41:1** (`--d3`). All clear of 3:1 as a boundary
+  would have to be, and of 4.5:1 as the text they actually are. Giving them an
+  `--edge` would invent a box the design does not have.
 - **The delete control's two grounds are opaque for the same reason the
   failure headline's is.** `--alert` is 5.08:1 on the selection bar's `--d3`
   and 4.77:1 on the confirm's `--notice-ground`; on a selected wall row it is
@@ -857,6 +950,15 @@ element was given an opaque ground rather than a hopeful number.
   to `off` once the terminal sentence has been announced, because a report
   still announced as live tells a screen-reader user a transfer is running
   when none is.
+- **A correction to a finished run reopens that region, and rewrites what the
+  meter says.** `syncReconciled` arrives *after* the region has gone quiet and
+  after `aria-valuetext` has been pinned to the run's own outcome, so writing
+  the revision only into the visible text would leave the superseded sentence
+  standing for the one user least able to check it against the wall. The
+  correction is therefore carried by `outcomeHeading` itself, so the heading,
+  the announced `aria-valuetext` and the now-line are all one sentence; the
+  region is set back to `polite` for exactly the tick it takes to write it.
+  Displacing a truth bug from the eye to the ear is not fixing it.
 
 ## Do's and Don'ts
 
@@ -864,10 +966,15 @@ element was given an opaque ground rather than a hopeful number.
 - **Do** place a new surface on the depth ladder (`--air`, `--air-2`,
   `--d1`–`--d4`) and let its colour state how deep it is.
 - **Do** use the two white veils (4.8% / 7.8%) for raised and current states.
-  Edges come in three, and the distinction is contrast, not taste: 5.8%
-  structural, 10.5% a button's resting edge and a disabled control's, and
-  `--edge` at 40% for the boundary of anything you tick or press. Only the
-  last one measures over 3:1 on the grounds these sit on.
+  Edge tokens come in three, and the distinction is contrast, not taste: 5.8%
+  structural, 10.5% for the transfer card's firmer rim and a **disabled**
+  control's border, and `--edge` at 40% for the boundary of any control that
+  draws a box — which includes labelled buttons, not just tick boxes. Only the
+  last one measures over 3:1 on the grounds these sit on. Two things are
+  outside that set on purpose: the cover frame's inline 9% rim, which belongs
+  to the drawn object, and the borderless controls (`.iconbtn`, `.linkbtn`,
+  `.nav`, `.rail__new`), whose glyph or underline carries the affordance
+  because there is no box to put an edge on.
 - **Do** pair every colour-carried state with its word, and check the screen
   in greyscale before calling it done.
 - **Do** keep `--ink-faint` at `#7d8c9b`; the 5.28:1 ratio is the reason it is
@@ -933,12 +1040,33 @@ element was given an opaque ground rather than a hopeful number.
   are read from the device and the user's files; a fabricated value in this
   app is a lie about their hardware. A broken stub's size is `—`, not `0 KB`:
   `GetObjectInfo` failed for that handle, so the watch never gave us one.
+- **Don't** word an action as a result when the firmware gets the last word —
+  and **don't** word a documented refusal as a maybe. `docs/garmin-mtp.md` §6
+  records that *every* `DeleteObject` issued against a broken-stub handle has
+  returned `Protocol GeneralError`, and that the cleanup which does happen is
+  watch-side and asynchronous. So a stub selection is confirmed as a
+  **request that has never once been granted** — tag "Your watch has always
+  refused this", button "Ask anyway", body leading with the record before the
+  ask — while readable files keep the flat "will be removed". The earlier
+  wording, "the firmware has refused this before", was a hedge in the wrong
+  direction: it invited the user to expect it might work this time, which
+  nothing in the record supports. The ask is still offered, because a finite
+  sample on one firmware is not a law, but it is offered for what it is. A
+  mixed selection says both, because one batch can carry two confidences.
+  Degrading to a failure notice *after* the user committed to a sentence that
+  promised success is simulating a capability, which is the case PRODUCT.md's
+  tie-breaker names.
 - **Don't** render a bare "N of M" for a transfer. The numerator is position
   in the batch, which is a real quantity and stays as it is; read alone it
   says "N sent", so the ok/skipped/failed breakdown rides beside it.
 - **Don't** group anything on the watch without stating where the grouping
-  came from. Over MTP the device returns names and sizes and nothing else, so
-  every grouped view names its source and gives an honest home to every file
-  it cannot place — never an album group, and never "Unknown Artist", which
-  would read as a tag rather than as an absence.
+  came from. Pelican groups from its own upload journal, so every grouped
+  view names that source and gives an honest home to every file it cannot
+  place — never an album group, and never "Unknown Artist", which would read
+  as a tag rather than as an absence.
+  Say this as what Pelican does, never as what the watch cannot do: the FR165
+  (FW 2506) advertises MTP object-property operations 0x9801-0x9805 and
+  answers `GetObjectPropValue` with Artist, AlbumName and AlbumArtist, even
+  for files Pelican never sent. Copy asserting otherwise shipped once and was
+  a lie about the device in the one line whose job is provenance.
 - **Don't** add anything that loops, pulses or breathes at rest.

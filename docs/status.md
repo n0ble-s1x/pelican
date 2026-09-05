@@ -15,7 +15,7 @@ but have not been individually tested.
 | Album-artist tag rewriting                                       | `album_artist` becomes the `ARTIST` tag — multi-composer albums group as one           |
 | Filename sanitization (56-char cap, FAT-hostile chars stripped)  | Applied in **both** transcode AND `--no-transcode` paths                               |
 | `set_split_header_data(true)` for the MTP transport              | Required by Garmin firmware; auto-applied                                              |
-| Listing `/Music` with broken-stub surfacing                      | Surfaced as `‹unreadable #N›` rows; carries handle for delete                          |
+| Listing `/Music` with broken-stub surfacing                      | Surfaced as `‹unreadable #N›` rows; carries the handle so a delete can be *attempted*  |
 | Per-file delete, multi-delete in one CLI invocation              | `--delete Music/foo.mp3 --delete Music/bar.mp3 …`                                      |
 | GVFS-mount detection                                             | Warns if a GVFS MTP mount is holding the device, with the `gio mount -u` fix           |
 | macOS `ptpcamerad` detection                                     | Names the holder from the IORegistry. **Cannot** self-fix — see `docs/macos-port.md`   |
@@ -30,7 +30,7 @@ but have not been individually tested.
 | Listing newly-created subfolders inside `/Music`                 | Garmin firmware returns `Protocol GeneralError`. We **flatten by default**; `--no-flatten` for opt-in.    |
 | Filename collision when sanitizer truncates two sources alike    | Watch firmware **corrupts both files** rather than cleanly overwriting. No collision check today — TODO.  |
 | Files with no ID3 title+artist                                   | Land on disk but invisible in the music app. Default warns + uploads; `--require-tags` strict-rejects.    |
-| Deleting broken stubs left by failed prior writes                | Watch refuses `DeleteObject` for its own broken handles (`Protocol GeneralError`). Auto-GC'd eventually.  |
+| Deleting broken stubs left by failed prior writes                | Watch has refused `DeleteObject` for its own broken handles every time asked (`Protocol GeneralError`); never once seen to succeed. Auto-GC'd eventually. See `docs/garmin-mtp.md` §6. |
 
 ## ❌ Doesn't work / Blocked
 

@@ -132,9 +132,15 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <div class="wall__head">
       <h2>On your watch</h2>
       <p class="wall__count num" data-wall-count>0 tracks aboard
-        <!-- Broken stubs are the one thing nothing else on this Mac can
-             remove. Folding them into a general selection would bury that
-             behind 22 rows of scroll, so there is one gesture for them.
+        <!-- Broken stubs are invisible to every other tool on this Mac —
+             Finder never mounts an MTP watch — so if they are to be reachable
+             at all it is from here. That is a reason to surface them, not a
+             promise they can be removed: docs/garmin-mtp.md §6 records every
+             DeleteObject against a stub handle returning Protocol
+             GeneralError, so the confirmation words the action as a request
+             the watch has always refused, and says so before it is sent.
+             Folding them into a general selection would bury the
+             gesture behind 22 rows of scroll, so it gets its own.
              Underlined, so it is not identified by colour alone. -->
         <button class="linkbtn" type="button" data-pick-stubs hidden></button></p>
       <!-- A segmented toggle over a set that does not change: same files,
@@ -147,10 +153,16 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="chip" type="button" data-arrange="artist" aria-pressed="false">Artist</button>
       </div>
       <!-- Shown only in the grouped modes, because it explains a claim that
-           only exists there. Same move `.rail__note` makes for playlists. -->
+           only exists there. Says what Pelican does, NOT what the watch
+           cannot do: this FR165 advertises MTP object-property ops
+           0x9801-0x9805 and answers GetObjectPropValue with Artist,
+           AlbumName and AlbumArtist, including for files Pelican never sent.
+           An earlier version of this sentence denied that, which was a lie
+           about the device in the one line whose job is provenance.
+           See docs/garmin-mtp.md. -->
       <p class="wall__note" data-wall-note hidden>Grouped from what Pelican
-        remembers sending. Your watch stores files, not albums — over USB it
-        reports names and sizes, nothing else.</p>
+        remembers sending, so anything put here by other software is listed
+        without an album.</p>
     </div>
 
     <!-- Selection and its confirmation sit above the list and below the head:

@@ -38,11 +38,15 @@ An earlier draft of this document predicted the opposite. It was wrong.
 
 ## What was verified on hardware
 
+Point-in-time results from the port session. The listing count is a snapshot
+of the owner's library on that day, not a standing fact — it has since grown.
+Everything else here is a property of the device and still holds.
+
 | Check | Result |
 |---|---|
 | Device enumeration | `091e:5151`, Forerunner 165 Music, fw 2506 |
 | MTP session open | works, first try |
-| `/Music` listing | 20 entries, 0 unreadable stubs |
+| `/Music` listing | 20 entries that session, 0 unreadable stubs |
 | Storage | 2.41 GB free of 3.71 GB |
 | WAV upload (no encoder installed) | 176,444 bytes, byte-exact on read-back |
 | FLAC → afconvert → M4A upload | landed `.m4a`, 29,445 bytes, byte-exact |

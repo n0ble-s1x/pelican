@@ -38,10 +38,13 @@ pub fn spawn(sink: Arc<EventSink>, root: PathBuf, encoders: Vec<Encoder>) {
 
             let tracks: Vec<TrackDto> = files.iter().map(|p| describe(p, &encoders)).collect();
 
-            // ffmpeg's MP3 profile is the only one confirmed on real
-            // hardware. afconvert works and is always present on macOS, but
-            // presenting the two as equally trustworthy would be a claim we
-            // have not earned.
+            // ffmpeg's MP3 profile is the only one confirmed to *play* on
+            // real hardware. afconvert works, is always present on macOS, and
+            // its M4A output has transferred to the reference FR165 — but
+            // arriving and being indexed by the watch's music app are
+            // different subsystems (see `UiEvent::Scanned::encoder_verified`),
+            // and presenting the two as equally trustworthy would be a claim
+            // we have not earned.
             let best = encoders.first().copied();
             sink.send(UiEvent::Scanned {
                 root: root.display().to_string(),

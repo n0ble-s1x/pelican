@@ -120,10 +120,16 @@ metadata-only stub persists. These stubs:
 - Have unreadable handles (GetObjectInfo returns `Protocol GeneralError`)
 - Block whole-folder listings if you `collect()` instead of streaming
 - Are eventually garbage-collected by the watch on its own
-- **Cannot be deleted via MTP** — `DeleteObject` returns `Protocol GeneralError`
-  on a broken-stub handle. We surface them in the UI as `‹unreadable #N›`
-  rows with `is_broken=true` so the user knows they exist; cleanup is
-  watch-side and asynchronous.
+- **Have refused every deletion we have asked for** — every `DeleteObject`
+  issued against a broken-stub handle has returned `Protocol GeneralError`.
+  We have never seen one succeed. This is an observed record on one device
+  and one firmware (FR165 Music, FW 2506), not a proven property of the
+  protocol, so it is stated as a record rather than as "cannot": the probe is
+  `examples/wipe_stubs.rs`, which counts delete failures separately precisely
+  because refusal is the expected answer. We surface stubs in the UI as
+  `‹unreadable #N›` rows with `is_broken=true` so the user knows they exist,
+  and the UI offers the request while saying plainly that it has always been
+  refused. Cleanup that does happen is watch-side and asynchronous.
 
 ### 7. Filename-collision failure mode
 
@@ -155,3 +161,50 @@ See [`vendor-ops.md`](vendor-ops.md). Probe results from FR165 Music FW 2506 log
 | Filenames > ~60 chars in `/Music`                       | Silent discard, broken stub left behind.                                  |
 | FLAC files containing embedded art, sent via SendObject | Silent discard on watches; broken stub.                                   |
 | `simple-mtpfs` writes (per Garmin forums)               | Often produces zero-byte files. Avoid this codepath for any future work.  |
+
+## Object properties — the watch can report its own tags
+
+Verified 2026-09-02 on **Forerunner 165 Music, firmware 2506**, read-only via
+`examples/probe_objprops.rs`.
+
+`GetDeviceInfo` reports 37 supported operations, including the full MTP
+object-property set:
+
+| Opcode | Operation | Supported |
+|--------|-----------|-----------|
+| `0x9801` | GetObjectPropsSupported | yes |
+| `0x9802` | GetObjectPropDesc | yes |
+| `0x9803` | GetObjectPropValue | yes |
+| `0x9804` | SetObjectPropValue | yes |
+| `0x9805` | GetObjectPropList | yes |
+
+`GetObjectPropValue` answers for real handles in `/Music`, returning
+length-prefixed UTF-16LE strings:
+
+```
+album-track-02-normalized.mp3
+  Name (0xDC44)        "Ghost of Time Tognetti: Into the Fog"
+  Artist (0xDC46)      "Iva Davies"
+  AlbumName (0xDC9A)   "Master and Commander: The Far Side of the World
+                        (Music from the Motion Picture)"
+  AlbumArtist (0xDC9B) "Iva Davies"
+  Duration (0xDC89)    132362 ms
+  Track (0xDC8B)       2
+```
+
+This holds for files Pelican never uploaded, so it is the device's own
+index and not an echo of anything we wrote.
+
+**Why it matters.** The UI once claimed the watch "reports names and sizes,
+nothing else" and grouped the watch list purely from the local upload
+journal. The first half was false. The journal is still the right source for
+*provenance* — it is how we know what Pelican put there — but a file we did
+not send is no longer necessarily nameless: its artist and album can be
+asked for directly.
+
+**Not yet done.** Nothing reads these properties at runtime. `mtp-rs` exposes
+`session().get_object_prop_value()`, and `ObjectPropertyCode` carries an
+`Unknown(u16)` catch-all for the audio codes above, which is how the probe
+reaches them. Cost per file is one round trip per property, so a listing that
+wants tags should prefer `GetObjectPropList` (`0x9805`) over N calls of
+`0x9803`.

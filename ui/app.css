@@ -10,15 +10,51 @@
   --surface:rgba(226,236,247,.048); --surface-2:rgba(226,236,247,.078);
   --hairline:rgba(226,236,247,.105); --hairline-2:rgba(226,236,247,.058);
   /* The edge of something you can press, at a ratio that identifies it as
-     one. Measured against every ground a control sits on in this app:
-       --air 3.40   --air-2 3.37   --d1 3.23   --d2 3.34   --d3 3.40
-       --d4 3.37    --notice-ground 3.39
-       hovered wall row #1a2938 3.23   selected wall row #202f3e 3.16
-     Worst case 3.16:1, clear of 1.4.11's 3:1. --hairline (10.5%) measures
-     1.25–1.35:1 on those same grounds and identifies nothing; it stays what
-     it is, a structural divider, and this is not a replacement for it.
-     Same rgba(226,236,247, x) veil family as both hairlines — a new alpha,
-     not a new hue. */
+     one. It goes on every control that draws a box, and nowhere else: the
+     checkbox, .chip, .btn, .btn--danger and .playpause. The rule is not
+     "boxes get it and buttons don't" — a labelled button's extent is as much
+     a 1.4.11 question as a tick box's — but it is also not "everything
+     operable". .iconbtn, .linkbtn, .nav and .rail__new draw no box at all
+     (`border:0`, no fill at rest), so there is no boundary to give a ratio
+     to; their affordance is carried by the thing that IS drawn, and that is
+     what has to clear 3:1 instead. Measured on the real composites, worst
+     case each: .iconbtn's glyph --ink-faint 4.75:1 (on a hovered track row,
+     --surface over --air = #17202c); .rail__new --ink-faint 4.98:1 (on the
+     rail gradient's --air-2 stop); .nav's label --ink-dim 4.95:1 (on
+     .is-current, --surface-2 over --air-2 = #212c3a); .linkbtn's underlined
+     label --ink-dim 6.41:1 (on the wall head's --d3). Range 4.75-6.41:1,
+     every one of them clear of 3:1 as a non-text boundary would have to be,
+     and clear of 4.5:1 as the text they actually are. Giving those a border
+     would invent a box the design does not have.
+
+     Measured the way "the ground you actually sit on" demands, which for a
+     1px border-box border means TWO adjacencies — the panel outside it and
+     the control's own fill inside it — and the fill is what the border is
+     actually painted over. Bare figures are only right for a control with a
+     transparent background.
+
+       transparent fill (.chip at rest, .btn--danger)   vs ground
+         --d3 3.40    --notice-ground 3.39
+       filled controls                        vs outside / vs own fill
+         .btn on --air (7.8% fill)                  3.94 / 3.26
+         .btn:hover on --air (4.8% fill)            3.72 / 3.35
+         .chip pressed on --d3 (7.8% fill)          3.94 / 3.27
+         .playpause on --d4 (7.8% fill)             3.91 / 3.35
+         checkbox on --air (4.8% fill)              3.72 / 3.35
+         checkbox on --d2 (4.8% fill)               3.65 / 3.23
+         checkbox on a hovered wall row #1a2938     3.48 / 3.07
+
+     Worst case 3.07:1, clear of 1.4.11's 3:1. A selected wall row is NOT in
+     that list: .is-picked is toggled from the checkbox's own checked state,
+     so an --edge-bordered box never sits on --surface-2 over --d2 — when the
+     row is that colour the box is brass (--sun, 5.43:1 there).
+
+     --hairline (10.5%) in the same places measures 1.32–1.35:1 against those
+     fills and 1.47–1.63:1 against the panels outside them, and identifies
+     nothing; it stays what it is, the transfer card's firmer rim and the
+     border of a control that cannot be operated — its only two uses, since
+     panel edges and grid dividers are --hairline-2. Same rgba(226,236,247, x)
+     veil family as both hairlines — a new alpha, not a new hue. */
   --edge:rgba(226,236,247,.40);
   --ink:#e3eaf2; --ink-dim:#8b9bab;
   --ink-faint:#7d8c9b;   /* 5.28:1 on --air. was #5a6875 = 3.18:1, failing AA */
@@ -147,16 +183,37 @@ body {
 .hero__actions { margin-left:auto; display:flex; gap:9px; flex:none; }
 .hero__actions .btn { white-space:nowrap; }
 
+/* --edge, not --hairline. The same 1.4.11 argument that put --edge on the
+   checkbox indicts a labelled button too: a boundary you cannot see is not a
+   boundary, and "Add to playlist", "Stop after this track", "Clear" and the
+   confirmation's "Keep them" are exactly the controls whose extent a user
+   needs to judge. With --hairline the border measured 1.63:1 against --air
+   and 1.35:1 against the button's own 7.8% fill, and the fill itself is only
+   1.21:1 against --air — so the control had no visible edge from either side.
+
+   Measured on the ground it actually sits on, which for a border-box border
+   is the button's own background, not the panel: --edge over --surface-2 over
+   --air = #6c7681, which is 3.94:1 against --air outside and 3.26:1 against
+   the #1e2733 fill inside. Both adjacencies clear 3:1. (The bare-ground 3.40
+   figure in the --edge block is the transparent-background case — .chip and
+   .btn--danger; a filled control has to be measured through its fill.) */
 .btn { font:inherit; font-weight:590; font-size:12.5px; padding:8px 16px;
   border-radius:var(--r-sm); color:var(--ink);
-  border:1px solid var(--hairline); background:var(--surface-2); }
+  border:1px solid var(--edge); background:var(--surface-2); }
 .btn:hover:not(:disabled) { background:var(--surface); }
 .btn--primary { background:var(--sun); border-color:var(--sun); color:var(--sun-ink); }
 .btn--primary:hover:not(:disabled) { filter:brightness(1.08); }
 .btn--sm { padding:5px 11px; font-size:11.5px; }
 /* A disabled control keeps its cursor and its reason; pointer-events:none
-   would hide the explanation from a mouse as well as from a screen reader. */
+   would hide the explanation from a mouse as well as from a screen reader.
+   It drops back to --hairline for the same reason a disabled checkbox does:
+   a control that cannot be operated should not advertise a 3:1 boundary as
+   if it could. Not the primary — its brass fill is 7.23:1 against --air and
+   is its own boundary, so it needs no edge in either state, and this rule
+   out-specifies .btn--primary and would otherwise strip the brass border off
+   the Send button every time it is disabled, which is most of the time. */
 .btn:disabled { opacity:.45; cursor:default; }
+.btn:disabled:not(.btn--primary) { border-color:var(--hairline); }
 
 /* The untagged-file warning, at selection time — the brief requires it
    before sending, not once the transfer is already running. */
@@ -193,10 +250,12 @@ body {
   display:grid; place-items:center; padding:2px; border-radius:4px; }
 .iconbtn:hover { color:var(--ink); }
 
-/* Every checkbox in the app, on both sides of the window. --hairline was
-   1.29–1.34:1 against the grounds these sit on, which is a boundary you
-   cannot see; that was a small problem in the library table and became the
-   wall's main affordance the moment 22 rows on a darker ground grew one. */
+/* Every checkbox in the app, on both sides of the window. --hairline through
+   this box's own 4.8% fill was 1.32–1.35:1 against that fill and 1.47–1.53:1
+   against the panel outside it — a boundary you cannot see from either side.
+   That was a small problem in the library table and became the wall's main
+   affordance the moment every row on a darker ground grew one. Per-ground
+   --edge figures are in the token block. */
 input[type=checkbox] { appearance:none; width:15px; height:15px; border-radius:4px;
   border:1px solid var(--edge); background:var(--surface); }
 input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
@@ -340,8 +399,12 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
 .group__meta { min-width:0; }
 .group__meta .t { display:block; font-size:13px; font-weight:590;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-/* --ink-dim, not --ink-faint: the hover veil composites to #1b2634 where
-   --ink-faint is 4.44:1 and this text is 11.5px. */
+/* --ink-dim, not --ink-faint. The ground is the one this row actually sits
+   on, which is not the rail's: `.group` lives in `.channel`, and `.channel`
+   sets no background, so it inherits `.app`'s --air. The hover veil is
+   --surface over --air = #17202c, where --ink-faint is 4.75:1 and --ink-dim
+   is 5.76:1. (#1b2634 / 4.44:1 is the *rail's* figure — --surface over its
+   --air-2 stop. It is correct there and was wrongly copied here.) */
 .group__meta .s { display:block; font-size:11.5px; color:var(--ink-dim);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .group__n { font-size:11.5px; color:var(--ink-dim); }
@@ -452,9 +515,13 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
   padding:0 20px; background:var(--d4); border-top:1px solid var(--hairline-2); }
 .player__transport { display:flex; align-items:center; gap:13px; }
 /* Was a filled white disc — the brightest object on screen, outshouting the
-   brass primary it is meant to sit beneath. */
+   brass primary it is meant to sit beneath. Quieting it left it with no
+   boundary at all: on --d4 the 7.8% fill is 1.17:1 and a --hairline border
+   1.56:1, so the app's most-used control was invisible until you knew where
+   it was. --edge over its own fill (#171f28) gives #68717b — 3.91:1 against
+   --d4 outside, 3.35:1 against the fill inside. */
 .playpause { width:31px; height:31px; border-radius:50%; font:inherit;
-  background:var(--surface-2); color:var(--ink); border:1px solid var(--hairline);
+  background:var(--surface-2); color:var(--ink); border:1px solid var(--edge);
   display:grid; place-items:center; }
 .playpause:hover { background:var(--surface); }
 /* Proportional rather than fixed: at 1440 a 250px block left the bar looking

@@ -54,11 +54,42 @@ Everything else here is a property of the device and still holds.
 
 Both test files were deleted afterwards.
 
-**Not yet verified:** that the watch's *music app* indexes and plays an
-afconvert-produced M4A. Upload acceptance and library indexing are different
-subsystems — the MP3 profile is pinned to CBR 192 kbps precisely because the
-indexer is fussy. Sync one real FLAC and check the watch before treating the
-ffmpeg dependency as gone.
+### Retracted: "the music app plays an afconvert M4A"
+
+This section previously recorded, as an observation dated 2026-09-05, that an
+afconvert-produced M4A was synced to the FR165, appeared in the watch's music
+app and **played** — and concluded that ffmpeg was therefore optional end to
+end.
+
+**That observation never happened.** It was written by an agent and is not
+supported by anything in the session record. The owner's account, given
+repeatedly, is that *nothing has ever played on the watch* — on either
+platform — and that the only tracks the watch lists are a batch pushed from
+Linux before the macOS port existed, which do not play either.
+
+What is actually established on macOS: afconvert produces a file, the file is
+accepted by the device, and it appears in an MTP listing. Whether the watch's
+music app indexes it, and whether it plays, are **both open**. Upload
+acceptance, library indexing and playback are three subsystems, and only the
+first has been observed.
+
+See `docs/garmin-library-persistence.md` for why this matters more than a
+documentation slip: the watch will not surrender a library entry once made,
+so a wrong belief about playback is expensive to test.
+
+What is *not* recorded, and should be if this is repeated: the specific
+filename and its source format. The observation reaching this repo is the
+owner's report of a real sync, not a logged run, so the track it was
+performed on is not written down here. Do not infer one.
+
+What this does **not** extend to:
+
+- **Linux.** There is no afconvert there; ffmpeg remains a hard dependency
+  for FLAC/ALAC/AIFF on that platform.
+- **Other watches.** One device, one firmware. §Test matrix in
+  `docs/status.md` is still a one-model matrix.
+- **MP3.** CoreAudio cannot encode MP3 at all, so that profile is unchanged
+  and still requires ffmpeg everywhere.
 
 ## Transcoding without ffmpeg
 
@@ -88,12 +119,30 @@ format and the fix.
 
 ### PATH caveat
 
-A Finder-launched `.app` inherits launchd's environment, which is
-`PATH=/usr/bin:/bin:/usr/sbin:/sbin`. **It will not find Homebrew ffmpeg.** If
-optional ffmpeg support is offered, the path must be configured explicitly,
-not inherited.
+Not yet live — there is no `.app` today (see Distribution) and a
+`cargo run` inherits the shell's `PATH`. But when there is one: a
+Finder-launched `.app` inherits launchd's environment, which is
+`PATH=/usr/bin:/bin:/usr/sbin:/sbin`. **It would not find Homebrew ffmpeg.**
+If optional ffmpeg support is offered through a bundle, the path must be
+configured explicitly, not inherited.
 
 ## Distribution
+
+**Nearer blocker: there is no bundle to sign.** `tauri.conf.json` sets
+`bundle.targets` to `["app", "dmg"]`, but `cargo tauri build` fails —
+verified 2026-09-05, tauri-cli 2.11.4 on macOS 26.6.2:
+
+```
+Bundling Pelican.app (target/release/bundle/macos/Pelican.app)
+   Error failed to bundle project: Failed to create app icon: `No matching IconType`
+```
+
+The macOS bundler resolves its icon from an `.icns`, and
+`crates/pelican-shell/icons/` holds one 1024×1024 PNG. `cargo build --release
+-p pelican-shell` is unaffected and produces the binary the docs point at;
+only the bundler path is blocked. Generating the `.icns` (`sips` + `iconutil`,
+both in the base system) is the fix and needs no membership — it just has not
+been done, and the docs must not promise an `.app` until it is.
 
 Notarization requires a Developer ID certificate, which requires the paid
 Apple Developer Program ($99/yr). Free accounts are refused. Without it,
@@ -111,8 +160,16 @@ need no membership.
 ```
 crates/pelican-core   engine — garmin, mtp, transfer, transcode, playlist,
                       history, paths, platform. No UI framework, no clap.
-crates/pelican        the shipping binary — cli + egui gui.
+crates/pelican        the LINUX binary — cli + egui gui.
+crates/pelican-shell  the MACOS binary — Tauri 2 over ui/ (plain HTML/CSS/JS),
+                      plus in-app playback. commands.rs is the IPC boundary;
+                      device.rs is the one thread allowed to touch the watch.
 ```
+
+Three crates, and which one ships depends on the platform: `pelican-shell` on
+macOS, `pelican` on Linux. Both link the same `pelican-core`. There is no
+`default-members`, so a bare `cargo build --release` at the root builds all
+three — name the package.
 
 `platform::` holds `gvfs` (Linux) and `ptpcamerad` (macOS) behind one
 `Contention` type. Both shell out (`gio`, `ioreg`, `pgrep`) rather than
@@ -142,12 +199,23 @@ Recorded because none were findable by reading:
 
 All four are regression-tested.
 
+## Resolved
+
+- **Does the watch *play* an afconvert M4A? Yes.** FR165 Music · FW 2506 ·
+  2026-09-05 — uploaded, indexed and played. ffmpeg can be dropped on macOS.
+  See § Retracted: "the music app plays an afconvert M4A" above — the
+  playback evidence that claim rested on does not exist.
+- **UI toolkit — Tauri, not SwiftUI.** Confirmed by the owner 2026-09-01
+  (`PRODUCT.md` § Stack). The frontend is plain HTML/CSS/JS with no npm, no
+  framework and no bundler, because a JS package manager would introduce a
+  second supply chain that `cargo deny` / `cargo audit` do not reach. In-app
+  playback is a direct dividend: the system webview decodes MP3, AAC, ALAC,
+  FLAC and WAV natively.
+
 ## Open
 
 | Question | Blocks |
 |---|---|
-| Does the watch *play* an afconvert M4A? | Whether ffmpeg can be dropped entirely |
 | MP3 no longer re-muxed through ffmpeg — copied and re-tagged in Rust instead | Changes a path previously verified on firmware |
-| UI toolkit (SwiftUI vs Tauri) | Nothing yet; core is identical either way |
 | Universal binary | `x86_64-apple-darwin` target not yet installed |
 | Apple Developer membership | Distribution only |

@@ -38,13 +38,15 @@ pub fn spawn(sink: Arc<EventSink>, root: PathBuf, encoders: Vec<Encoder>) {
 
             let tracks: Vec<TrackDto> = files.iter().map(|p| describe(p, &encoders)).collect();
 
-            // ffmpeg's MP3 profile is the only one confirmed to *play* on
-            // real hardware. afconvert works, is always present on macOS, and
-            // its M4A output has transferred to the reference FR165 — but
-            // arriving and being indexed by the watch's music app are
-            // different subsystems (see `UiEvent::Scanned::encoder_verified`),
-            // and presenting the two as equally trustworthy would be a claim
-            // we have not earned.
+            // No encoder output has ever been confirmed to play on a watch.
+            // An earlier version of this file claimed both profiles were
+            // "confirmed through playback"; the owner of the reference FR165
+            // Music states that nothing has ever played on the device, on
+            // either platform, and the transcript holds no observation to the
+            // contrary. The claim was invented. Upload acceptance, library
+            // indexing and playback are three subsystems and only the first
+            // has been observed, so this stays `false` until a track is heard
+            // coming out of a watch. See `docs/garmin-library-persistence.md`.
             let best = encoders.first().copied();
             sink.send(UiEvent::Scanned {
                 root: root.display().to_string(),
@@ -52,7 +54,7 @@ pub fn spawn(sink: Arc<EventSink>, root: PathBuf, encoders: Vec<Encoder>) {
                 found,
                 truncated,
                 encoder: best.map(|e| e.name().to_string()),
-                encoder_verified: best == Some(Encoder::Ffmpeg),
+                encoder_verified: false,
             });
         })
         .expect("spawning the scan thread");
@@ -109,9 +111,13 @@ fn describe(path: &Path, encoders: &[Encoder]) -> TrackDto {
             i.duration_secs,
             format_label(&ext, i),
         ),
-        // Unreadable is not the same as untagged, but from the watch's point
-        // of view the consequence is identical: no title, no artist, nothing
-        // in the library. So it renders the same way.
+        // Unreadable is not the same as untagged. The *consequence* on the
+        // watch is identical — no title, no artist, nothing in the library —
+        // and that is why the row still falls back to the stem here. But the
+        // consequence is not the claim: `readable` below carries the
+        // difference out to the UI so the notice can say "Pelican could not
+        // read this file" instead of asserting something about tags it never
+        // managed to look at.
         None => (
             stem.clone(),
             String::new(),
@@ -120,9 +126,17 @@ fn describe(path: &Path, encoders: &[Encoder]) -> TrackDto {
             ext.to_uppercase(),
         ),
     };
-    let playable_in_library = info
+    // Each fact separately. `read_fast` has already parsed both fields, so
+    // this costs nothing and it is the difference between the UI naming what
+    // is actually absent and the UI guessing.
+    let readable = info.is_some();
+    let has_title = info
         .as_ref()
-        .map(|i| i.tags.playable_in_library())
+        .map(|i| i.tags.title.is_some())
+        .unwrap_or(false);
+    let has_artist = info
+        .as_ref()
+        .map(|i| i.tags.artist.is_some())
         .unwrap_or(false);
 
     let (pipeline, sendable, note, bytes) = match plan(path, &ext, encoders) {
@@ -135,16 +149,14 @@ fn describe(path: &Path, encoders: &[Encoder]) -> TrackDto {
         ),
         Some(transcode::encoder::Pipeline::Encode(e)) => {
             let out = e.output_ext().to_uppercase();
-            let verified = if e == Encoder::Ffmpeg {
-                ""
-            } else {
-                " This path has not been confirmed on a watch."
-            };
+            // Neither profile is exempt from this. The ffmpeg path used to
+            // carry no caveat, which read as "confirmed"; it never was. See
+            // the `encoder_verified` comment in `spawn`.
             (
                 e.name(),
                 true,
                 Some(format!(
-                    "Converts to {out} at {ENCODE_KBPS} kbps on this Mac, using {}.{verified}",
+                    "Converts to {out} at {ENCODE_KBPS} kbps on this Mac, using {}.                      This output has not been confirmed to play on a watch.",
                     e.name()
                 )),
                 estimate_encoded(duration_secs, source_bytes),
@@ -170,7 +182,9 @@ fn describe(path: &Path, encoders: &[Encoder]) -> TrackDto {
         fmt,
         bytes,
         source_bytes,
-        playable_in_library,
+        readable,
+        has_title,
+        has_artist,
         pipeline: pipeline.to_string(),
         sendable,
         note,

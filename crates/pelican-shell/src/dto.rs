@@ -51,9 +51,14 @@ pub struct TrackDto {
     /// `start_sync` and `set_now_playing`.
     pub path: String,
     /// Title tag, falling back to the file stem so a row is never blank.
+    /// **The fallback is not a title.** `has_title` is the only thing that
+    /// says whether the file carries one, and any copy that makes a claim
+    /// about the file's tags must read that field, not this one — the app
+    /// once printed a stem in the Title column and four rows lower told the
+    /// owner the same file had no title.
     pub title: String,
     /// Artist tag, or an empty string. Empty is meaningful — see
-    /// `playable_in_library`.
+    /// `has_artist`.
     pub artist: String,
     pub album: String,
     /// Track number, already reduced from Vorbis's `3/12` form. `None` when
@@ -73,10 +78,24 @@ pub struct TrackDto {
     /// not the source size. A 24/96 FLAC lands about a tenth of its size.
     pub bytes: u64,
     pub source_bytes: u64,
-    /// False when title or artist is missing. Such a file transfers fine and
-    /// then stays invisible in the watch's music app, which is why this is
-    /// surfaced at selection time rather than mid-send.
-    pub playable_in_library: bool,
+    /// Three facts, not one. They used to be a single `playable_in_library`
+    /// boolean, and the UI expanded that one bit back into two specific
+    /// claims — "N tracks need a title" and "<names> have no title or
+    /// artist" — which were false about every file that had a title and no
+    /// artist, and about every file Pelican could not open at all. A screen
+    /// may only say what was measured, so the measurement is carried whole.
+    ///
+    /// `readable` is false when the parser could not open the file. That is
+    /// **not** the same as untagged: a truncated FLAC with no `fLaC` marker
+    /// is a broken file, and telling its owner it lacks tags sends them to
+    /// fix the wrong thing. When it is false the other two are meaningless
+    /// and no copy may make a claim about the file's tags.
+    pub readable: bool,
+    /// Whether the file itself carries a title. Not to be confused with
+    /// `title` above, which falls back to the file stem.
+    pub has_title: bool,
+    /// Whether the file itself carries an artist (or album-artist).
+    pub has_artist: bool,
     /// `passthrough` | `ffmpeg` | `afconvert` | `unsupported`.
     pub pipeline: String,
     /// False when no installed encoder can read this format. The row still
@@ -94,6 +113,10 @@ pub enum SkipKind {
     NotAudio,
     NotPlayable,
     MissingTags,
+    /// The watch already holds a file under this name. The one skip the user
+    /// has to act on: nothing was sent, and nothing will be until they either
+    /// remove the file on the watch or send this one under a new name.
+    NameTaken,
     Other,
 }
 
@@ -132,6 +155,8 @@ pub fn classify_skip(reason: &str) -> SkipKind {
         SkipKind::NotPlayable
     } else if r.contains("missing title/artist") {
         SkipKind::MissingTags
+    } else if r.contains("is already on your watch") {
+        SkipKind::NameTaken
     } else {
         SkipKind::Other
     }
@@ -202,18 +227,22 @@ pub enum UiEvent {
         truncated: bool,
         /// Best encoder available on this machine, or `None`.
         encoder: Option<String>,
-        /// True only for the ffmpeg MP3 profile.
+        /// True when the selected encoder's output profile has been observed
+        /// **playing** on a watch — not merely arriving.
         ///
-        /// "Verified" here means **the watch's music app indexes and plays
-        /// the result**, which is a stronger claim than "the file arrives".
-        /// `docs/macos-port.md` records those as different subsystems, and
-        /// the MP3 profile is pinned to CBR 192 kbps precisely because the
-        /// indexer is fussy about what upload acceptance will happily take.
+        /// "Verified" is deliberately the strong claim: the watch's music app
+        /// indexed the result and played it. `docs/macos-port.md` records
+        /// upload acceptance and library indexing as different subsystems,
+        /// and the MP3 profile is pinned to CBR 192 kbps precisely because
+        /// the indexer is fussier than the upload path.
         ///
-        /// So this stays `false` for afconvert even though afconvert-produced
-        /// M4A files have demonstrably transferred to the reference FR165 and
-        /// are listed by it. Transfer is observed; playback is not. The UI
-        /// says exactly that rather than collapsing the two.
+        /// **Neither encoder clears that bar today, so this is always
+        /// `false`.** Nothing Pelican has produced has been confirmed to play
+        /// on a watch, on either platform. The field is kept, rather than
+        /// deleted, because it is where a future confirmation lands: set it
+        /// when a track produced by a named profile is *heard* playing on a
+        /// stated model and firmware, and not before. The flag tracks the
+        /// observation, not the intent.
         encoder_verified: bool,
     },
 
@@ -260,6 +289,11 @@ pub enum UiEvent {
         failed: u32,
         name: String,
         bytes: u64,
+        /// Set only when the collision resolver moved this file to a free
+        /// name. The completion line has to state the name actually written —
+        /// a user who is not told is a user whose watch holds a track under a
+        /// name they never chose.
+        renamed_to: Option<String>,
     },
     FileSkipped {
         completed: u32,
@@ -268,6 +302,9 @@ pub enum UiEvent {
         skipped: u32,
         failed: u32,
         name: String,
+        /// The local file, so the interface can offer to re-send exactly the
+        /// tracks a collision refused.
+        path: String,
         /// Verbatim from the engine. Render this, not the kind.
         reason: String,
         kind: SkipKind,
@@ -450,5 +487,16 @@ mod tests {
             classify_skip("missing title/artist — would be hidden on the watch"),
             SkipKind::MissingTags
         ));
+    }
+
+    /// The one skip the user has to act on. The sentence is written by
+    /// `transfer::name_taken_reason` and produced by both halves of the
+    /// collision guard — the plan-time resolver and the write-time refusal —
+    /// so this one match covers both.
+    #[test]
+    fn a_refused_collision_is_recognised_from_the_engine_wording() {
+        let msg = "a file called Track.mp3 is already on your watch — sending this one \
+                   over it would destroy both copies, so it was not sent";
+        assert!(matches!(classify_skip(msg), SkipKind::NameTaken));
     }
 }

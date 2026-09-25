@@ -66,7 +66,13 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       one over USB either — its firmware rejects playlist files — so tracks go
       across individually.</p>
     <ul class="rail__list" data-playlists></ul>
-    <button class="rail__new" type="button" disabled>New playlist</button>
+    <!-- No "New playlist" button. One stood here, hard-coded `disabled`, with
+         no handler and no command behind it — the same dead control this build
+         removed from the hero and the tag notice, and the same rule in
+         DESIGN.md forbids it: don't ship a control no code path can enable.
+         The .rail__note above already carries the whole statement, and it says
+         more than a greyed button ever could — not just "not yet" but why the
+         watch would refuse one anyway. -->
   </nav>
 
   <main class="channel" aria-label="Library">
@@ -76,11 +82,27 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <h1 class="hero__title" data-hero-title>No folder open</h1>
         <p class="hero__by" data-hero-by>Choose a folder of music to get started.</p>
         <p class="hero__facts num" data-hero-facts></p>
+        <!-- The empty state used to instruct and afford nothing: "Choose a
+             folder of music to get started" with no control, the actual one
+             being a nav link in another panel, fourth in a list of three view
+             switchers that carry counts and aria-current — so it reads as a
+             destination, not an action. And once a folder was open there was
+             no way to re-read it: add files and the only route back was the
+             folder dialog and re-picking the same path, though `scan_folder`
+             takes a path the shell already holds. One control does both, and
+             it is a .linkbtn, which is --ink-dim on --air = 6.38:1,
+             underlined, with the app's --sun focus ring. -->
+        <p class="hero__act"><button class="linkbtn" type="button"
+          data-folder-act></button></p>
       </div>
       <div class="hero__actions">
-        <!-- Playlists are a later version; a control that does nothing is
-             worse than one that says it cannot yet. -->
-        <button class="btn" type="button" disabled>Add to playlist</button>
+        <!-- This slot held a permanently disabled "Add to playlist". The
+             library's real problem was that it had no bulk gesture at all —
+             2000 rows and one checkbox at a time — while the wall, which
+             holds far fewer, had a tri-state group control. A dead control
+             swapped for a live one, rather than a fourth thing in the row.
+             Label and accessible name are written from the live count. -->
+        <button class="btn" type="button" data-lib-all hidden></button>
         <button class="btn btn--primary" type="button" data-send
           aria-describedby="send-why">Send</button>
       </div>
@@ -92,13 +114,20 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <button class="linkbtn" type="button" data-crumb-back></button>
     </p>
 
+    <!-- There was an "Add tags…" button here, hard-coded `disabled`, with no
+         id, no handler and no command behind it — it had never been wired to
+         anything and nothing in the build could ever have enabled it. A
+         greyed control reads as "available under some condition you have not
+         met", not as "never implemented", and it sat directly under a
+         sentence that was itself wrong about the file. The remedy is now
+         named in the prose instead, which costs no pixels and promises
+         nothing. Writing tags into a user's source files is a genuinely
+         destructive feature and needs its own design; see
+         docs/tag-editing-proposal.md. -->
     <div class="prewarn" role="status" hidden>
-        <p class="prewarn__tag"></p>
-        <p class="prewarn__body" data-prewarn-body></p>
-        <!-- Tag editing is out of scope for this build. Disabled rather than
-             removed: the fix is real and named, it just is not here yet. -->
-        <button class="btn btn--sm" type="button" disabled>Add tags…</button>
-      </div>
+      <p class="prewarn__tag"></p>
+      <p class="prewarn__body" data-prewarn-body></p>
+    </div>
 
     <!-- Which encoder will do the work, and whether that path has been
          confirmed on real hardware. Only the ffmpeg MP3 profile has. -->
@@ -130,7 +159,9 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
   <aside class="wall" aria-label="On your watch">
     <div class="wall__head">
-      <h2>On your watch</h2>
+      <!-- tabindex="-1" so focus has somewhere to land in this panel after
+           the post-delete report is dismissed. Not in the tab order. -->
+      <h2 tabindex="-1" data-wall-h>On your watch</h2>
       <p class="wall__count num" data-wall-count>0 tracks aboard
         <!-- Broken stubs are invisible to every other tool on this Mac —
              Finder never mounts an MTP watch — so if they are to be reachable
@@ -142,7 +173,20 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
              Folding them into a general selection would bury the
              gesture behind 22 rows of scroll, so it gets its own.
              Underlined, so it is not identified by colour alone. -->
-        <button class="linkbtn" type="button" data-pick-stubs hidden></button></p>
+        <button class="linkbtn" type="button" data-pick-stubs hidden></button>
+        <!-- Shown only when both links are, so "select it" and "select all 7"
+             do not run together as one phrase. -->
+        <span class="wall__sep" data-wall-sep hidden> · </span>
+        <!-- The wall's only bulk gesture used to be the group header's
+             tri-state checkbox, which does not exist in the default Files
+             arrangement — so clearing 22 tracks was 22 precise clicks on a
+             15px box, or a detour through a chip that is not a selection
+             control. One link, both directions, written from the live count.
+             Same element and same parent as the stubs link above, so the same
+             measured ground: --ink-dim on --d3 = 6.41:1, underlined so it is
+             not identified by colour alone. The stubs link stays separate: it
+             selects a narrower set with a different confirmation. -->
+        <button class="linkbtn" type="button" data-wall-all hidden></button></p>
       <!-- A segmented toggle over a set that does not change: same files,
            different arrangement. Files is the default because it is the
            observed truth — what `list_dir("Music")` returned — and the app
@@ -171,20 +215,64 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
          figure is exactly what a person deciding whether to delete wants to
          see while they decide. -->
     <div class="wallbar" data-wallbar hidden>
-      <p class="wallbar__n num" data-wallbar-n></p>
-      <button class="btn btn--sm" type="button" data-wall-clear>Clear</button>
-      <button class="btn btn--sm btn--danger" type="button" data-wall-delete>Delete from watch</button>
+      <!-- role=status: the string is rewritten on every tick and was never
+           announced, so a screen-reader user got no running total on either
+           side of the window. Worse with select-all, where one keystroke
+           takes the count from 0 to 22. -->
+      <p class="wallbar__n num" role="status" data-wallbar-n></p>
+      <button class="btn btn--sm" type="button" data-wall-clear
+        aria-label="Clear the selection">Clear</button>
+      <button class="btn btn--sm btn--danger" type="button" data-wall-delete>Delete these files</button>
     </div>
 
-    <div class="confirm" role="alertdialog" aria-labelledby="confirm-tag"
+    <!-- role="group", not "alertdialog". This is deliberately non-modal —
+         DESIGN.md's "Never Cover The Number" rule requires it inline so the
+         free-space figure stays visible while you decide, which is right —
+         but that left a dialog role with no aria-modal, no focus trap and no
+         inert background: Tab from Delete walked straight out into the wall's
+         checkboxes below it in DOM order. (Harmlessly: a stray tick fires
+         closeConfirm, so the stale sentence cannot be committed.) A dialog a
+         user can simply walk out of is announced as something it is not. It
+         is an inline confirmation strip, so it says so, and focus still lands
+         on the safe option. -->
+    <div class="confirm" role="group" aria-labelledby="confirm-tag"
          aria-describedby="confirm-body" data-confirm hidden>
       <p class="confirm__tag" id="confirm-tag">This cannot be undone</p>
       <p class="confirm__body" id="confirm-body" data-confirm-body></p>
+      <!-- Both buttons carry the description, not just the group. A
+           description on a role=group container is not reliably announced,
+           and dropping role="alertdialog" (right, on the focus-trap grounds
+           above) removed the one role that would have spoken it on open. The
+           sentence naming the count, the bytes and "Pelican cannot undo this,
+           and the watch has no trash" is the whole basis for the decision, so
+           it must be read out with whichever button holds focus — otherwise a
+           screen-reader user can tab to Delete and commit the app's only
+           irreversible action having never heard it. -->
       <div class="confirm__acts">
         <!-- The safe option takes focus. -->
-        <button class="btn btn--sm" type="button" data-confirm-keep>Keep them</button>
-        <button class="btn btn--sm btn--danger" type="button" data-confirm-go>Delete</button>
+        <button class="btn btn--sm" type="button" data-confirm-keep
+                aria-describedby="confirm-tag confirm-body">Keep them</button>
+        <button class="btn btn--sm btn--danger" type="button" data-confirm-go
+                aria-describedby="confirm-tag confirm-body">Delete</button>
       </div>
+    </div>
+
+    <!-- What actually happened, after the fact. The constructive action gets
+         a card, a meter, a breakdown and per-file notices; the irreversible
+         one used to report nothing at all — 22 files deleted, every
+         DeleteObject Ok, 78.5 MB returned, and the screen said nothing. The
+         confirmation makes a prediction ("that frees the space"), and a
+         prediction with no follow-up report is the same shape as the wrong
+         counter DESIGN.md forbids.
+
+         Only measured quantities go in here: the engine's own ok/failed
+         counts, and the free figure from the snapshot before and the
+         snapshot after. It takes focus when it appears, because the keyboard
+         user who just committed this was previously dropped on <body>. -->
+    <div class="dreport" role="status" tabindex="-1" data-dreport hidden>
+      <p class="dreport__tag" data-dreport-tag></p>
+      <p class="dreport__body" data-dreport-body></p>
+      <button class="btn btn--sm" type="button" data-dreport-dismiss>Dismiss</button>
     </div>
 
     <ul class="wall__list" data-wall-list></ul>
@@ -210,7 +298,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <p class="capacity">
       <span class="capacity__big num" data-cap-big>— <span class="capacity__unit">free</span></span>
       <span class="capacity__sm num" data-cap-sm></span>
-      <span class="capacity__sel num" data-selection>Nothing selected</span>
+      <!-- Same reason as the wallbar count: rewritten on every tick, never
+           announced. Both are complete sentences already, so role=status adds
+           liveness and no new string. -->
+      <span class="capacity__sel num" role="status" data-selection>Nothing selected</span>
     </p>
   </aside>
 
@@ -287,7 +378,13 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <td class="tracks__play"><button class="iconbtn" type="button" aria-pressed="false"><svg class="ic" viewBox="0 0 15 14" aria-hidden="true" focusable="false"><use href="#i-play"/></svg></button></td>
     <th scope="row" class="tracks__title"><span class="t"></span><span class="s num"></span></th>
     <td class="tracks__fmt num"></td>
-    <td class="tracks__pick"><input type="checkbox"></td>
+    <!-- The <td> was 40px wide with 7px/10px padding, but it is not a label,
+         so the clickable area was the 15px box alone. Not an SC 2.5.8 failure
+         (the ~45px row pitch satisfies the spacing exception), but 22 precise
+         15px clicks is a real repetition cost. The label fills the cell; the
+         visual box stays 15px, the input keeps its aria-label as the
+         accessible name, and nothing moves. -->
+    <td class="tracks__pick"><label class="pickhit"><input type="checkbox"></label></td>
   </tr>
 </template>
 
@@ -299,7 +396,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
      never gave us. -->
 <template id="tpl-wall">
   <li>
-    <input type="checkbox" class="pick" data-pick>
+    <!-- Same hit-area fix as the library row, so the symmetry the two lists
+         are built on holds for the pointer too. The pick grid area already
+         spans both rows of this li, so the target grows vertically to the
+         full row height and nothing shifts horizontally. -->
+    <label class="pick pickhit"><input type="checkbox" data-pick></label>
     <span class="cover cover--xs" aria-hidden="true"></span>
     <span class="t"></span><span class="s"></span>
     <span class="z num"></span>
@@ -331,6 +432,9 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="notice">
     <p class="notice__tag"></p>
     <p class="notice__body"></p>
+    <!-- The second grid column .notice reserves. Only a notice the user can
+         do something about fills it; the rest leave it collapsed. -->
+    <div class="notice__acts" hidden><button class="btn btn--sm" type="button" data-notice-act></button></div>
   </div>
 </template>
 

@@ -84,7 +84,13 @@ deciding what comes *off* matters as much as what goes on.
 - Upload MP3, M4A, M4B, AAC, WAV directly; convert FLAC, ALAC, AIFF and more.
 - On macOS, conversion needs no installed software (`afconvert`); MP3 and WAV
   need no conversion at all.
-- List, delete, and recover the broken stubs that failed uploads leave behind.
+- Delete a file from `/Music`, which frees the space. It has **not** been
+  shown to remove the track from the watch's own music app — one delete of
+  22 files succeeded at every handle and the app still listed all 22, and
+  the mechanism is not established (`docs/garmin-mtp.md` §8).
+- List the broken stubs that failed uploads leave behind, and ask the watch
+  to remove them. The watch has refused every such request so far (§6); it
+  clears them itself, on its own schedule.
 - Report free space and device identity.
 - Per-device upload journal, so the app can show what it put there.
 
@@ -97,9 +103,20 @@ deciding what comes *off* matters as much as what goes on.
   stripped; the tag carries the real title.
 - **Files without title+artist tags are invisible** on the watch even though
   they transfer successfully.
-- **The watch does not expose its indexed library over MTP.** Once the
-  firmware absorbs files out of `/Music`, Pelican cannot see them; the local
-  journal is the only record.
+- **The watch does not expose its indexed library *listing* over MTP.** No
+  MTP call enumerates it. How an entry in that library relates to a file in
+  `/Music` is **not established** — see `docs/garmin-mtp.md` §8 for the two
+  models that both fit what has been measured.
+- **It does, however, answer per-object property queries.** Verified
+  2026-09-02 on FR165 / FW 2506 via `examples/probe_objprops.rs`: the watch
+  declares operations `0x9801`–`0x9805` and answers `GetObjectPropValue` with
+  Name, Artist, AlbumName, AlbumArtist, Duration and Track — for any handle in
+  `/Music`, including files Pelican never uploaded. These are separate facts
+  and the earlier flat claim was wrong; `docs/garmin-mtp.md` § Object
+  properties has the probe output.
+- **The journal remains the source of *provenance*.** What Pelican put there
+  is a question the device cannot answer, which is why grouping keys off the
+  journal — not because the tags are unreadable.
 - **Subfolders inside `/Music` are unreliable**, so uploads are flattened.
 - Transfers are slow and cannot be parallelised.
 

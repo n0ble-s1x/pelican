@@ -2,22 +2,54 @@
 
 ## Examples
 
-All `examples/*.rs` are self-contained binaries you can run with `cargo run --example <name>`.
+All 15 live in `crates/pelican-core/examples/` and are self-contained binaries
+you can run with `cargo run --example <name>` from the repo root.
+
+**Three of them destroy data on the watch.** They are marked ☠ below and the
+mark is the only thing in this table that distinguishes `diagnose` from
+`wipe_music`. Read the source before running any of them against a watch that
+holds music you care about.
 
 | Example                | Purpose                                                                     |
 |------------------------|-----------------------------------------------------------------------------|
 | `usb_inspect`          | Dump USB descriptors / interface info for the connected Garmin              |
 | `usb_reset`            | Issue a USB-level reset to the device (use when the session is wedged)      |
+| `probe_platform`       | Report what the platform contention detector sees — gvfs on Linux, ptpcamerad and `UsbExclusiveOwner` on macOS |
 | `diagnose`             | Open MTP session, list storage, walk top-level folders                      |
 | `long_open`            | Repeatedly open + close the session — surfaces flaky enumeration            |
 | `check_formats`        | Print the device's `playback_formats` and `capture_formats`                 |
+| `dump_file`            | Download one object off the watch to local disk, byte-for-byte              |
 | `probe_audiobooks`     | Probe the `Audiobooks/` folder behavior                                     |
-| `probe_vendor_ops`     | Sweep `0x9000-0x900B` + `0x9810/0x9811` with no params (5s timeout each)    |
-| `wipe_music`           | Delete every entry under `/Music` (recovery from broken stubs)              |
-| `test_delete`          | Targeted single-file delete                                                 |
+| `probe_playlist`       | Try every playlist path style × format code and record which are rejected — the probe behind `playlists.md` |
+| `probe_objprops`       | Ask the watch for object properties (`0x9801`–`0x9805`, `GetObjectPropValue`). The probe behind `garmin-mtp.md` "Object properties" — the evidence that the watch *can* report its own tags |
+| `probe_vendor_ops`     | Sweep `0x9000-0x900B` + `0x9810/0x9811` with no params (5s timeout each). Wedges the session; replug afterwards |
 | `claim_test`           | Diagnostic: open device + claim interface 0 directly via nusb               |
+| ☠ `wipe_music`         | **Destructive.** Deletes every entry under `/Music`                         |
+| ☠ `wipe_stubs`         | **Destructive.** Attempts a delete against every unreadable stub, counting refusals separately (they are the expected answer — `garmin-mtp.md` §6) |
+| ☠ `test_delete`        | **Destructive.** Targeted single-file delete                                |
 
 ## Recovering from a wedged USB session
+
+### macOS
+
+Shorter ladder, because the usual macOS suspect turns out not to be one.
+
+1. **Check who, if anyone, holds it.** `cargo run --example probe_platform`
+   reads the IORegistry and names a real holder. Or by hand:
+   `ioreg -p IOUSB -l -w 0 | grep -A 30 '"idVendor" = 2334'` and look for
+   `UsbExclusiveOwner`. `ioreg -p IOUSB -l -w 0 | grep -c '"idVendor" = 2334'`
+   returning 0 means the watch is not on the bus at all.
+2. **It is not `ptpcamerad`.** Verified 2026-08-30 on FR165 / FW 2506: the
+   watch presents `bDeviceClass = 0`, never matches the still-image class, and
+   carries no `UsbExclusiveOwner`. Do not spend time on the `pkill` workaround
+   from the mtp-rs README — `ptpcamerad` is SIP-protected, a same-user
+   `killall` returns 0 while the process survives with its PID unchanged, and
+   it was never holding the device anyway. See `macos-port.md`.
+3. **There is no sysfs equivalent.** Nothing on macOS corresponds to the
+   `usbfs` unbind below.
+4. **Physically unplug + replug** — the terminal step on both platforms.
+
+### Linux
 
 Symptoms:
 - `Error: Usb { kind: Busy, code: 16, message: "interface is busy" }`

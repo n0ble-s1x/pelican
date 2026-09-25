@@ -81,8 +81,16 @@ impl Tags {
             )
             .collect();
 
+        // `clean` runs INSIDE the search, not after it. Cleaning afterwards
+        // made the fallthrough above a lie: `find_map` stops at the first tag
+        // that carries the key *at all*, so a tag holding "   " — or a bare
+        // ℗ that `sanitize_tag_value` strips to nothing — won the search and
+        // was then discarded, and the tag holding the real value was never
+        // read. A genuinely tagged file read back completely bare, and the
+        // UI told its owner the file had no title. A blank value is not a
+        // value; keep looking.
         let first = |f: &dyn Fn(&lofty::tag::Tag) -> Option<String>| -> Option<String> {
-            tags.iter().find_map(|t| f(t)).and_then(clean)
+            tags.iter().find_map(|t| f(t).and_then(clean))
         };
 
         let album_artist = first(&|t| t.get_string(ItemKey::AlbumArtist).map(str::to_owned));

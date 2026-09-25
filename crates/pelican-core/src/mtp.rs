@@ -58,6 +58,22 @@ impl std::fmt::Display for UploadPhase {
     }
 }
 
+/// Do these two names refer to the same object on the watch?
+///
+/// `/Music` is FAT-derived and case-insensitive: `Track.mp3` and `track.mp3`
+/// are one file to the firmware and two different strings to Rust. A
+/// byte-equal comparison here under-reports — as the post-write probe it
+/// silently reported "landed" for a file it had failed to find.
+///
+/// Full `to_lowercase`, not `eq_ignore_ascii_case`: our side is ASCII by
+/// construction (`transcode::sanitize_filename_stem`) but the device side is
+/// whatever Garmin Express wrote, which is not.
+///
+/// Extracted as a free function so it can be tested without a watch.
+pub(crate) fn same_file(a: &str, b: &str) -> bool {
+    a.to_lowercase() == b.to_lowercase()
+}
+
 pub trait Backend: Send {
     /// The device's own model name, from MTP `GetDeviceInfo`.
     ///
@@ -83,6 +99,34 @@ pub trait Backend: Send {
     ) -> Result<u64>;
     fn remote_size(&mut self, remote_dir: &str, remote_name: &str) -> Result<Option<u64>>;
     fn list_dir(&mut self, path: &str) -> Result<Vec<RemoteEntry>>;
+    /// Remove an object.
+    ///
+    /// **Scope.** This removes the object from the storage MTP exposes, and
+    /// that is all it does. `docs/garmin-mtp.md` §8 records a run where all
+    /// 22 deletes returned `Ok`, `/Music` fell to one entry and free space
+    /// rose 78.5 MB, while the watch's own music app went on listing every
+    /// deleted track. Whether the watch keeps a second copy or holds a
+    /// dangling index entry is **not established**. Nothing in this crate
+    /// reaches the watch's music library, so no caller may word this
+    /// operation as taking a track off the watch.
+    ///
+    /// **Not a building block for an overwrite.** Delete-then-write is the
+    /// tempting answer to a name collision and it is the one that can
+    /// re-create the failure the guard in `transfer::run` exists to prevent:
+    /// `docs/garmin-mtp.md` §6 records that every `DeleteObject` issued
+    /// against a broken stub has returned `Protocol GeneralError`, and delete
+    /// can fail for a readable file too. A delete-then-write that falls
+    /// through to the write on a failed delete lands the collision anyway.
+    ///
+    /// `Ok(())` is also not proof the name is gone: it invalidates the handle
+    /// cache but nothing re-reads the folder. So Pelican deliberately ships
+    /// Skip and opt-in Rename only — neither can destroy anything. If a
+    /// Replace option is ever added it must (1) not upload when delete
+    /// returns `Err`, and say the existing file was not touched, (2) re-run
+    /// the pre-write listing after an `Ok` and treat a still-present name as
+    /// a refusal rather than a race to retry, and (3) never be offered
+    /// against an `is_broken` entry, whose handle has never accepted a delete
+    /// and whose real name is unknown.
     fn delete(&mut self, path: &str) -> Result<()>;
     fn free_space(&mut self) -> Result<(u64, u64)>;
     /// Download a small remote file to a Vec. Used for playlists (.m3u8).
@@ -134,7 +178,7 @@ mod mtp_rs_impl {
     use mtp::{MtpDevice, NewObjectInfo, ObjectHandle, Storage};
     use tokio::runtime::Runtime;
 
-    use super::{Backend, RemoteEntry};
+    use super::{same_file, Backend, RemoteEntry};
     use crate::garmin::Device;
 
     pub struct MtpRsBackend {
@@ -393,7 +437,7 @@ mod mtp_rs_impl {
                     let mut stream = storage.list_objects_stream(parent).await?;
                     while let Some(r) = stream.next().await {
                         if let Ok(info) = r {
-                            if !info.is_folder() && info.filename == remote_name {
+                            if !info.is_folder() && same_file(&info.filename, remote_name) {
                                 return Ok::<_, mtp::Error>(Some(info.size));
                             }
                         }
@@ -602,4 +646,33 @@ mod mtp_rs_impl {
 
     #[allow(dead_code)]
     fn _device_marker(_d: &Device) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_file;
+
+    /// `/Music` is FAT-derived. Two spellings, one file — and the byte-equal
+    /// comparison this replaced reported "not found" for a file that was
+    /// right there, which as a pre-write guard would miss precisely the
+    /// collisions a case-insensitive filesystem creates.
+    #[test]
+    fn names_differing_only_in_case_are_the_same_file() {
+        assert!(same_file("Track.mp3", "track.mp3"));
+        assert!(same_file("TRACK.MP3", "track.mp3"));
+        assert!(same_file("track.mp3", "track.mp3"));
+    }
+
+    #[test]
+    fn different_names_are_not_the_same_file() {
+        assert!(!same_file("track.mp3", "track-2.mp3"));
+        assert!(!same_file("track.mp3", "track.m4a"));
+    }
+
+    /// The device side is whatever Garmin Express wrote, which is not ASCII.
+    /// `eq_ignore_ascii_case` would call these two different files.
+    #[test]
+    fn case_folding_is_not_ascii_only() {
+        assert!(same_file("CAFÉ.mp3", "café.mp3"));
+    }
 }

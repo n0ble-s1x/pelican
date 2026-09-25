@@ -14,13 +14,12 @@
      checkbox, .chip, .btn, .btn--danger and .playpause. The rule is not
      "boxes get it and buttons don't" — a labelled button's extent is as much
      a 1.4.11 question as a tick box's — but it is also not "everything
-     operable". .iconbtn, .linkbtn, .nav and .rail__new draw no box at all
+     operable". .iconbtn, .linkbtn and .nav draw no box at all
      (`border:0`, no fill at rest), so there is no boundary to give a ratio
      to; their affordance is carried by the thing that IS drawn, and that is
      what has to clear 3:1 instead. Measured on the real composites, worst
      case each: .iconbtn's glyph --ink-faint 4.75:1 (on a hovered track row,
-     --surface over --air = #17202c); .rail__new --ink-faint 4.98:1 (on the
-     rail gradient's --air-2 stop); .nav's label --ink-dim 4.95:1 (on
+     --surface over --air = #17202c); .nav's label --ink-dim 4.95:1 (on
      .is-current, --surface-2 over --air-2 = #212c3a); .linkbtn's underlined
      label --ink-dim 6.41:1 (on the wall head's --d3). Range 4.75-6.41:1,
      every one of them clear of 3:1 as a non-text boundary would have to be,
@@ -38,6 +37,8 @@
        filled controls                        vs outside / vs own fill
          .btn on --air (7.8% fill)                  3.94 / 3.26
          .btn:hover on --air (4.8% fill)            3.72 / 3.35
+         .btn--sm on --notice-ground (7.8% fill)    3.88 / 3.18
+         .btn--sm:hover on --notice-ground (4.8%)   3.68 / 3.28
          .chip pressed on --d3 (7.8% fill)          3.94 / 3.27
          .playpause on --d4 (7.8% fill)             3.91 / 3.35
          checkbox on --air (4.8% fill)              3.72 / 3.35
@@ -151,9 +152,6 @@ body {
    .is-current, so the badge was under AA at open. --ink-dim is 4.95:1 and
    5.37:1 on those same grounds. No palette token changed. */
 .nav__n { margin-left:auto; font-size:10.5px; color:var(--ink-dim); }
-.rail__new { margin-top:auto; text-align:left; padding:8px 10px; font:inherit;
-  font-size:12px; color:var(--ink-faint); background:none; border:0; border-radius:var(--r-sm); }
-.rail__new:hover { color:var(--ink); background:var(--surface); }
 
 /* ── album channel ───────────────────────────────────────────────────── */
 .channel { grid-area:channel; display:flex; flex-direction:column;
@@ -180,6 +178,9 @@ body {
    sits the block against the cover's baseline. */
 .hero__by { font-size:13px; color:var(--ink-dim); max-width:34ch; }
 .hero__facts { font-size:11.5px; color:var(--ink-faint); margin-top:9px; white-space:nowrap; }
+/* The one control that is both the empty state's affordance and the rescan.
+   Its own line so it never competes with the credits for the measure. */
+.hero__act { margin-top:7px; }
 .hero__actions { margin-left:auto; display:flex; gap:9px; flex:none; }
 .hero__actions .btn { white-space:nowrap; }
 
@@ -215,8 +216,12 @@ body {
 .btn:disabled { opacity:.45; cursor:default; }
 .btn:disabled:not(.btn--primary) { border-color:var(--hairline); }
 
-/* The untagged-file warning, at selection time — the brief requires it
-   before sending, not once the transfer is already running. */
+/* The missing-tag warning, at selection time — the brief requires it before
+   sending, not once the transfer is already running. It names the field that
+   is actually absent, and keeps a file Pelican could not parse in a separate
+   sentence that makes no claim about tags. It used to carry a permanently
+   disabled "Add tags…" button in the second column; that is gone, so the
+   grid's `auto` track collapses and the body gets the full width. */
 .prewarn { margin:0 24px 12px; padding:10px 12px; border-radius:var(--r-sm);
   border:1px solid rgba(217,99,79,.32); background:rgba(217,99,79,.07);
   display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 14px; align-items:center; }
@@ -233,6 +238,13 @@ body {
 .sendwhy[data-blocked="capacity"] { color:var(--alert); }
 .sendwhy[hidden] { display:none; }
 
+/* Every refusal, not just the last one. The watch answers per file and the
+   reasons differ — a stub's refusal is not a missing file's. */
+.report__why { list-style:none; margin:8px 0 0; padding:0;
+  display:flex; flex-direction:column; gap:4px; }
+.report__why li { font-size:11.5px; color:var(--ink-dim); }
+.report__why strong { color:var(--ink); font-weight:590; }
+
 .tracks { width:100%; border-collapse:collapse; margin:8px 0 0; }
 .tracks tbody tr { border-bottom:1px solid var(--hairline-2); }
 .tracks tbody tr:hover { background:var(--surface); }
@@ -240,6 +252,16 @@ body {
 .tracks__play { width:36px; }
 .tracks__play .iconbtn { margin:0 auto; }
 .tracks__title .t { display:block; font-size:13px; }
+/* Not a title — the file stem, standing in so the row is never blank. It
+   drops to the same --ink-dim the subtitle beneath it already uses, on the
+   same ground: 6.38:1 on --air, 5.76:1 on a hovered row (--surface over
+   --air = #17202c — .channel sets no background, so the table composites
+   against .app's --air; --d2 is the wall list's ground and this selector
+   cannot reach it). No new token, and the column stops claiming a title the
+   file does not carry. `:not(.is-playing)` because the playing row's --sun
+   is a stronger signal and must keep winning — without it this rule's
+   specificity would quietly outrank `.is-playing .t` below. */
+.tracks tr:not(.is-playing) .t[data-stem] { color:var(--ink-dim); }
 .tracks__title .s { display:block; font-size:11.5px; color:var(--ink-dim); }
 .tracks__fmt { width:96px; font-size:10.5px; color:var(--ink-faint); letter-spacing:.05em; }
 .tracks__pick { width:40px; }
@@ -249,6 +271,17 @@ body {
 .iconbtn { background:none; border:0; color:var(--ink-faint);
   display:grid; place-items:center; padding:2px; border-radius:4px; }
 .iconbtn:hover { color:var(--ink); }
+/* The Ogg preview refusal. `aria-disabled` rather than `disabled` so the
+   control keeps focus and can carry its reason — a `disabled` button is not
+   focusable, so the one sentence explaining the refusal was pointer-only.
+   Keeping focus means keeping a visible state, and it has to read as
+   inoperable rather than merely quiet: `.45` is the same opacity `.btn:disabled`
+   already uses, so the app has one disabled appearance, not two. It also
+   must not brighten under the cursor, which is what the hover reset is for.
+   No contrast figure is owed — WCAG 1.4.3/1.4.11 exempt an inactive
+   component — and it is a glyph beside a title that carries the meaning. */
+.iconbtn[aria-disabled="true"] { opacity:.45; cursor:default; }
+.iconbtn[aria-disabled="true"]:hover { color:var(--ink-faint); }
 
 /* Every checkbox in the app, on both sides of the window. --hairline through
    this box's own 4.8% fill was 1.32–1.35:1 against that fill and 1.47–1.53:1
@@ -256,6 +289,23 @@ body {
    That was a small problem in the library table and became the wall's main
    affordance the moment every row on a darker ground grew one. Per-ground
    --edge figures are in the token block. */
+/* The hit area, on both lists. The box stays 15px and keeps every measured
+   --edge ratio above; only the region that answers a click grows. The label
+   is not the control — a click on it forwards to the input, which is what
+   carries the aria-label and the focus ring. */
+.pickhit { display:flex; align-items:center; justify-content:center;
+  width:100%; height:100%; min-height:24px; cursor:pointer; }
+/* A control that cannot be operated must not offer a pointer. Set from JS
+   rather than `:has(input:disabled)`, for the same reason `.is-picked` is:
+   this must not depend on `:has` in whatever WKWebView the user's macOS
+   happens to ship. */
+.pickhit.is-off { cursor:default; }
+/* The library cell is 40px, so the target can grow both ways there. The
+   wall's pick column is 15px against an 11px gap, so widening it would push
+   into the cover art — its `pick` area already spans both grid rows, which
+   gives the full row height at no horizontal cost. */
+.tracks__pick .pickhit { min-width:24px; }
+
 input[type=checkbox] { appearance:none; width:15px; height:15px; border-radius:4px;
   border:1px solid var(--edge); background:var(--surface); }
 input[type=checkbox]:checked { background:var(--sun); border-color:var(--sun); }
@@ -286,6 +336,7 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
   color:var(--ink-dim); text-decoration:underline; }
 .linkbtn:hover { color:var(--ink); }
 .linkbtn[hidden] { display:none; }
+.wall__sep[hidden] { display:none; }
 
 /* A segmented view toggle, not navigation: the set does not change, only its
    arrangement. The rail's `.nav` is the other thing, and DESIGN.md §Navigation
@@ -365,6 +416,10 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
 [data-device="none"] .wall__count,
 [data-device="none"] .wallbar,
 [data-device="none"] .confirm,
+/* Same rule as the confirm: with the cable out the panel becomes "No watch
+   connected", and a report of what a delete measured has no place floating
+   over it. It is about a device that is no longer there. */
+[data-device="none"] .dreport,
 [data-device="none"] .gauge,
 [data-device="none"] .capacity { display:none; }
 [data-device="none"] .wall__empty { display:block; }
@@ -446,6 +501,26 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
   margin-top:5px; font-size:11.5px; color:var(--ink-dim); }
 .confirm__body strong { color:var(--ink); font-weight:590; }
 .confirm__acts { flex:none; display:flex; gap:8px; margin-top:10px; }
+
+/* The post-delete report. Same opaque --notice-ground and same slot as the
+   confirmation it replaces, so the figures land where the question was
+   asked — but --hairline rims instead of the alert red ones, because this is
+   a report of what happened, not an alarm. Signal Red stays spent on
+   DESIGN.md's three conditions; nothing here is one of them.
+   --ink-dim body on --notice-ground = 6.02:1, --ink figures = 14.14:1,
+   --ink-dim tag = 6.02:1 (and it is 10px/640, where AA asks 4.5:1). */
+.dreport { flex:none; padding:12px 18px 14px; background:var(--notice-ground);
+  border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline); }
+.dreport[hidden] { display:none; }
+.dreport__tag { font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+  font-weight:640; color:var(--ink-dim); }
+.dreport__body { margin-top:5px; font-size:11.5px; color:var(--ink-dim); }
+.dreport__body strong { color:var(--ink); font-weight:590; }
+.dreport .btn { margin-top:10px; }
+/* It is focused programmatically, which fires :focus and not :focus-visible.
+   A container that takes focus with no visible mark leaves a keyboard user
+   with no idea where they are, so this one is drawn explicitly. */
+.dreport:focus { outline:2px solid var(--sun); outline-offset:-2px; }
 
 /* THE DESTRUCTIVE CONTROL HAS TWO RULES.
    One: it never lives in a row. It lives in the bar (--d3, --alert 5.08:1)
@@ -609,7 +684,23 @@ input[type=checkbox]:disabled { border-color:var(--hairline); opacity:.45; }
   text-transform:uppercase; font-weight:640; color:var(--alert); }
 .notice__body { font-size:11.5px; color:var(--ink-dim); }
 .notice__body strong { color:var(--ink); font-weight:590; }
+/* An outcome worth reading that is not a failure: a rename that succeeded, a
+   file the watch turned out to be holding after all. DESIGN.md §"Signal Red"
+   permits the token in four places and none of them is good news, so the
+   informational notice drops the tag to --ink-dim and the border to
+   --hairline. The red frame around a report of success was the tell.
+     --ink-dim #8b9bab on --notice-ground #191b25 = 6.02:1. The tag is
+   10px/640, so AA wants 4.5:1. Passes, and it is the same pairing
+   .notice__body already ships one line above. The border is a container edge,
+   not a control affordance, so 1.4.11 does not reach it. */
+.notice--info { border-color:var(--hairline); }
+.notice--info .notice__tag { color:var(--ink-dim); }
+
 .notice__acts { display:flex; gap:8px; align-self:center; }
+/* `display:flex` out-specifies the UA's `[hidden] { display:none }`, so
+   without this every notice with nothing to act on renders an empty button.
+   Same reason every other `[hidden]` rule in this file exists. */
+.notice__acts[hidden] { display:none; }
 
 /* ── icons ───────────────────────────────────────────────────────────── */
 .sprite { position:absolute; width:0; height:0; overflow:hidden; }
@@ -667,7 +758,7 @@ input, .seek { caret-color:var(--sun); }
 @starting-style { .transfer { opacity:0; transform:translateY(10px); } }
 .meter i { transition:transform var(--t-settle) linear; }
 
-.nav, .btn, .iconbtn, .rail__new, .tracks tbody tr {
+.nav, .btn, .iconbtn, .tracks tbody tr {
   transition:background-color var(--t-quick) linear,
              color var(--t-quick) linear, opacity var(--t-quick) linear; }
 .btn:active:not(:disabled) { transform:translateY(1px); }
@@ -694,7 +785,6 @@ input, .seek { caret-color:var(--sun); }
   .rail__list { display:flex; gap:4px; }
   .rail__head { margin:0 4px 0 10px; }
   .rail__note { display:none; }        /* the hero still carries the truth */
-  .rail__new { margin-top:0; white-space:nowrap; }
   .nav { white-space:nowrap; }
   .transfer { left:14px; right:294px; }
 }

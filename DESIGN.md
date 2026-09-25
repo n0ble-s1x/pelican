@@ -225,6 +225,17 @@ with one warm accent and two status values that never carry meaning alone.
   action in the app.** Always paired with a word: `Needs a title`, `26 MB too
   much`, `Delete`.
 
+  The list is exhaustive, and the notice component is where that bites. Its
+  default dress is the failure dress — `--alert` tag, `rgba(217,99,79,.34)`
+  hairline — so an outcome that is *not* a failure must ask for
+  `.notice--info`, which takes the tag to `--ink-dim` (**6.02:1** on
+  `--notice-ground`, the same pairing `.notice__body` already uses; the tag is
+  10px/640, so AA wants 4.5:1) and the border to `--hairline`. Two notices use
+  it: **Sent under a new name**, after a rename around a collision, and
+  **Found on your watch after all**, when a file reported failed turns up in
+  the listing. Both are good news, and a red frame around good news is a
+  fifth use of Signal Red by accident rather than by decision.
+
   The destructive control is allowed on exactly two grounds, and both are
   opaque: the selection bar's `--d3` (**5.08:1**) and the confirm's
   `--notice-ground` (**4.77:1**). It is **forbidden** on a wall row, where the
@@ -238,7 +249,7 @@ with one warm accent and two status values that never carry meaning alone.
 - **Edge** (`rgba(226,236,247,.40)`): **the boundary of every control that
   draws a box, and nothing else** — checkbox, `.chip`, `.btn`,
   `.btn--danger`, `.playpause`. Not "everything operable": `.iconbtn`,
-  `.linkbtn`, `.nav` and `.rail__new` carry `border:0` and no rest-state
+  `.linkbtn` and `.nav` carry `border:0` and no rest-state
   fill, so they draw no box for an edge to bound, and their affordance is
   carried by what *is* drawn — the glyph, the underline, the label — which is
   what has to clear 3:1 there instead, and does, at 4.75–6.41:1 (figures in
@@ -258,6 +269,8 @@ with one warm accent and two status values that never carry meaning alone.
   | `.btn--danger` in the confirm | `--notice-ground` | 3.39 | *(transparent)* |
   | `.btn` | `--air` | 3.94 | 3.26 |
   | `.btn:hover` | `--air` | 3.72 | 3.35 |
+  | `.btn--sm` in a notice | `--notice-ground` | 3.88 | 3.18 |
+  | `.btn--sm:hover` in a notice | `--notice-ground` | 3.68 | 3.28 |
   | `.chip[aria-pressed]` | `--d3` | 3.94 | 3.27 |
   | `.playpause` | `--d4` | 3.91 | 3.35 |
   | checkbox | `--air` | 3.72 | 3.35 |
@@ -534,7 +547,7 @@ below, and nothing else in the app uses it.
 measures over 3:1 against the grounds it sits on, and the rule is not "boxes
 get it and buttons don't" — a labelled button's extent is as much a 1.4.11
 question as a tick box's. It is also not "everything operable". `.iconbtn`,
-`.linkbtn`, `.nav` and `.rail__new` are operable and carry no border and no
+`.linkbtn` and `.nav` are operable and carry no border and no
 rest-state fill; they draw no box, so there is no boundary to measure and
 adding one would invent a box the design does not have. Their affordance is
 carried by what *is* drawn, and that is what clears 3:1 instead, at
@@ -550,9 +563,15 @@ The cover frame is the system's one drawn object: a 155° blue gradient with a
 embedded picture it fills the 132px hero frame and the 38px player frame from
 one `data:` URL — the same string that goes to `MediaMetadata.artwork`, so the
 read happens once. Otherwise the gradient stands, and it is a value stand-in
-rather than a graphic. The 24px wall frame is never filled: the watch reports
-names and sizes over MTP and no picture, so there is nothing there to fill it
-with.
+rather than a graphic. The 24px wall frame is never filled, and the reason is
+about Pelican, not about the watch: nothing in the app reads artwork off the
+device. The wall is drawn from the `/Music` listing and the upload journal,
+neither of which carries a picture, and no code path asks the watch for one.
+Whether the FR165 could answer such a request is unknown — `probe_objprops`
+asked only for Name, Artist, AlbumName, AlbumArtist, Duration and Track, and
+never for `GetThumb` (0x100A) or `RepresentativeSampleData` (0xDC81) — so the
+stronger claim that the watch holds no artwork is one this repo has not
+earned and does not make.
 
 **The art is read on demand, never during a scan.** `read_fast` asks for
 `read_cover_art(false)` because a FLAC carrying a 1 MB JPEG spends almost all
@@ -713,6 +732,22 @@ paragraph first.
   the app that reports a failure. Flattened, `--alert` is 4.77:1 and
   `--ink-dim` 6.02:1 there, regardless of what the channel is scrolling behind
   the card. Do not restore the translucent fill.
+
+  The second column stood empty until the name-collision refusal gave it its
+  first occupant: a `.btn.btn--sm` reading **Send under a new name**. It is
+  the plain button, not a new accent — a new colour for this state would have
+  to earn its own composite-ground arithmetic and buys nothing, since the tag
+  already names the state in words. Measured on the real ground: the label
+  `--ink` is **11.58:1** on the button's own fill (`--surface-2` over
+  `--notice-ground` = `#292b35`), and the `--edge` border is **3.88:1**
+  against `--notice-ground` outside it and **3.18:1** against that fill —
+  both adjacencies clear of 1.4.11's 3:1, the second being the new worst case
+  for `.btn` and still above the system's 3.07 floor. Hover (`--surface`,
+  `#23252f`) reads 12.58 / 3.68 / 3.28.
+
+  `.notice__acts` needs its own `[hidden] { display:none }`, like every other
+  hideable block in the sheet: `display:flex` out-specifies the UA rule, and
+  without it a notice with nothing to act on renders an empty button.
 - **Pre-send warning (`.prewarn`):** the same 6px / `10px 12px` / two-column
   shape, but it sits directly on `--air` rather than inside glass, so it keeps
   a tint: `rgba(217,99,79,.07)` fill with a `.32` border. That composite is
@@ -795,6 +830,26 @@ ground the text actually sits on:
 | wall gradient, worst stop `--d2` `#101f2e` | 13.77 | **5.86** | 4.85 |
 | hovered row, `--surface` over `--d2` = `#1a2938` | 12.21 | **5.20** | **4.30 FAIL** |
 | selected row, `--surface-2` over `--d2` = `#202f3e` | 11.26 | **4.80** | **3.97 FAIL** |
+
+**Four strips can occupy the slot between the head and the list, and only one
+at a time.** In order of precedence: `.wallbar` (a selection exists),
+`.confirm` (that selection is being confirmed), `.dreport` (a delete has
+completed and been measured). Each hides the ones before it, and every one of
+them is opaque or on an opaque ground, because a destructive control's
+contrast has to be a property of its own rule rather than of whatever is
+behind it. `.dreport` is the newest and the only one that reports rather than
+asks; its rims are `--hairline` rather than the confirmation's alert red for
+exactly that reason. It is dismissed by its own button, by Escape, and by the
+next change to the selection — it describes a batch, and the moment the batch
+changes it is describing something that is no longer on screen.
+
+**The head carries the panel's two bulk gestures, and they stay separate.**
+`[data-pick-stubs]` selects only the unreadable stubs, which go to a
+different confirmation with a different promise (§6: a request the watch has
+never granted). `[data-wall-all]` selects everything the wall is listing and
+reverses in place. Folding them would conflate exactly the two things the
+stub copy exists to keep apart. A `·` separator shows whenever the select-all
+does, so "select it" and "select all 7" never run together as one phrase.
 
 ### Media keys and Control Center
 The transport is published to macOS through `navigator.mediaSession`, so F7 /
@@ -921,12 +976,11 @@ element was given an opaque ground rather than a hopeful number.
   same fills and identifies nothing, which is why it stays the transfer card's
   rim and why disabled controls keep it deliberately.
 - **The borderless controls satisfy 1.4.11 through what they draw, not
-  through an edge.** `.iconbtn`, `.linkbtn`, `.nav` and `.rail__new` carry
+  through an edge.** `.iconbtn`, `.linkbtn` and `.nav` carry
   `border:0` and no rest-state fill, so there is no boundary to measure; the
   drawn thing carries the ratio instead. Worst case each, on the real
   composite: `.iconbtn`'s glyph at `--ink-faint` **4.75:1** (a hovered track
-  row, `--surface` over `--air` = `#17202c`), `.rail__new` at `--ink-faint`
-  **4.98:1** (the rail gradient's `--air-2` stop), `.nav`'s label at
+  row, `--surface` over `--air` = `#17202c`), `.nav`'s label at
   `--ink-dim` **4.95:1** (`.is-current`, `#212c3a`), `.linkbtn`'s underlined
   label at `--ink-dim` **6.41:1** (`--d3`). All clear of 3:1 as a boundary
   would have to be, and of 4.5:1 as the text they actually are. Giving them an
@@ -959,6 +1013,48 @@ element was given an opaque ground rather than a hopeful number.
   the announced `aria-valuetext` and the now-line are all one sentence; the
   region is set back to `polite` for exactly the tick it takes to write it.
   Displacing a truth bug from the eye to the ear is not fixing it.
+- **The post-delete report sits on the opaque `--notice-ground`**, the same
+  ground and the same slot as the confirmation it replaces, so the figures
+  land where the question was asked. `--ink-dim` body **6.02:1**, `--ink` on
+  the two free-space figures **14.14:1**, `--ink-dim` tag **6.02:1** at
+  10px/640 where AA asks 4.5:1. Its rims are `--hairline`, not the
+  confirmation's alert red: this is a report of what happened, not an alarm,
+  and Signal Red stays spent on the three conditions §Colors lists. It is
+  focused programmatically, which fires `:focus` and not `:focus-visible`, so
+  the brass ring is drawn explicitly — a container that takes focus with no
+  visible mark leaves a keyboard user with no idea where they are.
+- **The two select-alls reuse grounds already on this list.** The wall's is a
+  `.linkbtn` in `.wall__head`, `--ink-dim` on `--d3` = **6.41:1**, the figure
+  the borderless-controls entry above already gives for that element in that
+  parent. The library's is a `.btn` in the hero: label `--ink` on `--air` =
+  **14.99:1**, border `--edge` through its own `--surface-2` fill = 3.94:1
+  outside and 3.26:1 inside, both from §Colors' table. The hero's
+  choose/rescan control is a `.linkbtn` on `--air` = **6.38:1**. No new
+  token, no new ratio.
+- **The file stem standing in for a title is `--ink-dim`**: **6.38:1** on
+  `--air` at rest and **5.76:1** on a hovered library row (`--surface` over
+  `--air` = `#17202c`). It is the ink the subtitle directly beneath it
+  already uses on the same ground.
+- **The library has no selected-row tint, and that is a contrast decision.**
+  The wall can afford `--surface-2` on a picked row because every ink in
+  `.wall__list` is `--ink` or `--ink-dim`. A library row also carries
+  `.tracks__fmt` at `--ink-faint` 10.5px, and `--ink-faint` on `--surface-2`
+  over `--air` (`#1e2733`) is **4.38:1** — under AA. The tick is the state.
+  Adding the tint would mean moving that column's ink first.
+- **The confirmation is `role="group"`, not `role="alertdialog"`.** It is
+  deliberately non-modal, because "Never Cover The Number" requires the free
+  figure visible while the user decides — which left a dialog role with no
+  `aria-modal`, no focus trap and no inert background, so Tab walked straight
+  out of it into the wall's checkboxes. The behaviour was safe (a stray tick
+  closes the confirm, so a stale sentence cannot be committed) but the
+  announcement described something the thing is not. It is an inline
+  confirmation strip and now says so; focus still lands on the safe option.
+- **Both hit areas grow without moving anything.** The checkbox stays 15px, so
+  every `--edge` figure above is untouched; a `<label>` fills the library's
+  40px cell (≥24×24) and, in the wall, takes the full height of the row's
+  `pick` grid area rather than widening a 15px column into an 11px gap.
+  Neither list was an SC 2.5.8 failure — the ~45px and ~40px row pitches
+  satisfy the spacing exception — so this is repetition cost, not conformance.
 
 ## Do's and Don'ts
 
@@ -973,7 +1069,7 @@ element was given an opaque ground rather than a hopeful number.
   last one measures over 3:1 on the grounds these sit on. Two things are
   outside that set on purpose: the cover frame's inline 9% rim, which belongs
   to the drawn object, and the borderless controls (`.iconbtn`, `.linkbtn`,
-  `.nav`, `.rail__new`), whose glyph or underline carries the affordance
+  `.nav`), whose glyph or underline carries the affordance
   because there is no box to put an edge on.
 - **Do** pair every colour-carried state with its word, and check the screen
   in greyscale before calling it done.
@@ -994,6 +1090,31 @@ element was given an opaque ground rather than a hopeful number.
   unremarked.
 - **Do** animate colour and background at 120ms, state arrivals at 260ms, and
   reserve 900ms for the water alone.
+- **Do** give a list that can hold thousands of rows a bulk gesture. Both
+  panels carry one select-all, written from the live count and reversing in
+  place ("Select all 47" → "Select none"), scoped to what the user can
+  actually see — the current view in the library, the whole listing in the
+  wall. The library's took the slot a permanently disabled "Add to playlist"
+  had, which swaps a dead control for a live one instead of adding a fourth
+  thing to the row. Shift-click extends a range on both lists, and a disabled
+  row stays out of it: a bulk gesture must not reach past a refusal.
+- **Do** give Escape a tier order and state it. Confirm first — backing out of
+  the irreversible thing is always its first job — then the post-delete
+  report, then the finished-transfer report, then the selection. Clearing 40
+  ticks is recoverable; committing a delete is not.
+- **Do** put the affordance in the empty state. "Choose a folder of music to
+  get started" with no control in it, while the real one is a nav link fourth
+  in a list of view switchers, instructs and affords nothing. The same
+  `.linkbtn` becomes **Rescan this folder** once a root is set, which is also
+  the only way to re-read a folder that changed underneath the user.
+- **Do** wrap a checkbox in a label that fills its cell. The visual box stays
+  15px and every measured `--edge` ratio holds; only the region that answers
+  a click grows. Where a column is too narrow to widen — the wall's 15px pick
+  column against an 11px gap — take the height instead and leave the
+  horizontal rhythm alone.
+- **Do** give a live count `role="status"`. Both running totals are rewritten
+  on every tick and neither was announced, which matters most with
+  select-all, where one keystroke takes the count from 0 to 22.
 
 ### Don't:
 - **Don't** put brass on anything that is not the primary action or the active
@@ -1047,7 +1168,8 @@ element was given an opaque ground rather than a hopeful number.
   watch-side and asynchronous. So a stub selection is confirmed as a
   **request that has never once been granted** — tag "Your watch has always
   refused this", button "Ask anyway", body leading with the record before the
-  ask — while readable files keep the flat "will be removed". The earlier
+  ask — while readable files are governed by the §8 rule below, which
+  supersedes the flat "will be removed" this line used to mandate. The earlier
   wording, "the firmware has refused this before", was a hedge in the wrong
   direction: it invited the user to expect it might work this time, which
   nothing in the record supports. The ask is still offered, because a finite
@@ -1056,9 +1178,148 @@ element was given an opaque ground rather than a hopeful number.
   Degrading to a failure notice *after* the user committed to a sentence that
   promised success is simulating a capability, which is the case PRODUCT.md's
   tie-breaker names.
+- **Don't** say "from your watch" about a delete. `docs/garmin-mtp.md` §8
+  records 22 deletes that all returned `Ok`, a `/Music` that fell to one
+  entry and 78.5 MB of free space returned — while the watch's own music app
+  went on listing all 22 tracks. Two models fit that and neither is settled,
+  so the copy is bound at both ends: it may not claim Pelican takes a track
+  off the watch, because there is no evidence it can, and it may not claim
+  Pelican cannot, because one delete on one firmware with an unknown
+  mechanism is not a property of the device. What Pelican removes is a
+  **file**, and what it observed is that the space came back and the list did
+  not change. So: the bar says **Delete these files**, the confirmation says
+  the storage frees and the music app *may not* clear, and the send button's
+  reason line says the same thing *before* the tracks go across — "Sending
+  may be one way" — because a warning that only arrives at delete time
+  arrives after the decision it was for. The hedges are load-bearing; each
+  one stands for a specific piece of evidence nobody has.
+- **Don't** let the irreversible action be the only one that reports nothing.
+  The constructive path gets a card, a meter, a breakdown, per-file notices
+  and a dismiss button; delete used to emit `Deleted { ok, failed }` and have
+  the UI throw it away — 22 files gone, 78.5 MB returned, and the screen
+  silent. The confirmation makes a prediction, and a prediction with no
+  follow-up report is the same shape as the wrong counter this list already
+  forbids. So `.dreport` states what was **measured**: the engine's own
+  ok/failed tallies, and the free figure from the snapshot before and the
+  snapshot after — never a figure the app computed by subtracting the sizes
+  it thought it was deleting. Then one caveat, phrased from §8 without
+  picking a mechanism. It takes focus when it appears, because the keyboard
+  user who has just committed the one irreversible thing in the app was
+  otherwise dropped on `<body>`.
+- **Don't** flatten two facts into one bit and then expand it back into two
+  claims. `playable_in_library` is `title.is_some() && artist.is_some()`, and
+  the screen turned that single boolean into "N tracks need a title" *and*
+  "<names> have no title or artist" — both false about a file with a title
+  and no artist, both false about a file Pelican could not open at all, and
+  contradicted by the row four lines above, which was already showing a
+  title. The DTO carries `readable`, `has_title` and `has_artist` separately
+  and the notice names only what is absent. An unreadable file gets its own
+  sentence and **no claim about its tags**: "Pelican could not read this
+  file" is both true and actionable, where "untagged" sends the owner to fix
+  the wrong thing. Files are named by title where they have one and by
+  filename only where they do not — never by filename inside a sentence about
+  titles.
+- **Don't** state an unstamped device claim as a rule. The tag notice's
+  closing sentence rests entirely on one line in `docs/garmin-mtp.md`'s
+  *Storage layout* — the only strong device claim in that file with no
+  provenance: it arrived 2026-05-03 in a bulk docs commit with no firmware, no
+  date and no record of what was measured, where §6, §7 and §8 each name a
+  device, a firmware and a run. And §8 then showed the music app listing 22
+  entries whose objects were already gone from `/Music`, so what the app lists
+  is not a function of what `/Music` holds. The copy therefore may not say the
+  app "lists **only**" files carrying both tags — that is a rule, and the word
+  that makes it one is `only`. It says the shape of the evidence instead: such
+  a file *has not been seen to appear* there. Weaker, true, and it still tells
+  the owner what to do. The general form: a sentence may be no stronger than
+  the strongest thing the doc it cites actually wrote down.
+- **Don't** print the file stem as if it were a title. `scan.rs` falls the
+  Title column back to the stem so a row is never blank, which is right; the
+  column must then say that is what it is. `.t[data-stem]` drops to
+  `--ink-dim`, the same ink the subtitle under it already uses on the same
+  ground, so no new token and no new claim.
+- **Don't** put a reason on a control that cannot be reached to read it. A
+  `disabled` button is not focusable, so a refusal explained in a `title` is
+  explained to the pointer only — the Ogg preview button carried "Pelican
+  cannot preview Ogg files on this Mac" and a keyboard or screen-reader user
+  got a dead control with no reason at all. A control that is inoperable
+  **and has something to say** takes `aria-disabled="true"` plus an
+  `aria-describedby` pointing at the sentence, and the handler enforces the
+  refusal the browser is no longer enforcing. It still has to *look*
+  inoperable: `.45`, the same opacity `.btn:disabled` already uses, so the
+  app has one disabled appearance rather than two. This is the same rule the
+  Send button follows with `#send-why`, generalised — a reason nobody can
+  reach is not a reason. Anything that filtered on `.disabled` has to move
+  with it: the playback queue did, and would otherwise have swept the Ogg
+  rows back in and played the digital silence the exclusion exists to stop.
+- **Don't** carry a hedge past the evidence that retires it. The rule against
+  overclaiming runs in both directions: PRODUCT.md says *never lie about the
+  device*, and an app that goes on calling a path unverified after it has
+  been verified is understating its own measurement, which is the same
+  failure wearing a modest coat. The afconvert profile said "playback
+  unconfirmed" in the shipping UI, in `README.md`, in `docs/status.md`'s
+  caveat table and in `docs/macos-port.md`'s Open list; on 2026-09-05 an
+  afconvert-produced M4A uploaded, indexed **and played** on FR165 FW 2506.
+  Retiring a hedge means **recording the observation first** — device,
+  firmware, date, and what is still out of scope — and then removing the
+  hedge everywhere it was stated, never just deleting it. `encoder_verified`
+  means *observed playing*, not *expected to play*, and it goes back to false
+  the day a profile changes.
+- **Don't** hang the sentence that justifies an irreversible action off a
+  container. `.confirm` is `role="group"`, deliberately non-modal so the free
+  figure stays visible — but a description on a group is not reliably
+  announced, and focus opens on **Keep them**. Both buttons carry
+  `aria-describedby="confirm-tag confirm-body"`, so the count, the byte total
+  and "Pelican cannot undo this, and the watch has no trash" are read out
+  with whichever one holds focus. Otherwise a screen-reader user can tab to
+  Delete and commit having never heard the reason it needs confirming.
+- **Don't** ship a control that no code path can enable. A greyed button
+  reads as "available under some condition you have not met", not as "never
+  implemented" — and an "Add tags…" button hard-coded `disabled`, with no id,
+  no handler and no command behind it, sat directly under a sentence that was
+  itself wrong about the file, which is what made the false claim read as an
+  accusation with a remedy attached. Name the remedy in prose instead: it
+  costs no pixels and promises nothing. If a capability is real but not here
+  yet, that is a sentence, not a control. Three went by this rule: "Add
+  tags…", "Add to playlist" (whose slot the library's select-all now holds)
+  and the rail's "New playlist". The last was the test of whether this is a
+  rule or an excuse — it was pre-existing, it was not part of the change that
+  wrote the rule, and it was three lines below a `.rail__note` already
+  explaining that Pelican has no playlists and the watch would refuse one over
+  USB anyway. A rule that exempts what was already there is a preference. The
+  note carries the whole statement now, and says more than the button could.
+- **Don't** let a selection live in the DOM when the DOM is rebuilt under it.
+  `renderTracks` empties the tbody and clones fresh unticked rows, so every
+  rail click, album drill-in and crumb-back destroyed the library's
+  selection, and a send set assembled across two albums was impossible by
+  construction. Both panels keep their selection in a path-keyed `Set`
+  (`libPicks`, `wallPicks`/`wallGhosts`), pruned against the live listing
+  whenever a scan or snapshot arrives — a stale path in a set is a path that
+  Send or Delete would act on.
+- **Don't** build a bulk gesture out of synthetic events. The old stubs link
+  dispatched one `change` per checkbox; each re-entered the handler, which
+  re-queried the whole list and, in the grouped arrangements, re-parsed every
+  group header's keys — N full-list queries plus N×G JSON parses for one
+  click. Mutate the set, repaint once. Every bulk control in the app now does
+  it the way the group header always did.
 - **Don't** render a bare "N of M" for a transfer. The numerator is position
   in the batch, which is a real quantity and stays as it is; read alone it
   says "N sent", so the ok/skipped/failed breakdown rides beside it.
+- **Don't** let a name collision pass as a plain "Skipped". A track refused
+  because the watch already holds a file under that name is the one skip the
+  user has to act on, and a generic label makes it indistinguishable from a
+  cover image. It gets its own tag — **Name already on the watch** — the
+  engine's sentence naming the file and the consequence, and, once the run
+  ends, the single affordance that resolves it: **Send under a new name**.
+  Renaming without saying so is the mirror of the same lie, so a renamed
+  track's completion notice reads **Sent under a new name** and gives the
+  name the watch will actually report, not the one on disk.
+- **Don't** state the guard as a guarantee. It is "Pelican checks every name
+  the watch can report before it writes" — never "Pelican will never
+  overwrite anything on your watch". A broken stub's real filename is
+  unreadable over MTP (`list_dir` synthesizes a placeholder for it), so a
+  plan colliding with a stub's true name is undetectable by name comparison.
+  See `docs/garmin-mtp.md` §7 for that blind spot and the second one, the
+  unverified cross-extension case.
 - **Don't** group anything on the watch without stating where the grouping
   came from. Pelican groups from its own upload journal, so every grouped
   view names that source and gives an honest home to every file it cannot

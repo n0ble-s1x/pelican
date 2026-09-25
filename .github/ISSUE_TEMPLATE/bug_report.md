@@ -12,9 +12,11 @@ labels: bug
 ## Environment
 
 - Garmin model + firmware:
-- Distro + version:
-- `pelican --version`:
-- ffmpeg version (`ffmpeg -version` first line):
+- OS + version (e.g. "macOS 26.6.2" or "Pop!_OS 24.04"):
+- Which build: `pelican-shell` (macOS) or `pelican` (Linux)?
+- `pelican --version`, or the version in the app:
+- ffmpeg version (`ffmpeg -version` first line). Optional — write
+  "n/a — using afconvert" if you are on macOS without ffmpeg installed:
 
 ## Steps to reproduce
 
@@ -30,7 +32,9 @@ labels: bug
 
 ## Logs
 
-<!-- Paste relevant lines from the in-app TRANSMISSION LOG, or `RUST_LOG=debug` output -->
+<!-- The macOS app reports failures verbatim in the transfer card, under the
+     progress bar — copy those lines. Otherwise run from a terminal with
+     RUST_LOG=debug and paste the output. -->
 
 ```
 ```

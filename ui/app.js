@@ -54,6 +54,11 @@
        happened. */
     openFailed: null,
     free: 0, total: 0,
+    /* A delete in flight, and the free reading taken before it went out.
+       `Deleted` carries the tallies and the snapshot that follows carries the
+       new free figure, so the report needs both events and this is where the
+       first half waits. Null whenever nothing is pending. */
+    pendingDelete: null,
     entries: [], uploads: [],
     tracks: [], root: null,
     /* Which question the library is answering, and whether one answer is
@@ -130,13 +135,70 @@
 
   /* ── selection ──────────────────────────────────────────────────────── */
 
-  let picks = [];
+  /* The library's selection, keyed on path and kept out of the DOM.
 
-  const checked = () => picks.filter((p) => p.checked).map((p) => p.closest('tr'));
+     It used to live in the checkboxes themselves, and `renderTracks` empties
+     the tbody and clones fresh unticked rows — so every rail click, every
+     drill into an album and every crumb-back destroyed it. Ticking five
+     tracks in one album and five in another was impossible by construction,
+     because `send()` read the DOM and the DOM only ever held the page in
+     front of you. The wall next door already does this correctly with
+     `wallPicks`/`wallGhosts`; this is the same pattern on the panel that
+     actually has the rows.
 
-  /* Tracks that will transfer but stay invisible on the watch, because they
-     carry no title or artist. Surfaced at selection time, not mid-send. */
-  const untagged = () => checked().filter((r) => r.dataset.untagged === 'true').length;
+     Pruned in the `scanned` handler against the new track list, the way
+     `renderWall` prunes against the live listing: a re-scan must not leave a
+     path in a set that Send would then act on. */
+  const libPicks = new Set();
+
+  /* Selected tracks as the scan described them, not as the current view
+     happens to be rendering. Everything that counts, sums or names the
+     selection reads this, so those figures are right across views instead of
+     describing only the visible page. */
+  const checked = () => state.tracks.filter((t) => libPicks.has(t.path));
+
+  /* The subset that is on screen right now. Only the send animation wants
+     this — it moves rows, and a row that is not rendered cannot move. */
+  const checkedRows = () =>
+    $$('.tracks tbody tr').filter((tr) => libPicks.has(tr.dataset.path));
+
+  /* What the selection is actually missing, in four separate buckets,
+     because they are four different things to tell someone.
+
+     This was one boolean — `playableInLibrary`, which is
+     `title.is_some() && artist.is_some()` — and the screen expanded that one
+     bit back into two specific claims: a heading saying tracks "need a
+     title" and a body saying named files "have no title or artist". Both
+     were false about any file that had a title and no artist, and both were
+     false about a file Pelican could not open at all, which arrived here as
+     the same `false`. The owner reported it as the app lying about his own
+     music, and he was right.
+
+     A file Pelican could not parse is in its own bucket and gets its own
+     sentence. Pelican has no evidence about that file's tags and may not
+     make a claim about them. */
+  const gapOf = (t) => {
+    if (!t.readable) return 'unreadable';
+    if (!t.hasTitle && !t.hasArtist) return 'both';
+    if (!t.hasTitle) return 'title';
+    if (!t.hasArtist) return 'artist';
+    return null;
+  };
+
+  const gaps = () => {
+    const out = { unreadable: [], both: [], title: [], artist: [] };
+    for (const t of checked()) {
+      const g = gapOf(t);
+      if (g) out[g].push(t);
+    }
+    return out;
+  };
+
+  /* Identify a file by its title where it has one, and by its filename where
+     it does not — never by a filename inside a sentence about titles. The
+     old copy named every file by `dataset.name`, so a titled file was
+     identified by its filename in a sentence claiming it had no title. */
+  const gapName = (t) => (t.hasTitle ? t.title : t.path.split('/').pop());
 
   /* One reading of the situation, for both the send button's reason and the
      transfer card's heading.
@@ -177,6 +239,31 @@
       why = `That is ${sel.about}${fmt(sel.bytes - state.free)} more than your watch has room for.`;
       blocked = 'capacity';
     }
+    /* The send is possible — which is the moment this belongs, and the only
+       moment. It is a warning a person reads while deciding, so it sits on
+       the button it describes (aria-describedby="send-why") rather than in a
+       notice they would have to go and find.
+
+       `docs/garmin-mtp.md` §8: on 2026-09-05, FR165 FW 2506, 22 files were
+       deleted, every DeleteObject returned Ok, /Music fell to one entry and
+       free space rose 78.5 MB — and the watch's music app still listed all
+       22. So the sentence has to hold two things at once. It must not say
+       Pelican can take a track off the watch, because there is no evidence it
+       can. And it must not say Pelican cannot, because the mechanism is not
+       established and one observation on one firmware is not a property of
+       the device. Hence "may", "the one time", "we don't know why yet" —
+       each hedge is carrying a specific piece of missing evidence, not
+       softening the warning.
+
+       Ink is --ink-dim on --air, 6.38:1 (app.css, .sendwhy). Signal Red is
+       reserved for the over-capacity case by DESIGN.md's exhaustive list, so
+       `blocked` stays 'reason': this is a fact about the watch, not a
+       failure of the selection. */
+    else {
+      why = 'Sending may be one way. Pelican can delete the file later, but '
+          + 'the one time that was tried the watch’s music app still listed '
+          + 'the tracks — we don’t know why yet.';
+    }
     return { heading, why, blocked, running, cardUp: !!r && !r.dismissed };
   }
 
@@ -207,14 +294,14 @@
 
   function updateSelection() {
     const rows = checked();
-    const bytes = rows.reduce((n, r) => n + sizeOf(r), 0);
+    const bytes = rows.reduce((n, t) => n + Number(t.bytes || 0), 0);
     const known = state.total > 0;
     const fits = !known || bytes <= state.free;
     /* Anything that has to be converted has a *modelled* size — duration at
        the target bitrate — not a measured one, and scan.rs says so in its own
        doc comment. Two significant figures on a projection reads as a
        measurement, so the projection says it is one. */
-    const est = rows.some((r) => r.dataset.pipeline && r.dataset.pipeline !== 'passthrough');
+    const est = rows.some((t) => t.pipeline && t.pipeline !== 'passthrough');
     const about = est ? 'about ' : '';
 
     /* The band sits on top of the current level and is measured against
@@ -275,29 +362,77 @@
       $('[data-transfer-h]').textContent = sit.heading;
     }
 
-    if (prewarn) {
-      const n = untagged();
-      prewarn.hidden = n === 0;
-      if (n) {
-        $('.prewarn__tag', prewarn).textContent =
-          `${plural(n, 'track')} need${n === 1 ? 's' : ''} a title`;
-        const names = checked()
-          .filter((r) => r.dataset.untagged === 'true')
-          .slice(0, 3)
-          .map((r) => r.dataset.name);
-        const body = $('[data-prewarn-body]');
-        /* The claim is precise and it is true: skip_tag_check is on, so the
-           file really does transfer — it just never appears in the watch's
-           music app. Weakening either half would misinform. */
-        body.textContent = '';
-        const strong = document.createElement('strong');
-        strong.textContent = names.join(', ') + (n > names.length ? ` and ${n - names.length} more` : '');
-        body.append(strong, document.createTextNode(
-          n === 1
-            ? ' has no title or artist. It will copy across, but your watch will never show it in the music app.'
-            : ' have no title or artist. They will copy across, but your watch will never show them in the music app.'));
-      }
+    if (prewarn) renderPrewarn();
+    updateLibAll();
+  }
+
+  /* One sentence per bucket, and every sentence names only the field the
+     scan actually found absent. The old copy asserted "no title or artist"
+     over a single boolean; this one can say "3 tracks have no artist" and be
+     right about all three.
+
+     Nothing here says the watch "will never" show the file, and nothing says
+     "only". The reference is docs/garmin-mtp.md's Storage layout note, and
+     that note is the one strong device claim in the file with no provenance
+     stamp — no firmware, no date, no record of what was measured. §8 of the
+     same file then showed the music app listing 22 entries whose objects were
+     already deleted from /Music, so what the app lists is not a function of
+     what /Music holds. "Lists only files carrying both" was therefore a rule
+     the repo has not earned. What is said instead is the shape of the
+     evidence: such a file has not been SEEN to appear. That is weaker, it is
+     true, and it still tells the owner what to do about it. */
+  function renderPrewarn() {
+    const b = gaps();
+    const tagged = b.both.length + b.title.length + b.artist.length;
+    const total = tagged + b.unreadable.length;
+    prewarn.hidden = total === 0;
+    if (!total) return;
+
+    const tag = [];
+    const needs = (rows, what) => {
+      if (!rows.length) return;
+      tag.push(`${plural(rows.length, 'track')} ${rows.length === 1 ? 'needs' : 'need'} ${what}`);
+    };
+    needs(b.both, 'a title and an artist');
+    needs(b.title, 'a title');
+    needs(b.artist, 'an artist');
+    if (b.unreadable.length) {
+      tag.push(`${plural(b.unreadable.length, 'file')} could not be read`);
     }
+    $('.prewarn__tag', prewarn).textContent = tag.join(' · ');
+
+    const body = $('[data-prewarn-body]');
+    body.textContent = '';
+    /* A run of names in --ink, then the claim in --ink-dim. Both ratios are
+       already measured against this ground in app.css. */
+    const say = (rows, sentence) => {
+      if (!rows.length) return;
+      const strong = document.createElement('strong');
+      strong.textContent = nameList(rows.map(gapName));
+      if (body.childNodes.length) body.append(document.createTextNode(' '));
+      body.append(strong, document.createTextNode(sentence(rows.length)));
+    };
+    say(b.both, (n) => (n === 1 ? ' has no title and no artist.' : ' have no title and no artist.'));
+    say(b.title, (n) => (n === 1 ? ' has no title.' : ' have no title.'));
+    say(b.artist, (n) => (n === 1 ? ' has no artist.' : ' have no artist.'));
+    if (tagged) {
+      body.append(document.createTextNode(
+        (tagged === 1 ? ' It will copy' : ' They will copy')
+        + ' across, but a file missing either tag has not been seen to appear'
+        + " in the watch's music app."
+        /* Names the remedy in prose. This is what the permanently disabled
+           "Add tags…" button next to it was standing in for, and Pelican does
+           not write to your source files — see docs/tag-editing-proposal.md.
+           "Rescan" is the control now in the hero, so it is named. */
+        + ' Add the missing tags in whatever tagger you use, then Rescan.'));
+    }
+    /* Deliberately no claim about this file's tags: the parser never got far
+       enough to have one. Telling someone a truncated FLAC is "untagged"
+       sends them to fix the wrong thing. */
+    say(b.unreadable, (n) =>
+      (n === 1 ? ' could not be read by Pelican' : ' could not be read by Pelican')
+      + ' — the file may be truncated or corrupt, so nothing is known about'
+      + (n === 1 ? ' its' : ' their') + ' tags.');
   }
 
   /* ── library ────────────────────────────────────────────────────────── */
@@ -316,7 +451,10 @@
   function renderTracks(tracks) {
     const tpl = $('#tpl-track');
     rowsEl.textContent = '';
-    for (const t of tracks) {
+    /* Indexed because a refusal note below needs a unique id to be pointed at
+       by `aria-describedby`, and a path cannot be one — paths carry spaces.
+       The tbody is emptied on every render, so the ids never collide. */
+    for (const [rowIndex, t] of tracks.entries()) {
       const frag = tpl.content.cloneNode(true);
       const tr = frag.querySelector('tr');
       const name = t.path.split('/').pop();
@@ -331,19 +469,37 @@
       tr.dataset.title = t.title;
       tr.dataset.artist = t.artist || '';
       tr.dataset.album = t.album || '';
-      if (!t.playableInLibrary) tr.dataset.untagged = 'true';
+      /* Name the absence, do not flatten it. `unreadable` is first because it
+         is not a statement about tags at all — see `gaps()`. */
+      if (!t.readable) tr.dataset.gap = 'unreadable';
+      else if (!t.hasTitle && !t.hasArtist) tr.dataset.gap = 'both';
+      else if (!t.hasTitle) tr.dataset.gap = 'title';
+      else if (!t.hasArtist) tr.dataset.gap = 'artist';
 
       const label = t.artist ? `${t.title} — ${t.artist}` : t.title;
-      $('.t', tr).textContent = t.title;
+      const titleEl = $('.t', tr);
+      titleEl.textContent = t.title;
+      /* scan.rs falls this column back to the file stem so a row is never
+         blank, which is right — but a stem is a filename, not a title. The
+         app used to print one here in --ink and then, four rows lower, tell
+         the owner that same file had no title. Mark it so the column stops
+         asserting something the file does not carry. */
+      if (!t.hasTitle) titleEl.dataset.stem = 'true';
       /* The format column is a fixed 96px in the approved comp, so anything
          longer than a format name belongs on the subtitle line instead — it
          wraps to three lines and drags the whole row's height with it. */
       /* A duration of zero is what scan.rs writes when lofty could not open
          the file at all. Unknown and zero are different facts, so the
-         unknown one is left unsaid rather than printed as `0:00`. */
+         unknown one is left unsaid rather than printed as `0:00`.
+
+         And "no artist" is a claim about the file's tags, which Pelican is
+         not entitled to make about a file it could not parse. Unreadable
+         gets its own words here for the same reason it gets its own bucket
+         in `gaps()`. */
       $('.tracks__title .s', tr).textContent =
-        (t.durationSecs ? `${mmss(t.durationSecs)} · ` : '')
-        + (t.artist ? t.artist : 'no artist')
+        (t.readable
+          ? (t.durationSecs ? `${mmss(t.durationSecs)} · ` : '') + (t.artist ? t.artist : 'no artist')
+          : 'Pelican could not read this file')
         + (t.sendable && t.pipeline !== 'passthrough' ? ' · converts to 192 kbps' : '')
         + (t.sendable ? '' : ' · cannot be converted for your watch');
       $('.tracks__fmt', tr).textContent = t.fmt;
@@ -354,32 +510,162 @@
          reports readyState 4, a correct duration and a moving clock, and
          emits digital silence. That failure is invisible from its own API,
          so it has to be refused here. */
+      /* `aria-disabled`, not `disabled`. A `disabled` button is not
+         focusable, so the one sentence explaining the refusal lived in a
+         `title` and was reachable by pointer only — a keyboard or screen
+         reader user got a dead control and no reason at all. The control
+         stays focusable and describes itself; `wirePlay` refuses the click.
+         Same argument the send button already makes with `#send-why`: a
+         control that cannot be operated has to say why, to everyone. */
       if (OGG_SILENT.has(extOf(t.path))) {
-        play.disabled = true;
-        play.title = 'Pelican cannot preview Ogg files on this Mac.';
+        const why = 'Pelican cannot preview Ogg files on this Mac.';
+        play.setAttribute('aria-disabled', 'true');
+        play.title = why;
+        const id = `why-ogg-${rowIndex}`;
+        const note = document.createElement('span');
+        note.className = 'sr-only';
+        note.id = id;
+        note.textContent = why;
+        play.after(note);
+        play.setAttribute('aria-describedby', id);
       }
 
       const pick = $('input', tr);
       pick.setAttribute('aria-label', 'Send ' + label);
+      /* Painted from the set, so a selection made in one album is still there
+         when you come back to it.
+
+         No `.is-picked` row tint here, unlike the wall. The wall's rows carry
+         --ink and --ink-dim only; a library row also carries the format
+         column in --ink-faint at 10.5px, and --ink-faint on --surface-2 over
+         --air (#1e2733) measures 4.38:1 — under AA. The tick is the state. */
+      pick.checked = libPicks.has(t.path);
       /* The engine already wrote the honest sentence for both cases — the
          refusal and the conversion profile. Showing it only for refusals
          threw the conversion disclosure away. */
       if (t.note) pick.title = t.note;
       if (!t.sendable) {
-        pick.disabled = true;
+        /* Same argument as the Ogg play button above, and the rule DESIGN.md
+           states: a reason nobody can reach is not a reason. `disabled` takes
+           the checkbox out of the tab order, so the engine's sentence — which
+           names the format AND the fix, e.g. install ffmpeg for .opus — was
+           reachable by hovering a mouse and by nothing else. aria-disabled
+           keeps it focusable and described; the change handler refuses. */
+        pick.setAttribute('aria-disabled', 'true');
         pick.setAttribute('aria-label', `Cannot send ${label}`);
+        pick.closest('.pickhit')?.classList.add('is-off');
+        if (t.note) {
+          const id = `why-send-${rowIndex}`;
+          const note = document.createElement('span');
+          note.className = 'sr-only';
+          note.id = id;
+          note.textContent = t.note;
+          pick.after(note);
+          pick.setAttribute('aria-describedby', id);
+        }
       }
 
       rowsEl.appendChild(frag);
     }
 
-    picks = $$('.tracks__pick input');
-    picks.forEach((p) => p.addEventListener('change', updateSelection));
+    shownTracks = tracks;
     wirePlay();
     buildQueue();
     publishMediaSession();
     updateSelection();
   }
+
+  /* ── library bulk selection ─────────────────────────────────────────── */
+
+  /* What `renderTracks` last painted. The select-all is scoped to this,
+     because this is the scope the user can see — "all 47" must mean the 47
+     in front of them, not 2000 across the folder. */
+  let shownTracks = [];
+
+  /* The anchor for a shift-range, as an index into the rendered rows. */
+  let lastLibIndex = null;
+
+  const libRows = () => $$('.tracks tbody tr');
+
+  const setLibPick = (path, on) => {
+    if (!path) return;
+    if (on) libPicks.add(path); else libPicks.delete(path);
+  };
+
+  function updateLibAll() {
+    const btn = $('[data-lib-all]');
+    if (!btn) return;
+    const sendable = shownTracks.filter((t) => t.sendable);
+    btn.hidden = sendable.length === 0;
+    if (!sendable.length) return;
+    const all = sendable.every((t) => libPicks.has(t.path));
+    btn.textContent = all ? 'Select none' : `Select all ${sendable.length}`;
+    /* WCAG 2.5.3 Label in Name: aria-label overrides the visible words, so the
+       name must CONTAIN them or a speech-input user saying what is printed on
+       the button gets no match. The "all" branch already did — "Select all 22
+       tracks in this view" opens with the visible "Select all 22". The "none"
+       branch did not: "Clear the selection" is a description of the same act,
+       not the label, and one state of a two-state control being unsayable is
+       as broken as both. The visible label leads, the detail follows.
+       Same shape on [data-wall-all] and [data-pick-stubs]. */
+    btn.setAttribute('aria-label', all
+      ? 'Select none — clear the selection'
+      : `Select all ${plural(sendable.length, 'track')} in this view`);
+    btn.dataset.all = all ? 'yes' : 'no';
+  }
+
+  $('[data-lib-all]')?.addEventListener('click', () => {
+    const on = $('[data-lib-all]').dataset.all !== 'yes';
+    /* Mutate the set and repaint once. Never by dispatching N synthetic
+       change events: each one would re-enter the handler, and the same
+       shortcut in the wall's stubs link is what made that gesture quadratic. */
+    for (const t of shownTracks) if (t.sendable) setLibPick(t.path, on);
+    for (const tr of libRows()) {
+      const box = $('.tracks__pick input', tr);
+      /* Checks aria-disabled as well as .disabled: unsendable rows moved to
+         the ARIA form so their reason stays reachable, and a bulk tick must
+         still skip them. */
+      if (box && !box.disabled && box.getAttribute('aria-disabled') !== 'true') {
+        box.checked = libPicks.has(tr.dataset.path);
+      }
+    }
+    lastLibIndex = null;
+    updateSelection();
+  });
+
+  /* One delegated pair on the tbody, wired once — `renderTracks` used to
+     attach a fresh change listener to every checkbox on every render. */
+  rowsEl.addEventListener('click', (e) => {
+    const pick = e.target.closest('.tracks__pick input');
+    if (!pick || !e.shiftKey || lastLibIndex === null) return;
+    /* `click` fires after the checkbox's own state has flipped, so
+       `pick.checked` is already the value the whole range should take. */
+    const rows = libRows();
+    const i = rows.indexOf(pick.closest('tr'));
+    if (i < 0) return;
+    const [a, b] = i < lastLibIndex ? [i, lastLibIndex] : [lastLibIndex, i];
+    for (let k = a; k <= b; k++) {
+      const box = $('.tracks__pick input', rows[k]);
+      /* A file no encoder can read stays out of the range: its checkbox is
+         disabled, and a bulk gesture must not reach past a refusal. */
+      if (!box || box.disabled) continue;
+      box.checked = pick.checked;
+      setLibPick(rows[k].dataset.path, pick.checked);
+    }
+    updateSelection();
+  });
+
+  rowsEl.addEventListener('change', (e) => {
+    const pick = e.target.closest('.tracks__pick input');
+    if (!pick) return;
+    /* aria-disabled keeps the control focusable so its reason can be read,
+       which means the refusal has to happen here instead of in the DOM. */
+    if (pick.getAttribute('aria-disabled') === 'true') { pick.checked = false; return; }
+    const tr = pick.closest('tr');
+    setLibPick(tr.dataset.path, pick.checked);
+    lastLibIndex = libRows().indexOf(tr);
+    updateSelection();
+  });
 
   /* ── library grouping ───────────────────────────────────────────────── */
 
@@ -552,6 +838,29 @@
     const by = $('[data-hero-by]');
     const facts = $('[data-hero-facts]');
 
+    /* The empty state's affordance and, once a folder is open, the way to
+       re-read it — one control, because they are the same gesture pointed at
+       a path Pelican either has or is about to ask for. */
+    const act = $('[data-folder-act]');
+    if (act) {
+      /* Label in Name again (2.5.3). The test is containment, not overlap:
+         the name "Read this folder again" reuses two of the button's words
+         and still does not CONTAIN "Rescan this folder", so a speech-input
+         user saying what is printed gets no match. The visible words lead
+         and the qualifier follows. The empty state carries no aria-label at
+         all — its own text is already the whole label, and the trailing
+         ellipsis is the standard "this opens a dialog" mark. Removing rather
+         than rewriting it also means the attribute cannot survive the
+         transition back and leave a name from the other state. */
+      if (!state.root) {
+        act.textContent = 'Choose a folder of music…';
+        act.removeAttribute('aria-label');
+      } else {
+        act.textContent = 'Rescan this folder';
+        act.setAttribute('aria-label', 'Rescan this folder — read it again from disk');
+      }
+    }
+
     if (!state.root) {
       title.textContent = 'No folder open';
       by.textContent = 'Choose a folder of music to get started.';
@@ -607,37 +916,33 @@
         'your watch cannot play, and Pelican found no converter it can run. Install ffmpeg.';
       return;
     }
+    /* `encoderVerified` is always false today: nothing Pelican produces has
+       been confirmed to play on a watch. This branch is therefore dead, and
+       kept only so a real confirmation has somewhere to land. Whatever goes
+       here must name the model and firmware the track was *heard* on. */
     if (state.encoderVerified) {
       tag.textContent = `Converting with ${state.encoder}`;
       body.textContent =
-        'Files your watch cannot play will be converted to 192 kbps MP3 on this Mac. ' +
-        'This is the profile confirmed on a Forerunner 165.' +
+        `Files your watch cannot play will be converted on this Mac with ${state.encoder}.` +
         (refused ? ` ${plural(refused, 'file')} still cannot be converted at all.` : '');
       return;
     }
-    /* Naming the untested path is the point — but the sentence has to name
-       which half is untested, because the two halves now have different
-       evidence behind them.
-
-       Transfer is observed: afconvert-produced M4A files have landed on the
-       attached FR165 and are listed by the device. What is still unverified
-       is the other subsystem — `docs/macos-port.md` says it outright, that
-       "upload acceptance and library indexing are different subsystems", and
-       the MP3 profile is pinned to CBR 192 kbps precisely because the
-       indexer is fussy. So `encoder_verified` stays false for afconvert and
-       means *the watch plays it*, not *it arrives*.
-
-       What the engine observed about ffmpeg is also narrower than "not
-       installed": it tried to spawn `ffmpeg` off this process's PATH and
-       failed, and a Finder-launched .app does not inherit the PATH a
-       Homebrew ffmpeg lives on. Say the observation, not the inference. */
+    /* The honest sentence, and the one users actually get. It names the output
+       format, because "192 kbps MP3" for an afconvert run would be a false
+       statement about the user's own file — the same class of error as a false
+       statement about the device. */
+    const af = state.encoder === 'afconvert';
     tag.textContent = `Converting with ${state.encoder} — playback unconfirmed`;
     body.textContent =
-      'Pelican could not find ffmpeg on its PATH, so conversions use macOS’s own ' +
-      'afconvert and land as AAC in M4A. Files in this format have transferred to a ' +
-      'Forerunner 165 successfully, but Pelican has not confirmed that the watch’s ' +
-      'music app indexes and plays them — arriving and playing are different ' +
-      'subsystems. An app launched from Finder does not see a Homebrew ffmpeg.' +
+      (af
+        ? 'Files your watch cannot play will be converted to 192 kbps AAC in M4A on this ' +
+          'Mac, using macOS’s own afconvert — no ffmpeg needed. If you installed ffmpeg ' +
+          'and expected it to be used, an app opened from Finder does not inherit the ' +
+          'PATH a Homebrew ffmpeg lives on. '
+        : 'Files your watch cannot play will be converted to 192 kbps MP3 on this Mac. ') +
+      'Pelican has never confirmed that a watch’s music app plays this output — ' +
+      'arriving, being indexed and playing are three different subsystems, and only ' +
+      'arriving has been observed.' +
       (refused ? ` ${plural(refused, 'file')} cannot be converted at all.` : '');
   }
 
@@ -798,8 +1103,13 @@
     if (foreign.length) {
       blocks.push({
         label: `Not from Pelican (${foreign.length})`,
-        sub: 'Your watch reports these by filename only. Pelican has no record '
-           + 'of sending them, so it does not know their album or artist.',
+        // Says what Pelican does, not what the watch cannot: this device
+        // answers GetObjectPropValue for Artist and AlbumName even on files
+        // we never sent (docs/garmin-mtp.md). Nothing calls 0x9801-0x9805 at
+        // runtime, so "only asks for filenames" is exactly true and the
+        // denial that used to sit here was not.
+        sub: 'Pelican has no record of sending these, so it does not know '
+           + 'their album or artist. It only asks the watch for filenames.',
         items: foreign,
       });
     }
@@ -866,7 +1176,10 @@
       $('.z', li).textContent = fmt(it.bytes);
       li.dataset.bytes = String(it.bytes);
       pick.dataset.path = it.path;
-      pick.setAttribute('aria-label', `Remove ${it.name} from your watch`);
+      /* "the file", for the reason the bar's button says "files": deleting the
+         object is observed to work and to return the space; clearing the
+         watch's music list is not something Pelican does. §8. */
+      pick.setAttribute('aria-label', `Delete the file ${it.name} from your watch`);
       pick.checked = wallPicks.has(it.path);
     } else {
       $('.s', li).textContent = it.note || '';
@@ -934,14 +1247,45 @@
     wallCount.firstChild.textContent = brokenCount
       ? `${plural(onWatch, 'track')} aboard · ${brokenCount} unreadable · `
       : `${plural(onWatch, 'track')} aboard`;
+    /* Both directions in one control, written from the live count. Scoped to
+       every row the wall is listing, which in every arrangement is the same
+       set — Files/Album/Artist rearrange one list, they do not filter it. */
+    const allLink = $('[data-wall-all]');
+    if (allLink) {
+      const keys = items.map((i) => (i.path ? { path: i.path } : { ghost: i.name }));
+      allLink.hidden = keys.length === 0;
+      const on = keys.filter(
+        (k) => (k.path ? wallPicks.has(k.path) : wallGhosts.has(k.ghost))).length;
+      const all = keys.length > 0 && on === keys.length;
+      allLink.textContent = all ? 'select none' : `select all ${keys.length}`;
+      /* Label in Name, as on [data-lib-all]. Matching is case-insensitive, so
+         the lowercase "select all 4" is contained in "Select all 4 files on
+         your watch"; the lowercase style is the .linkbtn's, not a second
+         label. Only the "none" branch had to change. */
+      allLink.setAttribute('aria-label', all
+        ? 'Select none — clear the selection'
+        : `Select all ${plural(keys.length, 'file')} on your watch`);
+      allLink.dataset.all = all ? 'yes' : 'no';
+      allLink.dataset.keys = JSON.stringify(keys);
+    }
     if (stubLink) {
       stubLink.hidden = brokenCount === 0;
       stubLink.textContent = brokenCount === 1
         ? 'select it' : `select all ${brokenCount}`;
+      /* Singular was the Label-in-Name break here: "select it" against the
+         name "Select the unreadable file" — the word "it" is not in the name,
+         so the one thing a speech-input user could read off the screen was
+         the one thing that did not work. Plural was already fine. */
       stubLink.setAttribute('aria-label', brokenCount === 1
-        ? 'Select the unreadable file'
+        ? 'Select it — the unreadable file'
         : `Select all ${brokenCount} unreadable files`);
     }
+    /* The count line ends with "· " only when there are stubs, so without
+       this the select-all ran straight on from "6 tracks aboard" — and with
+       stubs it ran straight on from "select it". One separator, shown
+       whenever the link is. */
+    const sep = $('[data-wall-sep]');
+    if (sep) sep.hidden = !(allLink && !allLink.hidden);
 
     /* One scroll region does the work. A "Show all 20" link under a list that
        is already cut off by its own scroll promises a reveal that scrolling
@@ -1006,9 +1350,15 @@
     /* The button must not say a word Pelican cannot honour. Nothing on the
        device means nothing to delete; nothing but stubs means an outcome the
        firmware gets the last word on, and has so far always answered no
-       (docs/garmin-mtp.md §6). Hence "Ask", never "Delete". */
+       (docs/garmin-mtp.md §6). Hence "Ask", never "Delete".
+
+       "Delete these files", not "Delete from watch": §8 records a delete that
+       emptied /Music and returned the space while the watch's music app went
+       on listing every track. "From watch" is the reading a user would take
+       as "off my watch", which is the one outcome Pelican has no evidence it
+       can deliver. Files are what it removes, so files are what it says. */
     $('[data-wall-delete]').textContent =
-      p.files.length ? 'Delete from watch'
+      p.files.length ? 'Delete these files'
         : p.stubs.length ? 'Ask the watch to remove'
           : 'Forget these';
   }
@@ -1093,10 +1443,53 @@
         text('. ' + stubWhy(p.stubs.length) + stubAsk(p.stubs.length)));
     } else {
       $('[data-confirm-go]').textContent = 'Delete';
+      /* Two different objects, and the confirmation is the last place they can
+         be told apart before the user commits. The *file* goes: §8 measured
+         /Music down to one entry and 78.5 MB of free space returned, so
+         "removed" and "frees the space" are both observed. The watch's own
+         music *list* is a separate thing Pelican has never touched, and after
+         that same delete it still held all 22 entries. Saying only the first
+         half would let the user read a promise Pelican has no evidence it can
+         keep. Saying the second half as settled would be its own overclaim —
+         one delete, one firmware, mechanism unknown — hence "may not" and
+         "the one time". "Pelican has no way to reach that list" is the one
+         flat assertion here, and it is a fact about this codebase rather than
+         about the device. */
+      /* Lead with the two figures a person is actually deciding about, both
+         observed. `nameList` caps at three names plus "and N more", so with
+         select-all this read "A, B, C and 19 more will be removed" — the
+         count 22 was never stated, only reconstructible by adding three to
+         nineteen — and the weight was never stated at all, though `picked()`
+         had already summed it from device-reported sizes and the wallbar one
+         line up was displaying it. The stub branch above got this right and
+         the readable branch was the outlier.
+
+         "Your watch reports these as X" and not "this will free X": the
+         prediction belongs to the report after the fact, where the number is
+         the device's own answer rather than a sum of what it said earlier.
+         Stubs contribute no bytes here — `picked()` refuses to add zeros for
+         handles the watch never sized, and that discipline has to survive
+         into the sentence. */
       body.append(
+        strong(plural(p.files.length, 'file')),
+        text(' — '),
+        strong(fmt(p.bytes)),
+        text(', including '),
         strong(nameList(p.names(p.files))),
-        text(' will be removed from your watch. Pelican cannot undo this, and '
-          + 'the watch has no trash. Your copies on this Mac are not touched.'));
+        text('. '),
+        text((p.files.length === 1 ? 'It' : 'They')
+          + ' will be removed from your watch’s storage. Pelican cannot undo '
+          + 'this, and the watch has no trash. Your copies on this Mac are '
+          + 'not touched. Free space now: '),
+        strong(fmt(state.free)),
+        text('.'),
+        text(' Removing '
+          + (p.files.length === 1 ? 'it' : 'them')
+          + ' frees that space — but it may not clear '
+          + (p.files.length === 1 ? 'the track' : 'the tracks')
+          + ' from the watch’s music app. The one time this was tried, the '
+          + 'app still listed everything, and Pelican has no way to reach '
+          + 'that list. Pelican will tell you what changed.'));
       /* A mixed selection cannot inherit the readable files' certainty: the
          same batch, two different confidences. */
       if (p.stubs.length) {
@@ -1127,6 +1520,82 @@
     $('[data-confirm-keep]').focus();
   }
 
+  /* ── what the delete actually did ───────────────────────────────────── */
+
+  const dreport = $('[data-dreport]');
+
+  function hideDeleteReport() {
+    if (dreport) dreport.hidden = true;
+  }
+
+  /* Two measured quantities and one caveat. Every figure here came off the
+     device: `ok`/`failed` are the engine's own tallies of DeleteObject
+     results, and the two free readings are consecutive snapshots.
+
+     It deliberately does not say "freed 78.5 MB" as a prediction, and it
+     deliberately does not pick between docs/garmin-mtp.md §8's two open
+     models. The one flat assertion is about this codebase — Pelican has no
+     operation that touches the watch's music library — and the observation
+     is reported as the single observation it is. */
+  function renderDeleteReport(pd, freeAfter) {
+    if (!dreport) return;
+    const { ok, failed, freeBefore } = pd;
+    const body = $('[data-dreport-body]');
+    const text = (s) => document.createTextNode(s);
+    const strong = (s) => { const e = document.createElement('strong'); e.textContent = s; return e; };
+
+    $('[data-dreport-tag]').textContent = ok
+      ? `${plural(ok, 'file')} removed`
+      : 'Nothing was removed';
+
+    body.textContent = '';
+    if (ok) {
+      body.append(
+        strong(plural(ok, 'file')),
+        text(' removed from your watch’s storage. Free space went from '),
+        strong(fmt(freeBefore)), text(' to '), strong(fmt(freeAfter)), text('.'));
+    }
+    if (failed) {
+      if (ok) body.append(text(' '));
+      body.append(
+        strong(plural(failed, 'file')),
+        text(failed === 1
+          ? ' could not be removed. The watch’s reason:'
+          : ' could not be removed. The watch’s reason for each:'));
+      const why = document.createElement('ul');
+      why.className = 'report__why';
+      for (const f of (pd.failures || [])) {
+        const li = document.createElement('li');
+        li.append(strong(f.name), text(` — ${f.error}`));
+        why.append(li);
+      }
+      if (why.childElementCount) body.append(why);
+    }
+    if (ok) {
+      body.append(text(
+        ' Your watch’s music app may still list '
+        + (ok === 1 ? 'it' : 'them')
+        + '. Pelican removed the file' + (ok === 1 ? '' : 's')
+        + '; it has no operation that touches the watch’s own library, and '
+        + 'the one time this was measured the app went on listing every '
+        + 'track.'));
+    }
+
+    dreport.hidden = false;
+    /* Focus follows the outcome. `closeConfirm` restores focus carefully and
+       this path did not: it hid the confirm while focus was on the Delete
+       button inside it, so focus fell to <body> and a keyboard user who had
+       just done the one irreversible thing in the app was returned to the top
+       of the document with no announcement. Now they land on the report. */
+    dreport.focus();
+  }
+
+  $('[data-dreport-dismiss]')?.addEventListener('click', () => {
+    hideDeleteReport();
+    /* Back into the panel that was acted on, never to <body>. */
+    $('[data-wall-h]')?.focus();
+  });
+
   function closeConfirm(restoreFocus) {
     if (!confirmBox || confirmBox.hidden) return;
     confirmBox.hidden = true;
@@ -1138,19 +1607,62 @@
     const p = picked();
     const paths = p.rows.map((li) => $('[data-pick]', li).dataset.path).filter(Boolean);
     const names = p.rows.map((li) => $('[data-pick]', li).dataset.ghost).filter(Boolean);
+    /* The free figure as the device last reported it, captured before the
+       request goes out. The engine emits `Deleted` and only then re-snapshots
+       (device.rs), so the "after" number arrives one event later — these two
+       readings are what the report subtracts, and both are the watch's own
+       answer rather than an estimate from the sizes in the wall. */
+    state.pendingDelete = paths.length
+      ? { freeBefore: state.free, requested: paths.length, ok: 0, failed: 0, settled: false }
+      : null;
+    hideDeleteReport();
     confirmBox.hidden = true;
     /* Both post to the one device thread and are handled in order. The
        snapshot each produces is what closes the loop on screen; nothing here
        predicts the outcome. */
     if (paths.length) {
       invoke('delete_remote', { paths })
-        .catch((e) => showError('Could not delete that', String(e)));
+        /* The request never reached the engine, so there is no measurement to
+           report and the pending reading has to go — a stale "before" figure
+           would otherwise be subtracted from an unrelated later snapshot. */
+        .catch((e) => { state.pendingDelete = null; showError('Could not delete that', String(e)); });
     }
     if (names.length) {
       invoke('forget_uploads', { names })
         .catch((e) => showError('Could not update Pelican’s record', String(e)));
     }
   }
+
+  /* Anchor for the wall's shift-range, as an index into the rendered rows.
+     Group headers are not rows and never become the anchor. */
+  let lastWallIndex = null;
+
+  const wallRows = () => $$('.wall__list li:not(.wallgroup)');
+
+  const setWallPick = (pick, on) => {
+    const key = pick.dataset.path || pick.dataset.ghost;
+    if (!key) return;
+    const set = pick.dataset.path ? wallPicks : wallGhosts;
+    if (on) set.add(key); else set.delete(key);
+  };
+
+  wallList.addEventListener('click', (e) => {
+    const pick = e.target.closest('[data-pick]:not([data-pick-group])');
+    if (!pick || !e.shiftKey || lastWallIndex === null) return;
+    const rows = wallRows();
+    const i = rows.indexOf(pick.closest('li'));
+    if (i < 0) return;
+    const [a, b] = i < lastWallIndex ? [i, lastWallIndex] : [lastWallIndex, i];
+    for (let k = a; k <= b; k++) {
+      const box = $('[data-pick]', rows[k]);
+      if (box) setWallPick(box, pick.checked);
+    }
+    /* Repaint once from the sets. The `change` that follows this click will
+       re-apply the clicked box's own state, which is already what it is. */
+    renderWall();
+    closeConfirm(false);
+    hideDeleteReport();
+  });
 
   wallList.addEventListener('change', (e) => {
     const group = e.target.closest('[data-pick-group]');
@@ -1162,20 +1674,24 @@
       /* Repaint from the sets rather than walking siblings: the group's rows
          are the ones between this header and the next, and depending on that
          adjacency would break the first time a group renders empty. */
+      lastWallIndex = null;
       renderWall();
       closeConfirm(false);
+      hideDeleteReport();
       return;
     }
     const pick = e.target.closest('[data-pick]');
     if (!pick) return;
     const li = pick.closest('li');
     li.classList.toggle('is-picked', pick.checked);
-    const key = pick.dataset.path || pick.dataset.ghost;
-    const set = pick.dataset.path ? wallPicks : wallGhosts;
-    if (pick.checked) set.add(key); else set.delete(key);
+    setWallPick(pick, pick.checked);
+    lastWallIndex = wallRows().indexOf(li);
     /* A change to the selection invalidates the sentence the confirm is
-       showing, so it closes rather than confirming a stale list. */
+       showing, so it closes rather than confirming a stale list. The
+       post-delete report goes for the same reason: it describes a batch that
+       is no longer the one selected. */
     closeConfirm(false);
+    hideDeleteReport();
     updateWallbar();
     /* A group header's tri-state is a function of its members, so it has to
        be recomputed whenever one of them changes. */
@@ -1206,22 +1722,49 @@
 
   $('[data-wall-clear]')?.addEventListener('click', () => {
     wallPicks.clear(); wallGhosts.clear();
-    $$('.wall__list [data-pick], .wall__list [data-pick-group]').forEach((c) => {
-      c.checked = false; c.indeterminate = false;
-      c.closest('li').classList.remove('is-picked');
-    });
+    lastWallIndex = null;
+    /* Repaint from the cleared sets, which is also what refreshes the
+       select-all link's label and the arrangement's group headers. */
+    renderWall();
     closeConfirm(false);
-    updateWallbar();
+    hideDeleteReport();
   });
 
   $('[data-wall-delete]')?.addEventListener('click', openConfirm);
   $('[data-confirm-keep]')?.addEventListener('click', () => closeConfirm(true));
   $('[data-confirm-go]')?.addEventListener('click', runDelete);
 
+  $('[data-wall-all]')?.addEventListener('click', () => {
+    const link = $('[data-wall-all]');
+    const on = link.dataset.all !== 'yes';
+    for (const k of JSON.parse(link.dataset.keys || '[]')) {
+      if (k.path) { if (on) wallPicks.add(k.path); else wallPicks.delete(k.path); }
+      else if (on) wallGhosts.add(k.ghost); else wallGhosts.delete(k.ghost);
+    }
+    /* Mutate the sets, repaint once — the same discipline the group header
+       already uses. */
+    lastWallIndex = null;
+    renderWall();
+    closeConfirm(false);
+    hideDeleteReport();
+  });
+
   $('[data-pick-stubs]')?.addEventListener('click', () => {
-    $$('.wall__list li[data-broken] [data-pick]').forEach((c) => {
-      if (!c.checked) { c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }
-    });
+    /* Was one synthetic `change` per checkbox, each re-entering the wall's
+       change handler, which calls `picked()` — a fresh query over the whole
+       list — and, in the grouped arrangements, `refreshGroupChecks()`, which
+       JSON-parses every header's keys. N full-list queries plus N×G parses
+       for one click. Now: mutate the set, repaint once, like everything
+       else in this panel. */
+    for (const li of $$('.wall__list li[data-broken]')) {
+      const pick = $('[data-pick]', li);
+      if (pick?.dataset.path) wallPicks.add(pick.dataset.path);
+      else if (pick?.dataset.ghost) wallGhosts.add(pick.dataset.ghost);
+    }
+    lastWallIndex = null;
+    renderWall();
+    closeConfirm(false);
+    hideDeleteReport();
     $('[data-wall-delete]')?.focus();
   });
 
@@ -1254,8 +1797,13 @@
      element reports readyState 4, a correct duration and a moving clock, and
      emits digital silence. A queue that walks into one would look hung. */
   const buildQueue = () => {
-    queue = $$('.tracks tbody tr')
-      .filter((r) => !$('.tracks__play .iconbtn', r).disabled);
+    /* Reads `aria-disabled`, not `.disabled`. The Ogg rows moved to the ARIA
+       form so their refusal stays reachable by keyboard, and a queue that
+       still tested the property would have swept them back in and played
+       digital silence with a moving clock — the exact failure `OGG_SILENT`
+       exists to prevent. */
+    queue = $$('.tracks tbody tr').filter(
+      (r) => $('.tracks__play .iconbtn', r)?.getAttribute('aria-disabled') !== 'true');
     qi = current ? queue.indexOf(current) : -1;
   };
 
@@ -1283,6 +1831,10 @@
   function wirePlay() {
     $$('.tracks__play .iconbtn').forEach((btn) => {
       btn.addEventListener('click', () => {
+        /* The Ogg rows are `aria-disabled`, not `disabled`, so that the
+           reason stays reachable by keyboard — which means the refusal has
+           to be enforced here instead of by the browser. */
+        if (btn.getAttribute('aria-disabled') === 'true') return;
         const row = btn.closest('tr');
         if (current === row && !audio.paused) { audio.pause(); return; }
         if (current === row && audio.src) { audio.play().catch(reportPlayFailure); return; }
@@ -1530,19 +2082,42 @@
 
   const notices = () => $('[data-notices]');
 
-  function addNotice(tag, body) {
+  /* `action` is `{label, run}` for the one notice the user can act on. Every
+     other notice leaves the second grid column collapsed. */
+  /* `tone` is 'info' for an outcome the user should read but need not act on.
+     It is not decoration: Signal Red is spent, per DESIGN.md, on four things
+     that are all bad news, and a successful rename is none of them. */
+  function addNotice(tag, body, action, tone) {
     const frag = $('#tpl-notice').content.cloneNode(true);
+    if (tone === 'info') $('.notice', frag).classList.add('notice--info');
     $('.notice__tag', frag).textContent = tag;
     /* Verbatim. The engine's message is the only place that says whether a
        failed write left a stub behind, and therefore whether retrying is
        safe. Summarising it would throw that away. */
     $('.notice__body', frag).textContent = body;
+    if (action) {
+      const acts = $('.notice__acts', frag);
+      const btn = $('[data-notice-act]', frag);
+      acts.hidden = false;
+      btn.textContent = action.label;
+      btn.addEventListener('click', () => {
+        /* One post per offer. A second click would queue a second run
+           against a plan the first one is already changing. */
+        btn.disabled = true;
+        action.run();
+      });
+    }
     notices().appendChild(frag);
   }
 
   const SKIP_LABEL = {
     notAudio: 'Not audio', notPlayable: 'Cannot play as-is',
-    missingTags: 'Needs a title', other: 'Skipped',
+    missingTags: 'Needs a title',
+    /* The one skip the user has to act on: nothing was sent, and nothing
+       will be until they remove the file on the watch or send this one under
+       a different name. */
+    nameTaken: 'Name already on the watch',
+    other: 'Skipped',
   };
   const FAIL_LABEL = {
     deviceBusy: 'Watch is held by something else', openSession: 'Could not open the watch',
@@ -1555,6 +2130,9 @@
       phase: 'running', total, bytes, jobBytes: 0, startedAt: Date.now(),
       ok: 0, skipped: 0, failed: 0, stopped: false,
       delivered: 0, planned: bytes, landed: [], dismissed: false,
+      /* Local paths a name collision refused. Collected as they arrive so
+         the finished report can offer to re-send exactly those. */
+      nameTaken: [],
     };
     /* A finished report is superseded by the next run, and by nothing else —
        never by a timer. See `finishRun`. */
@@ -1670,6 +2248,22 @@
     stop.hidden = true;
     $('[data-dismiss]').hidden = false;
 
+    /* The one skip with something to do about it. Each refused track already
+       has its own verbatim notice above; this adds the affordance and the
+       one fact those notices cannot carry — that renaming leaves what is
+       already on the watch alone. */
+    const taken = run.nameTaken || [];
+    if (taken.length) {
+      const n = taken.length;
+      addNotice(
+        'Name already on the watch',
+        `${n} ${n === 1 ? 'track was' : 'tracks were'} not sent, because the watch already ` +
+        `has a file under that name. Sending under a new name leaves what is already ` +
+        `on your watch untouched.`,
+        { label: 'Send under a new name', run: () => sendUnderNewNames(taken) },
+      );
+    }
+
     /* Announce the terminal sentence, then stop claiming to be live. The
        order matters: turning the region off first would swallow the one
        announcement the user needs. */
@@ -1699,11 +2293,33 @@
   $('[data-dismiss]')?.addEventListener('click', dismissRun);
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    /* The confirm outranks the report: Escape's first job is always to back
-       out of the irreversible thing. */
+    /* The confirm outranks everything: Escape's first job is always to back
+       out of the irreversible thing. Then the reports, newest concern first.
+       Only then the selection — clearing 40 ticks is recoverable, backing out
+       of a delete is the thing you cannot get wrong. */
     if (confirmBox && !confirmBox.hidden) { closeConfirm(true); return; }
+    if (dreport && !dreport.hidden) {
+      hideDeleteReport();
+      $('[data-wall-h]')?.focus();
+      return;
+    }
     if (state.run && state.run.phase === 'finished' && !state.run.dismissed) {
       dismissRun();
+      return;
+    }
+    /* A user who has just ticked 40 rows and changed their mind had no
+       gesture but 40 more clicks. */
+    if (wallPicks.size || wallGhosts.size) {
+      wallPicks.clear(); wallGhosts.clear();
+      lastWallIndex = null;
+      renderWall();
+      return;
+    }
+    if (libPicks.size) {
+      libPicks.clear();
+      lastLibIndex = null;
+      for (const box of $$('.tracks__pick input')) box.checked = false;
+      updateSelection();
     }
   });
 
@@ -1715,9 +2331,13 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 
   function send() {
-    const rows = checked();
-    if (!rows.length) return;
-    const paths = rows.map((r) => r.dataset.path);
+    const tracks = checked();
+    if (!tracks.length) return;
+    /* From the set, not from the DOM — so a batch assembled across two albums
+       goes across whole, rather than as whichever page happens to be open. */
+    const paths = tracks.map((t) => t.path);
+    /* Only the selected rows that are on screen can be animated. */
+    const rows = checkedRows();
 
     /* skip_tag_check is true on purpose, and the copy above depends on it:
        an untagged file must transfer and merely stay invisible. With it off
@@ -1727,6 +2347,8 @@
       .catch((e) => showError('Could not start the transfer', String(e)));
 
     const settle = () => {
+      libPicks.clear();
+      lastLibIndex = null;
       rows.forEach((r) => { $('input', r).checked = false; });
       updateSelection();
     };
@@ -1739,6 +2361,17 @@
   }
 
   if (sendBtn) sendBtn.addEventListener('click', send);
+
+  /* Re-send exactly the tracks a collision refused, under names free on the
+     watch. `onConflict: 'rename'` is the user's answer to a collision they
+     were shown — never a default, and never applied to anything but the
+     paths they were shown it for. */
+  function sendUnderNewNames(items) {
+    const paths = items.map((i) => i.path);
+    if (!paths.length) return;
+    invoke('start_sync', { paths, skipTagCheck: true, onConflict: 'rename' })
+      .catch((e) => showError('Could not start the transfer', String(e)));
+  }
 
   $('[data-stop]')?.addEventListener('click', (e) => {
     e.currentTarget.disabled = true;
@@ -1866,6 +2499,14 @@
         state.entries = ev.entries; state.uploads = ev.uploads;
         applyState();
         renderWall();
+        /* The first snapshot after a settled delete is the "after" reading.
+           Rendered here rather than in `deleted` so both figures in the
+           sentence are the device's own answers, taken one either side. */
+        if (state.pendingDelete?.settled) {
+          const pd = state.pendingDelete;
+          state.pendingDelete = null;
+          renderDeleteReport(pd, ev.free);
+        }
         break;
 
       case 'scanned':
@@ -1874,6 +2515,15 @@
         state.encoder = ev.encoder;
         state.encoderVerified = ev.encoderVerified;
         state.focus = null;
+        /* Prune the selection to what the scan still found, the way
+           `renderWall` prunes against the live listing. A folder that changed
+           underneath us must not leave a path in a set that Send would act
+           on. */
+        {
+          const live = new Set(ev.tracks.map((t) => t.path));
+          for (const p of [...libPicks]) if (!live.has(p)) libPicks.delete(p);
+          lastLibIndex = null;
+        }
         $('[data-count-all]').textContent = String(ev.found);
         $('[data-count-albums]').textContent = String(libraryGroups('albums').length);
         $('[data-count-artists]').textContent = String(libraryGroups('artists').length);
@@ -1915,11 +2565,21 @@
       case 'fileDone':
         paintRun(ev);
         $('[data-now-bytes]').textContent = fmt(ev.bytes);
+        /* A track the user asked to be renamed around a collision is on the
+           watch under a name they did not type. Saying "sent" and stopping
+           there would leave them looking for the wrong file. */
+        if (ev.renamedTo) {
+          addNotice('Sent under a new name',
+            `${ev.name} is on your watch as ${ev.renamedTo}.`, null, 'info');
+        }
         break;
 
       case 'fileSkipped':
         paintRun(ev);
         addNotice(SKIP_LABEL[ev.kind] || SKIP_LABEL.other, `${ev.name}: ${ev.reason}`);
+        if (ev.kind === 'nameTaken' && state.run && ev.path) {
+          state.run.nameTaken.push({ path: ev.path, name: ev.name });
+        }
         break;
 
       case 'fileFailed':
@@ -1977,7 +2637,7 @@
         addNotice('Found on your watch after all',
           `Pelican could not confirm ${n === 1 ? 'this file' : 'these files'} during the ` +
           `send, and the watch is now listing ${n === 1 ? 'it' : 'them'}: ` +
-          ev.landed.join(', ') + '.');
+          ev.landed.join(', ') + '.', null, 'info');
         /* Off again on the next tick, the same pattern `finishRun` uses: the
            announcement is taken from the mutations above, and a report that
            has stopped changing must not go on claiming to be a live
@@ -1993,11 +2653,26 @@
 
       case 'deleted':
         if (ev.failed === 0 && ev.ok > 0) clearError();
+        /* The tallies are here; the free figure that closes the arithmetic is
+           in the snapshot the engine sends next. Hold, do not render — a
+           report that guessed the "after" number would be exactly the kind of
+           prediction this element exists to replace. */
+        if (state.pendingDelete) {
+          state.pendingDelete.ok = ev.ok;
+          state.pendingDelete.failed = ev.failed;
+          state.pendingDelete.settled = true;
+        }
         break;
 
       case 'deleteFailed':
-        /* Verbatim, same as fileFailed: the engine's message is the only
-           thing that says whether a retry is safe. */
+        /* Collect, do not overwrite. One event arrives per refusal, and
+           showError writes into a single box — with three refused stubs only
+           the last reason survived while the report claimed all three were
+           shown. The report is the right home: it has focus, and the reason
+           belongs beside the count. */
+        if (state.pendingDelete) {
+          (state.pendingDelete.failures ||= []).push({ name: ev.name, error: ev.error });
+        }
         showError('Could not delete that', `${ev.name}: ${ev.error}`);
         break;
 
@@ -2035,12 +2710,26 @@
 
   /* ── wiring ─────────────────────────────────────────────────────────── */
 
-  $('[data-pick]')?.addEventListener('click', (e) => {
-    e.preventDefault();
+  const pickFolder = () => {
     clearError();
     invoke('pick_folder')
       .then((path) => { if (path) return invoke('scan_folder', { path }); })
       .catch((err) => showError('Could not open that folder', String(err)));
+  };
+
+  $('[data-pick]')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    pickFolder();
+  });
+
+  $('[data-folder-act]')?.addEventListener('click', () => {
+    /* No dialog on the rescan path: the shell already holds the root, and
+       `scan_folder` takes exactly that. It is also the way out when the
+       folder changed underneath the user. */
+    if (!state.root) return pickFolder();
+    clearError();
+    invoke('scan_folder', { path: state.root })
+      .catch((err) => showError('Could not read that folder again', String(err)));
   });
 
   /* ── startup ────────────────────────────────────────────────────────── */

@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use crossbeam_channel::{Receiver, Sender};
-use id3::TagLike;
 
 use crate::garmin::MUSIC_FOLDER;
 
@@ -23,6 +22,48 @@ pub struct Job {
     pub src: PathBuf,
     pub remote_dir: String,
     pub remote_name: String,
+    /// True once [`resolve_conflicts`] has compared this name against a real
+    /// listing of `remote_dir`.
+    ///
+    /// The write-time guard in [`run`] takes its own listing of the target
+    /// directory — once per run, on the first file that targets it — and
+    /// that listing can fail. What it does then depends on this flag: with
+    /// plan-time evidence behind it, it proceeds on the older evidence; with
+    /// nothing behind it, it refuses to write a name it cannot prove is
+    /// free. `expand_inputs` leaves it false, because planning is pure and
+    /// never touches the device.
+    pub name_checked: bool,
+}
+
+/// A name the plan wanted that the watch is already using.
+///
+/// Reported rather than resolved silently: a collision the user is not told
+/// about is either a track they think they sent and did not (`Skip`), or a
+/// file on their watch under a name they never chose (`Rename`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Conflict {
+    /// The local file that could not have the name it wanted.
+    pub src: PathBuf,
+    /// The remote stem the plan asked for.
+    pub wanted: String,
+    /// The name the watch reports, in the watch's own spelling.
+    pub existing: String,
+    /// Under [`OnConflict::Rename`], the name the job now targets. `None`
+    /// when the job was dropped from the plan.
+    pub renamed_to: Option<String>,
+}
+
+/// What to do when a planned name is already on the device.
+///
+/// `Skip` is the default on purpose. Re-sending an album you already sent is
+/// the ordinary case, and renaming by default would fill a watch that holds
+/// about 3.45 GiB with `-2` copies on every re-sync. Renaming is the user's
+/// answer to a collision they were told about, not ours.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OnConflict {
+    #[default]
+    Skip,
+    Rename,
 }
 
 #[derive(Debug, Clone)]
@@ -133,69 +174,274 @@ pub fn expand_inputs_with(
     Ok(jobs)
 }
 
+/// The comparison key for "is this the same file to the firmware?": the last
+/// path segment, extension removed, lowercased. Nothing else.
+///
+/// Lowercased because `/Music` is FAT-derived and case-insensitive —
+/// `Track.mp3` and `track.mp3` are one file to the watch and two strings to
+/// us. Stem-only because the final extension is not known until
+/// `encoder::plan` runs, and `encoder::available()` shells out to
+/// `ffmpeg -version` uncached, so predicting it at plan time would cost a
+/// process spawn per file. Stem-level over-reports across extensions (a
+/// device-side `song.mp3` blocks a planned `song.wav`) and never
+/// under-reports, which is the right direction when a miss is unrecoverable.
+///
+/// **Not** sanitized. `sanitize_filename_stem` is for names *we* are about to
+/// write; running it over a name Garmin Express wrote would turn `Café` into
+/// `Caf`, which would then falsely collide with a planned `Caf` that in fact
+/// targets a free name.
+///
+/// `pelican-shell`'s `device::stem_key` computes the same key for the wall.
+pub fn stem_key(name: &str) -> String {
+    let leaf = name.rsplit('/').next().unwrap_or(name);
+    match leaf.rfind('.') {
+        Some(i) if i > 0 => leaf[..i].to_lowercase(),
+        _ => leaf.to_lowercase(),
+    }
+}
+
+/// How far the `-2`, `-3`, … walk will go before giving up. Reaching this
+/// means something pathological; refusing beats looping.
+const MAX_SUFFIX: u32 = 999;
+
+/// Result of trying to reserve a stem in `remote_dir`.
+enum Claim {
+    Free {
+        stem: String,
+        /// The watch's own spelling of a name we had to step around, when
+        /// there was one. `None` for a plain within-plan disambiguation.
+        device_hit: Option<String>,
+    },
+    /// The device already holds this name. Only returned under
+    /// [`OnConflict::Skip`], which does not step around anything.
+    Taken(String),
+    /// No free name inside Garmin's 56-char stem budget.
+    Exhausted,
+}
+
+/// The `-2`, `-3`, … suffixing walk, shared by the plan-only dedupe and the
+/// device-aware resolver so the 56-char budget, the sanitize-before-compare
+/// rule and the lowercased keys exist in exactly one place.
+///
+/// `seen` holds names this plan has already claimed; `device` maps
+/// `(dir_key, stem_key)` to the watch's own spelling. Device names are never
+/// inserted into `seen` — they are rejected by lookup, so `seen` stays a
+/// record of what *this plan* took.
+fn claim_stem(
+    stem: &str,
+    dir_key: &str,
+    seen: &mut std::collections::HashSet<(String, String)>,
+    device: &std::collections::HashMap<(String, String), String>,
+    policy: OnConflict,
+) -> Claim {
+    // Key on the *sanitized* stem, because that is the name that will
+    // actually be written: transcode::normalize re-runs
+    // sanitize_filename_stem on whatever it is handed, and that collapses
+    // repeated dashes and trims. Comparing the raw stem would let
+    // "foo-" + "-2" -> "foo--2" -> "foo-2" collide with a real "foo-2".
+    let mut candidate = crate::transcode::sanitize_filename_stem(stem);
+    let mut device_hit: Option<String> = None;
+    let mut n = 1u32;
+    loop {
+        let key = (dir_key.to_string(), candidate.to_ascii_lowercase());
+        if let Some(name) = device.get(&key) {
+            if policy == OnConflict::Skip {
+                return Claim::Taken(name.clone());
+            }
+            if device_hit.is_none() {
+                device_hit = Some(name.clone());
+            }
+        } else if seen.insert(key) {
+            return Claim::Free {
+                stem: candidate,
+                device_hit,
+            };
+        }
+        n += 1;
+        if n > MAX_SUFFIX {
+            return Claim::Exhausted;
+        }
+        let suffix = format!("-{n}");
+        // Keep the disambiguated name inside Garmin's 56-char stem budget.
+        let budget = 56usize.saturating_sub(suffix.len());
+        let base: String = stem.chars().take(budget).collect();
+        candidate = crate::transcode::sanitize_filename_stem(&format!("{base}{suffix}"));
+    }
+}
+
+/// True when this job will actually reach the device, and so deserves to
+/// reserve a name.
+///
+/// walk() emits a Job for every file it sees, but the workers skip some of
+/// them at upload time. A file that never reaches the device must not reserve
+/// a name, or the real track gets pushed to "-2" — an `Album.cue` beside
+/// `Album.flac` is the common case.
+///
+/// The predicate has to track the transcode setting: with transcoding on
+/// anything is_audio() will be normalized and uploaded, but with it off only
+/// Garmin-native containers survive. Using is_audio() in both modes let
+/// `Album.flac` reserve the name under --no-transcode, shipping `Album.mp3`
+/// as `Album-2.mp3`; drop the FLAC from the source later and the next sync
+/// uploads `Album.mp3` too, leaving two copies on a device that has no
+/// overwrite.
+fn will_upload(job: &Job, transcode: bool) -> bool {
+    if transcode {
+        crate::transcode::is_audio(&job.src)
+    } else {
+        ext_supported(&job.src)
+    }
+}
+
+/// Split a planned remote name into `(stem, ".ext")`.
+fn split_remote_name(remote_name: &str) -> (String, String) {
+    let path = Path::new(remote_name);
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = path
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    (stem, ext)
+}
+
+/// The sentence the engine uses for a name it refused to write over.
+///
+/// Names the file and the consequence, not the mechanism. `dto::classify_skip`
+/// matches on it, so rewording it costs a label, never a message.
+pub fn name_taken_reason(existing: &str) -> String {
+    format!(
+        "a file called {existing} is already on your watch — sending this one over it \
+         would destroy both copies, so it was not sent"
+    )
+}
+
 /// Make `(remote_dir, stem)` unique across the plan.
 ///
 /// Two things conspire to collide names: the walk flattens every source
 /// subfolder into one remote folder, and `sanitize_filename_stem` truncates to
 /// 56 chars. Two tracks agreeing on their first 56 sanitized characters — or
 /// simply sharing a basename in different albums — produce identical remote
-/// names, and MTP has no overwrite semantics, so the second upload either
-/// clobbers the first or lands as a duplicate the user cannot tell apart.
+/// names, and MTP has no overwrite semantics.
+///
+/// What a same-name write actually does is worse than a duplicate. Per
+/// `docs/garmin-mtp.md` §7, observed on an FR165 running FW 2506: **both**
+/// objects — the one already on the watch and the one being sent — become
+/// unreadable stubs, and per §6 no `DeleteObject` against a stub has ever
+/// succeeded. So a collision destroys a file the user already had and leaves
+/// wreckage that cannot be removed. That is what the extra folder walk per
+/// file in [`run`] is buying.
+///
+/// This function only makes the plan unique against *itself*. Uniqueness
+/// against what is already on the watch is [`resolve_conflicts`], which needs
+/// a device listing and so cannot live here.
 ///
 /// Dedup is on the *stem*, not the full name, so `track.m4a` (which becomes
 /// `track.mp3` after transcoding) still cannot collide with a real `track.mp3`.
 fn dedupe_remote_names(jobs: &mut [Job], transcode: bool) {
     let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    let device = std::collections::HashMap::new();
     for job in jobs.iter_mut() {
-        // walk() emits a Job for every file it sees, but the workers skip some
-        // of them at upload time. A file that never reaches the device must not
-        // reserve a name, or the real track gets pushed to "-2" — an
-        // `Album.cue` beside `Album.flac` is the common case.
-        //
-        // The predicate has to track the transcode setting: with transcoding on
-        // anything is_audio() will be normalized and uploaded, but with it off
-        // only Garmin-native containers survive. Using is_audio() in both modes
-        // let `Album.flac` reserve the name under --no-transcode, shipping
-        // `Album.mp3` as `Album-2.mp3`; drop the FLAC from the source later and
-        // the next sync uploads `Album.mp3` too, leaving two copies on a device
-        // that has no overwrite.
-        let uploadable = if transcode {
-            crate::transcode::is_audio(&job.src)
-        } else {
-            ext_supported(&job.src)
-        };
-        if !uploadable {
+        if !will_upload(job, transcode) {
             continue;
         }
-        let path = Path::new(&job.remote_name);
-        let stem = path
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let ext = path
-            .extension()
-            .map(|e| format!(".{}", e.to_string_lossy()))
-            .unwrap_or_default();
+        let (stem, ext) = split_remote_name(&job.remote_name);
         let dir_key = job.remote_dir.to_ascii_lowercase();
-        // Key on the *sanitized* stem, because that is the name that will
-        // actually be written: transcode::normalize re-runs
-        // sanitize_filename_stem on whatever it is handed, and that collapses
-        // repeated dashes and trims. Deduping the raw stem would let
-        // "foo-" + "-2" -> "foo--2" -> "foo-2" collide with a real "foo-2".
-        let mut candidate = crate::transcode::sanitize_filename_stem(&stem);
-        let mut n = 1u32;
-        while !seen.insert((dir_key.clone(), candidate.to_ascii_lowercase())) {
-            n += 1;
-            let suffix = format!("-{n}");
-            // Keep the disambiguated name inside Garmin's 56-char stem budget.
-            let budget = 56usize.saturating_sub(suffix.len());
-            let base: String = stem.chars().take(budget).collect();
-            candidate = crate::transcode::sanitize_filename_stem(&format!("{base}{suffix}"));
-        }
-        if candidate != stem {
-            job.remote_name = format!("{candidate}{ext}");
+        // With an empty device map only `Free` and `Exhausted` are reachable,
+        // and `Exhausted` means 999 files in one folder share a stem. Leaving
+        // the name alone there is safe: the write-time guard in `run` still
+        // refuses to send the second one.
+        if let Claim::Free {
+            stem: candidate, ..
+        } = claim_stem(&stem, &dir_key, &mut seen, &device, OnConflict::Rename)
+        {
+            if candidate != stem {
+                job.remote_name = format!("{candidate}{ext}");
+            }
         }
     }
+}
+
+/// Compare a plan against what the watch is already holding.
+///
+/// This is the plan-time half of the collision guard. It is pure: `existing`
+/// is `(remote_dir, remote_name)` exactly as the device reports them, taken
+/// by the caller with **one** listing per transfer — the plan targets a
+/// single folder today, so one walk covers it, and the cost does not grow
+/// with plan size.
+///
+/// Under [`OnConflict::Skip`] a colliding job is removed from `jobs` and
+/// reported; under [`OnConflict::Rename`] it is moved to a name free on both
+/// sides and reported with `renamed_to` set. Either way the caller has to say
+/// so — a silently skipped track is one the user believes they sent, and a
+/// silently renamed one is a file on their watch under a name they never
+/// chose.
+///
+/// Every surviving job comes back with `name_checked` set, which is what
+/// tells the write-time guard in [`run`] that a failed listing there still
+/// has evidence behind it.
+pub fn resolve_conflicts(
+    jobs: &mut Vec<Job>,
+    existing: &[(String, String)],
+    policy: OnConflict,
+    transcode: bool,
+) -> Vec<Conflict> {
+    let mut device: std::collections::HashMap<(String, String), String> =
+        std::collections::HashMap::with_capacity(existing.len());
+    for (dir, name) in existing {
+        device.insert((dir.to_ascii_lowercase(), stem_key(name)), name.clone());
+    }
+    let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    let mut conflicts = Vec::new();
+    let mut keep: Vec<Job> = Vec::with_capacity(jobs.len());
+
+    for mut job in jobs.drain(..) {
+        if !will_upload(&job, transcode) {
+            // Never going to be written, so it cannot collide with anything.
+            // Reporting a `cover.jpg` as "already on your watch" would be a
+            // false alarm about a file that was always going to be skipped.
+            keep.push(job);
+            continue;
+        }
+        let (stem, ext) = split_remote_name(&job.remote_name);
+        let dir_key = job.remote_dir.to_ascii_lowercase();
+        let wanted = crate::transcode::sanitize_filename_stem(&stem);
+        match claim_stem(&stem, &dir_key, &mut seen, &device, policy) {
+            Claim::Free {
+                stem: candidate,
+                device_hit,
+            } => {
+                if candidate != stem {
+                    job.remote_name = format!("{candidate}{ext}");
+                }
+                if let Some(existing) = device_hit {
+                    conflicts.push(Conflict {
+                        src: job.src.clone(),
+                        wanted: wanted.clone(),
+                        existing,
+                        renamed_to: Some(job.remote_name.clone()),
+                    });
+                }
+                job.name_checked = true;
+                keep.push(job);
+            }
+            Claim::Taken(existing) => conflicts.push(Conflict {
+                src: job.src,
+                wanted,
+                existing,
+                renamed_to: None,
+            }),
+            Claim::Exhausted => conflicts.push(Conflict {
+                src: job.src,
+                wanted: wanted.clone(),
+                existing: wanted,
+                renamed_to: None,
+            }),
+        }
+    }
+    *jobs = keep;
+    conflicts
 }
 
 fn walk(path: &Path, remote_dir: &str, flatten: bool, out: &mut Vec<Job>) -> Result<()> {
@@ -206,6 +452,8 @@ fn walk(path: &Path, remote_dir: &str, flatten: bool, out: &mut Vec<Job>) -> Res
                 src: path.to_path_buf(),
                 remote_dir: remote_dir.to_string(),
                 remote_name: sanitize_name(&name.to_string_lossy()),
+                // Planning is pure — nothing here has seen the device.
+                name_checked: false,
             });
         }
         return Ok(());
@@ -272,22 +520,39 @@ pub fn ext_supported(p: &Path) -> bool {
 
 /// True when the file carries the title+artist Garmin's music app needs
 /// to show it. Files without them land on disk but stay invisible.
+///
+/// **One definition, delegated.** This used to reparse the file itself with
+/// `id3` or `mp4ameta` chosen by extension, and return an unconditional
+/// `true` for everything else — including `wav`, which is in
+/// [`SUPPORTED_EXTS`] and so reaches the passthrough path. That gave the
+/// crate two different answers to "is this file tagged?": the transfer gate
+/// declared an untagged WAV to have its required tags while the scan, which
+/// asks [`Tags::playable_in_library`], simultaneously warned the user it had
+/// none. Nothing reconciled them. Now there is one rule and one parser, and
+/// the WAV exemption below is an explicit, argued special case rather than a
+/// silent `true` for every extension the match arm did not name.
+///
+/// Note the two callers still legitimately read different bytes: this is
+/// called on the *staged* upload copy, while the scan judges the *source*.
+/// That is the right order for a gate — what matters is what is about to be
+/// written — but it means the two can disagree about one file, and that
+/// disagreement is real rather than a bug.
 pub fn has_required_tags(p: &Path) -> bool {
-    let ext = p
-        .extension()
+    // WAV is exempt, and the exemption is about the format rather than about
+    // this file. There is no tag block Pelican writes into a WAV and no
+    // observation in docs/garmin-mtp.md that the watch reads one, so refusing
+    // a WAV for missing tags would block a transfer over a field that could
+    // not have been supplied. It goes across; the UI's own notice is what
+    // tells the owner it may not appear in the music app.
+    if p.extension()
         .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase());
-    match ext.as_deref() {
-        Some("mp3") => match id3::Tag::read_from_path(p) {
-            Ok(tag) => tag.title().is_some() && tag.artist().is_some(),
-            Err(_) => false,
-        },
-        Some("m4a") | Some("m4b") | Some("aac") => match mp4ameta::Tag::read_from_path(p) {
-            Ok(tag) => tag.title().is_some() && tag.artist().is_some(),
-            Err(_) => false,
-        },
-        _ => true, // wav: tags optional in practice
+        .is_some_and(|e| e.eq_ignore_ascii_case("wav"))
+    {
+        return true;
     }
+    crate::transcode::tags::Tags::read(p)
+        .map(|t| t.playable_in_library())
+        .unwrap_or(false)
 }
 
 /// What the post-write size probe actually tells us.
@@ -349,11 +614,71 @@ fn describe_upload_failure(e: &anyhow::Error) -> String {
 /// thread and renders the events. They used to be separate copies of this
 /// function that drifted apart.
 pub fn run(device: &crate::garmin::Device, jobs: Vec<Job>, opts: &Options, tx: &Sender<Event>) {
+    run_with(&mut || crate::mtp::open(device), jobs, opts, tx, &|| false);
+}
+
+/// [`run`], with a Stop button behind it.
+///
+/// `cancelled` is polled between files — never mid-file, because there is no
+/// way to abort a PTP data phase that has already started without leaving a
+/// half-written object the firmware will not delete. A run stopped here has
+/// written whole files or none.
+///
+/// The whole plan goes in one call on purpose: the write-time guard reads
+/// each directory once per *run*, so handing it the plan a file at a time
+/// throws that away and pays for a folder walk per file.
+pub fn run_cancellable(
+    device: &crate::garmin::Device,
+    jobs: Vec<Job>,
+    opts: &Options,
+    tx: &Sender<Event>,
+    cancelled: &dyn Fn() -> bool,
+) {
+    run_with(&mut || crate::mtp::open(device), jobs, opts, tx, cancelled);
+}
+
+/// [`run`], with the backend opener injected.
+///
+/// Exists so the transfer loop — and in particular the write-time collision
+/// guard below, which is the last place anything can decline to destroy a
+/// file — can be tested without a watch on the desk. `run` is the two-line
+/// wrapper that supplies the real opener.
+pub(crate) fn run_with(
+    open: &mut dyn FnMut() -> Result<Box<dyn crate::mtp::Backend>>,
+    jobs: Vec<Job>,
+    opts: &Options,
+    tx: &Sender<Event>,
+    cancelled: &dyn Fn() -> bool,
+) {
     let total = jobs.len();
     let mut report = Report::default();
     let _ = tx.send(Event::Planned { total });
 
+    // What each target directory is known to be using, keyed by lowercased
+    // directory. The value maps a stem key to the name to *show* — the
+    // watch's own spelling when it came from a listing, ours when this run
+    // wrote it.
+    //
+    // Read once per directory, on the first file that targets it, inside
+    // that file's session — and maintained from then on by the run itself.
+    // See the guard below for why one read is enough and what it does not
+    // cover.
+    let mut known: std::collections::HashMap<String, std::collections::HashMap<String, String>> =
+        std::collections::HashMap::new();
+
+    // Names this run has written, or may have written, keyed by
+    // `(dir, stem)`. Kept apart from `known` deliberately: a directory whose
+    // listing failed has no `known` entry and must not gain a fabricated
+    // empty one, and a file written seconds ago may not be in a listing yet —
+    // Garmin's indexer lags the write. This is the run's own memory, and it
+    // is the only writer a run can account for.
+    let mut written: std::collections::HashMap<(String, String), String> =
+        std::collections::HashMap::new();
+
     for job in jobs {
+        if cancelled() {
+            break;
+        }
         // `done` counts outcomes, not iterations, so a skipped file still
         // advances "3 of 12" — otherwise the counter stalls on a folder full
         // of cover art and the run looks hung.
@@ -425,7 +750,7 @@ pub fn run(device: &crate::garmin::Device, jobs: Vec<Job>, opts: &Options, tx: &
             );
         }
 
-        let mut backend = match crate::mtp::open(device) {
+        let mut backend = match open() {
             Ok(b) => b,
             Err(e) => {
                 report.failed += 1;
@@ -441,6 +766,94 @@ pub fn run(device: &crate::garmin::Device, jobs: Vec<Job>, opts: &Options, tx: &
             let _ = tx.send(Event::Failed {
                 at,
                 error: format!("ensure_folder: {e:#}"),
+            });
+            continue;
+        }
+
+        // ── the write-time collision guard ──────────────────────────────
+        //
+        // The last place this application can decline to destroy a file. It
+        // runs unconditionally, in an open session, against the FINAL name —
+        // what `transcode::normalize` returned, not what the planner guessed.
+        //
+        // The rule: never write a name for which there is no evidence it is
+        // free. A listing error with plan-time evidence behind it proceeds on
+        // the older evidence; a listing error with nothing behind it refuses,
+        // and says so.
+        //
+        // **Cost: one folder walk per directory per run, not per file.** The
+        // first file targeting a directory reads it; every file after that is
+        // answered from `known`, which the run updates itself. Today a plan
+        // targets exactly one directory, so a 200-file sync pays for one
+        // walk, and the guard's cost does not grow with the plan.
+        //
+        // What that buys, precisely: the listing is taken *after* planning,
+        // staging and any user dithering in between, so it catches a plan
+        // that went stale — and `written` catches a run colliding with
+        // itself, which is the only other writer the run can account for.
+        // What it does not cover is a second program writing to /Music while
+        // this run is in flight. Re-reading per file would narrow that window
+        // and not close it, and it is not a failure anyone has reported:
+        // docs/garmin-mtp.md section 7 records the guard's scope in the same
+        // terms.
+        let dir_key = job.remote_dir.to_ascii_lowercase();
+        let stem = stem_key(&upload_name);
+        if let Some(existing) = written.get(&(dir_key.clone(), stem.clone())) {
+            report.skipped += 1;
+            let _ = tx.send(Event::Skipped {
+                at,
+                reason: name_taken_reason(existing),
+            });
+            continue;
+        }
+        if !known.contains_key(&dir_key) {
+            match backend.list_dir(&job.remote_dir) {
+                Ok(entries) => {
+                    // Broken stubs are indexed too, though their synthesized
+                    // "‹unreadable #N›" names can never equal a real one —
+                    // see docs/garmin-mtp.md section 7 on why that blind spot
+                    // exists and why the guard is described as "every name
+                    // the watch can report" rather than "every name".
+                    let taken = entries
+                        .iter()
+                        .filter(|e| !e.is_folder)
+                        .map(|e| (stem_key(&e.name), e.name.clone()))
+                        .collect();
+                    known.insert(dir_key.clone(), taken);
+                }
+                Err(e) if job.name_checked => {
+                    // Checked against a real listing when the plan was made
+                    // and nothing has been written under this name since.
+                    // Proceed on that evidence rather than fail a whole run
+                    // on one flaky GetObjectHandles. Not cached: the next
+                    // file gets a fresh attempt at reading the folder.
+                    tracing::warn!(
+                        dir = %job.remote_dir,
+                        name = %upload_name,
+                        error = %format!("{e:#}"),
+                        "could not read the folder before writing; proceeding on the plan-time listing"
+                    );
+                }
+                Err(e) => {
+                    report.failed += 1;
+                    let _ = tx.send(Event::Failed {
+                        at,
+                        error: format!(
+                            "could not read {} on your watch, so there is no evidence the name \
+                             {upload_name} is free — nothing was written, because writing over a \
+                             name that is taken destroys both copies ({e:#})",
+                            job.remote_dir
+                        ),
+                    });
+                    continue;
+                }
+            }
+        }
+        if let Some(existing) = known.get(&dir_key).and_then(|d| d.get(&stem)) {
+            report.skipped += 1;
+            let _ = tx.send(Event::Skipped {
+                at,
+                reason: name_taken_reason(existing),
             });
             continue;
         }
@@ -493,12 +906,28 @@ pub fn run(device: &crate::garmin::Device, jobs: Vec<Job>, opts: &Options, tx: &
                     }
                     PostWrite::Landed => {
                         report.ok += 1;
+                        // Reserved only now, not before the write: a job that
+                        // never reached the wire must not lock the name out
+                        // of a retry later in the same run.
+                        written.insert((dir_key, stem), upload_name.clone());
                         let _ = tx.send(Event::Done { at, bytes });
                     }
                 }
             }
             Err(e) => {
                 report.failed += 1;
+                // A write whose bytes drained is a different case from one
+                // that never started. The watch did not answer, so this may
+                // be a file that is aboard — and the guard biases toward
+                // "taken" everywhere else it is uncertain, so it does here
+                // too. Reserving the name costs a retry within this run;
+                // not reserving it risks the second write that turns both
+                // objects into stubs. That trade is not close.
+                if e.downcast_ref::<crate::mtp::UploadPhase>()
+                    .is_some_and(|p| p.drained())
+                {
+                    written.insert((dir_key, stem), upload_name.clone());
+                }
                 let _ = tx.send(Event::Failed {
                     at,
                     error: describe_upload_failure(&e),
@@ -552,6 +981,376 @@ pub fn run_to_report(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
+
+    /// What the fake backend was asked to do. The write-time guard's whole
+    /// job is to *not* call `upload`, so the assertions are about absence.
+    #[derive(Default, Debug)]
+    struct Calls {
+        list_dir: usize,
+        uploads: Vec<String>,
+    }
+
+    struct FakeBackend {
+        entries: Vec<crate::mtp::RemoteEntry>,
+        list_fails: bool,
+        /// When set, every `upload` streams its bytes and then fails in the
+        /// response phase — the drained-but-unconfirmed shape.
+        drains_then_fails: bool,
+        calls: Arc<Mutex<Calls>>,
+    }
+
+    impl crate::mtp::Backend for FakeBackend {
+        fn ensure_folder(&mut self, _path: &str) -> Result<()> {
+            Ok(())
+        }
+        fn upload(
+            &mut self,
+            local: &Path,
+            _remote_dir: &str,
+            remote_name: &str,
+            on_progress: &mut (dyn FnMut(u64, u64) + Send),
+        ) -> Result<u64> {
+            let len = std::fs::metadata(local).map(|m| m.len()).unwrap_or(0);
+            self.calls.lock().unwrap().uploads.push(remote_name.into());
+            on_progress(len, len);
+            if self.drains_then_fails {
+                return Err(anyhow::anyhow!("kIOReturnAborted (0xe00002ed)").context(
+                    crate::mtp::UploadPhase {
+                        local: local.display().to_string(),
+                        sent: len,
+                        len,
+                    },
+                ));
+            }
+            Ok(len)
+        }
+        fn remote_size(&mut self, _remote_dir: &str, _remote_name: &str) -> Result<Option<u64>> {
+            // The firmware's usual answer for a freshly-written file.
+            Ok(None)
+        }
+        fn list_dir(&mut self, _path: &str) -> Result<Vec<crate::mtp::RemoteEntry>> {
+            self.calls.lock().unwrap().list_dir += 1;
+            if self.list_fails {
+                anyhow::bail!("Protocol GeneralError");
+            }
+            Ok(self.entries.clone())
+        }
+        fn delete(&mut self, _path: &str) -> Result<()> {
+            Ok(())
+        }
+        fn free_space(&mut self) -> Result<(u64, u64)> {
+            Ok((1 << 30, 1 << 31))
+        }
+        fn download_file(&mut self, _path: &str) -> Result<Vec<u8>> {
+            anyhow::bail!("not used")
+        }
+        fn write_raw(&mut self, _dir: &str, _name: &str, _bytes: &[u8]) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn remote_entry(name: &str) -> crate::mtp::RemoteEntry {
+        crate::mtp::RemoteEntry {
+            name: name.into(),
+            path: format!("Music/{name}"),
+            size: 4,
+            is_folder: false,
+            is_broken: false,
+        }
+    }
+
+    /// Run a plan against a fake watch. `transcode` is off so no encoder is
+    /// spawned: the planned name is the written name.
+    fn drive(
+        jobs: Vec<Job>,
+        entries: Vec<crate::mtp::RemoteEntry>,
+        list_fails: bool,
+    ) -> (Vec<Event>, Calls, Report) {
+        drive_with(jobs, entries, list_fails, false, &|| false)
+    }
+
+    fn drive_with(
+        jobs: Vec<Job>,
+        entries: Vec<crate::mtp::RemoteEntry>,
+        list_fails: bool,
+        drains_then_fails: bool,
+        cancelled: &dyn Fn() -> bool,
+    ) -> (Vec<Event>, Calls, Report) {
+        let calls = Arc::new(Mutex::new(Calls::default()));
+        let opts = Options {
+            skip_tag_check: true,
+            transcode: false,
+        };
+        let (tx, rx) = channel();
+        {
+            let calls = calls.clone();
+            let mut open = move || -> Result<Box<dyn crate::mtp::Backend>> {
+                Ok(Box::new(FakeBackend {
+                    entries: entries.clone(),
+                    list_fails,
+                    drains_then_fails,
+                    calls: calls.clone(),
+                }))
+            };
+            run_with(&mut open, jobs, &opts, &tx, cancelled);
+        }
+        drop(tx);
+        let events: Vec<Event> = rx.into_iter().collect();
+        let report = events
+            .iter()
+            .find_map(|e| match e {
+                Event::Finished(r) => Some(*r),
+                _ => None,
+            })
+            .expect("Finished is always last");
+        (
+            events,
+            Arc::try_unwrap(calls).unwrap().into_inner().unwrap(),
+            report,
+        )
+    }
+
+    fn skips(events: &[Event]) -> Vec<&str> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Skipped { reason, .. } => Some(reason.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn failures(events: &[Event]) -> Vec<&str> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Failed { error, .. } => Some(error.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn staged_job(dir: &tempfile::TempDir, name: &str) -> Job {
+        let src = dir.path().join(name);
+        std::fs::write(&src, b"data").unwrap();
+        Job {
+            src,
+            remote_dir: "Music".into(),
+            remote_name: name.into(),
+            name_checked: false,
+        }
+    }
+
+    /// The plan said the name was free; by the time this file's turn came,
+    /// the watch disagreed. `SendObjectInfo` must never be reached.
+    #[test]
+    fn a_stale_plan_is_caught_before_send_object_info() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut job = staged_job(&dir, "track.mp3");
+        job.name_checked = true; // the planner saw an empty folder
+        let (events, calls, report) = drive(vec![job], vec![remote_entry("track.mp3")], false);
+
+        assert!(
+            calls.uploads.is_empty(),
+            "wrote anyway: {:?}",
+            calls.uploads
+        );
+        assert_eq!(skips(&events).len(), 1, "exactly one Skipped");
+        assert!(skips(&events)[0].contains("already on your watch"));
+        assert_eq!(report.skipped, 1);
+        assert_eq!(report.ok, 0);
+    }
+
+    /// Case-insensitivity matters here too: `/Music` is FAT-derived, so
+    /// `Track.mp3` on the watch is the same file as the `track.mp3` we are
+    /// about to write.
+    #[test]
+    fn the_write_time_guard_compares_case_insensitively() {
+        let dir = tempfile::tempdir().unwrap();
+        let (events, calls, _) = drive(
+            vec![staged_job(&dir, "track.mp3")],
+            vec![remote_entry("TRACK.MP3")],
+            false,
+        );
+        assert!(calls.uploads.is_empty());
+        assert!(
+            skips(&events)[0].contains("TRACK.MP3"),
+            "the watch's spelling"
+        );
+    }
+
+    /// No listing, and no plan-time listing behind it either: there is no
+    /// evidence the name is free, so nothing is written and the run says so.
+    #[test]
+    fn an_unverifiable_listing_is_not_written_over() {
+        let dir = tempfile::tempdir().unwrap();
+        let (events, calls, report) = drive(vec![staged_job(&dir, "track.mp3")], vec![], true);
+
+        assert!(calls.uploads.is_empty(), "wrote without evidence");
+        assert_eq!(report.failed, 1);
+        let f = failures(&events);
+        assert_eq!(f.len(), 1);
+        assert!(f[0].contains("no evidence"), "{}", f[0]);
+        assert!(
+            f[0].contains("Protocol GeneralError"),
+            "the engine's own words must survive: {}",
+            f[0]
+        );
+    }
+
+    /// The same failed listing, but the planner did compare this name against
+    /// a real listing. A flaky `GetObjectHandles` must not fail a whole run
+    /// when there is older evidence behind it.
+    #[test]
+    fn a_failed_listing_proceeds_on_plan_time_evidence() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut job = staged_job(&dir, "track.mp3");
+        job.name_checked = true;
+        let (_, calls, report) = drive(vec![job], vec![], true);
+
+        assert_eq!(calls.uploads, vec!["track.mp3".to_string()]);
+        assert_eq!(report.ok, 1);
+    }
+
+    /// The budget the guard was costed at: one folder walk per *directory*
+    /// for the whole run. Three files into one directory read it once; the
+    /// run answers the other two from what it already knows.
+    #[test]
+    fn one_listing_per_run_not_per_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let jobs = vec![
+            staged_job(&dir, "a.mp3"),
+            staged_job(&dir, "b.mp3"),
+            staged_job(&dir, "c.mp3"),
+        ];
+        let (_, calls, report) = drive(jobs, vec![remote_entry("z.mp3")], false);
+        assert_eq!(report.ok, 3);
+        assert_eq!(
+            calls.list_dir, 1,
+            "one listing for the run, not one per file"
+        );
+    }
+
+    /// The budget stated as the property that matters: device reads for the
+    /// guard do not grow with the plan. Twenty files, one folder walk. The
+    /// macOS shell hands `run_cancellable` the whole plan in one call for
+    /// exactly this reason — a call per file would make the count twenty.
+    #[test]
+    fn guard_listings_do_not_grow_with_plan_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let jobs: Vec<Job> = (0..20)
+            .map(|i| staged_job(&dir, &format!("track-{i:02}.mp3")))
+            .collect();
+        let (_, calls, report) = drive(jobs, vec![remote_entry("unrelated.mp3")], false);
+        assert_eq!(report.ok, 20);
+        assert_eq!(calls.list_dir, 1);
+    }
+
+    /// The cached listing is not a licence to write over what it named. The
+    /// second file in the run wants a name the *first* listing already
+    /// reported, and is refused without re-reading the folder.
+    #[test]
+    fn a_cached_listing_still_refuses_a_taken_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let jobs = vec![staged_job(&dir, "a.mp3"), staged_job(&dir, "taken.mp3")];
+        let (events, calls, report) = drive(jobs, vec![remote_entry("Taken.MP3")], false);
+        assert_eq!(calls.uploads, vec!["a.mp3".to_string()]);
+        assert_eq!(calls.list_dir, 1);
+        assert_eq!(report.skipped, 1);
+        assert!(
+            skips(&events)[0].contains("Taken.MP3"),
+            "the watch's spelling"
+        );
+    }
+
+    /// A directory whose listing could not be read must not be remembered as
+    /// read. The next file gets a fresh attempt rather than inheriting a
+    /// fabricated empty folder.
+    #[test]
+    fn a_failed_listing_is_not_cached_as_an_empty_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut a = staged_job(&dir, "a.mp3");
+        let mut b = staged_job(&dir, "b.mp3");
+        a.name_checked = true;
+        b.name_checked = true;
+        let (_, calls, report) = drive(vec![a, b], vec![], true);
+        assert_eq!(report.ok, 2, "both proceed on plan-time evidence");
+        assert_eq!(calls.list_dir, 2, "the failure is retried, not cached");
+    }
+
+    /// The CLI and the egui app plan with no device listing at all, so a run
+    /// has to be able to catch itself. The second `track.mp3` is refused by
+    /// the names this run has already written.
+    #[test]
+    fn a_run_cannot_collide_with_itself() {
+        let one = tempfile::tempdir().unwrap();
+        let two = tempfile::tempdir().unwrap();
+        let jobs = vec![staged_job(&one, "track.mp3"), staged_job(&two, "track.mp3")];
+        // Fresh, empty watch: only the run's own memory can catch this.
+        let (events, calls, report) = drive(jobs, vec![], false);
+
+        assert_eq!(calls.uploads, vec!["track.mp3".to_string()]);
+        assert_eq!(report.ok, 1);
+        assert_eq!(report.skipped, 1);
+        assert!(skips(&events)[0].contains("already on your watch"));
+    }
+
+    /// The bytes drained and the watch never answered. The file may be
+    /// aboard under that name, so the run treats the name as taken — the
+    /// same direction the guard biases in every other uncertain case. A
+    /// second write under it is what turns both objects into stubs.
+    #[test]
+    fn a_drained_but_unconfirmed_write_reserves_the_name() {
+        let one = tempfile::tempdir().unwrap();
+        let two = tempfile::tempdir().unwrap();
+        let jobs = vec![staged_job(&one, "track.mp3"), staged_job(&two, "track.mp3")];
+        let (events, calls, report) = drive_with(jobs, vec![], false, true, &|| false);
+
+        assert_eq!(
+            calls.uploads,
+            vec!["track.mp3".to_string()],
+            "the second write must not be attempted"
+        );
+        assert_eq!(report.failed, 1);
+        assert_eq!(report.skipped, 1);
+        assert!(failures(&events)[0].contains("did not confirm the write"));
+        assert!(skips(&events)[0].contains("already on your watch"));
+    }
+
+    /// Stop is honoured between files, never inside one: an aborted data
+    /// phase leaves a half-written object the firmware will not delete.
+    #[test]
+    fn stop_takes_effect_between_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let jobs = vec![
+            staged_job(&dir, "a.mp3"),
+            staged_job(&dir, "b.mp3"),
+            staged_job(&dir, "c.mp3"),
+        ];
+        let seen = std::sync::atomic::AtomicUsize::new(0);
+        let stop_after_one =
+            || -> bool { seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) >= 1 };
+        let (_, calls, report) = drive_with(jobs, vec![], false, false, &stop_after_one);
+        assert_eq!(calls.uploads, vec!["a.mp3".to_string()]);
+        assert_eq!(report.ok, 1, "the file in flight finished whole");
+    }
+
+    /// A file that failed to write must not lock its name out of a retry
+    /// later in the same run.
+    #[test]
+    fn a_name_is_only_reserved_once_the_write_succeeded() {
+        let dir = tempfile::tempdir().unwrap();
+        // Not audio: skipped before the device is ever opened, so nothing is
+        // reserved and the real track that follows keeps the name.
+        let mut cue = staged_job(&dir, "Album.cue");
+        cue.remote_name = "Album.cue".into();
+        let mut track = staged_job(&dir, "Album.mp3");
+        track.remote_name = "Album.mp3".into();
+        let (_, calls, report) = drive(vec![cue, track], vec![], false);
+        assert_eq!(calls.uploads, vec!["Album.mp3".to_string()]);
+        assert_eq!(report.ok, 1);
+    }
 
     /// The reported mechanism behind "Sent 0 tracks" with the music present.
     /// The watch answers `GetObjectInfo` with 0 for an object it has written
@@ -626,16 +1425,19 @@ mod tests {
                 src: PathBuf::from("/a/track.mp3"),
                 remote_dir: "Music".into(),
                 remote_name: "track.mp3".into(),
+                name_checked: false,
             },
             Job {
                 src: PathBuf::from("/b/track.mp3"),
                 remote_dir: "Music".into(),
                 remote_name: "track.mp3".into(),
+                name_checked: false,
             },
             Job {
                 src: PathBuf::from("/c/track.m4a"),
                 remote_dir: "Music".into(),
                 remote_name: "track.m4a".into(),
+                name_checked: false,
             },
         ];
         dedupe_remote_names(&mut jobs, true);
@@ -651,6 +1453,7 @@ mod tests {
                 src: PathBuf::from(format!("/{i}/{long}.mp3")),
                 remote_dir: "Music".into(),
                 remote_name: format!("{long}.mp3"),
+                name_checked: false,
             })
             .collect();
         dedupe_remote_names(&mut jobs, true);
@@ -675,16 +1478,19 @@ mod tests {
                 src: PathBuf::from("/a/foo-.mp3"),
                 remote_dir: "Music".into(),
                 remote_name: "foo-.mp3".into(),
+                name_checked: false,
             },
             Job {
                 src: PathBuf::from("/b/foo.mp3"),
                 remote_dir: "Music".into(),
                 remote_name: "foo.mp3".into(),
+                name_checked: false,
             },
             Job {
                 src: PathBuf::from("/c/foo-2.mp3"),
                 remote_dir: "Music".into(),
                 remote_name: "foo-2.mp3".into(),
+                name_checked: false,
             },
         ];
         dedupe_remote_names(&mut jobs, true);
@@ -715,11 +1521,13 @@ mod tests {
                 src: PathBuf::from("/a/Album.cue"),
                 remote_dir: "Music".into(),
                 remote_name: "Album.cue".into(),
+                name_checked: false,
             },
             Job {
                 src: PathBuf::from("/a/Album.flac"),
                 remote_dir: "Music".into(),
                 remote_name: "Album.flac".into(),
+                name_checked: false,
             },
         ];
         dedupe_remote_names(&mut jobs, true);
@@ -734,11 +1542,13 @@ mod tests {
                     src: PathBuf::from("/a/Album.flac"),
                     remote_dir: "Music".into(),
                     remote_name: "Album.flac".into(),
+                    name_checked: false,
                 },
                 Job {
                     src: PathBuf::from("/a/Album.mp3"),
                     remote_dir: "Music".into(),
                     remote_name: "Album.mp3".into(),
+                    name_checked: false,
                 },
             ]
         };
@@ -759,11 +1569,13 @@ mod tests {
                 src: PathBuf::from("/a/track.mp3"),
                 remote_dir: "Music".into(),
                 remote_name: "track.mp3".into(),
+                name_checked: false,
             },
             Job {
                 src: PathBuf::from("/b/track.mp3"),
                 remote_dir: "Music/Other".into(),
                 remote_name: "track.mp3".into(),
+                name_checked: false,
             },
         ];
         dedupe_remote_names(&mut jobs, true);

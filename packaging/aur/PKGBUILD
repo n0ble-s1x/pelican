@@ -2,7 +2,7 @@
 pkgname=pelican
 pkgver=0.1.0
 pkgrel=1
-pkgdesc="Sync music to Garmin watches over MTP, Linux-first"
+pkgdesc="Sync music to Garmin watches over MTP (the Linux build)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/n0ble-s1x/pelican"
 license=('MIT' 'Apache')
@@ -21,13 +21,16 @@ build() {
     cd "pelican-$pkgver"
     export RUSTUP_TOOLCHAIN=stable
     export CARGO_TARGET_DIR=target
-    cargo build --frozen --release --all-features
+    # -p pelican, not the whole workspace: the workspace also holds
+    # pelican-shell, whose Tauri/wry/webkit2gtk chain this package neither
+    # depends on nor needs. --all-features is dropped for the same reason.
+    cargo build --frozen --release -p pelican
 }
 
 check() {
     cd "pelican-$pkgver"
     export RUSTUP_TOOLCHAIN=stable
-    cargo test --frozen --release
+    cargo test --frozen --release -p pelican-core -p pelican
 }
 
 package() {

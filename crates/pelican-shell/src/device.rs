@@ -11,6 +11,7 @@
 //! Command handlers post [`DeviceOp`]s here and return immediately. Nothing
 //! that talks to the device ever runs on the webview's thread.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -50,6 +51,10 @@ pub enum DeviceOp {
     StartSync {
         paths: Vec<PathBuf>,
         skip_tag_check: bool,
+        /// What to do about a name the watch already holds. `Skip` on every
+        /// ordinary send; `Rename` only when the user has been shown the
+        /// collision and asked for it.
+        on_conflict: transfer::OnConflict,
     },
 }
 
@@ -123,7 +128,8 @@ impl Worker {
                 DeviceOp::StartSync {
                     paths,
                     skip_tag_check,
-                } => self.start_sync(paths, skip_tag_check),
+                    on_conflict,
+                } => self.start_sync(paths, skip_tag_check, on_conflict),
             }
         }
     }
@@ -284,7 +290,12 @@ impl Worker {
         });
     }
 
-    fn start_sync(&mut self, paths: Vec<PathBuf>, skip_tag_check: bool) {
+    fn start_sync(
+        &mut self,
+        paths: Vec<PathBuf>,
+        skip_tag_check: bool,
+        on_conflict: transfer::OnConflict,
+    ) {
         // `busy` is claimed synchronously by the command, not here — see
         // `commands::start_sync`. So every exit from this function has to
         // release it, and a missed early return would leave Send dead for the
@@ -301,7 +312,7 @@ impl Worker {
         // already: MTP has no overwrite, so a same-named object from an
         // earlier send can sit in /Music, and crediting it would turn a real
         // failure into a false "it landed after all".
-        let before = self.music_stems();
+        let before = self.music_before();
 
         // Release the browsing session *before* the first file, structurally.
         // `transfer::run` opens its own session per file and would otherwise
@@ -309,7 +320,13 @@ impl Worker {
         self.backend = None;
         self.cancel.store(false, Ordering::SeqCst);
 
-        let (outcome, ledger) = self.drain_plan(&device, paths, skip_tag_check);
+        let (outcome, ledger) = self.drain_plan(
+            &device,
+            paths,
+            skip_tag_check,
+            before.as_ref().map(|b| b.names.as_slice()),
+            on_conflict,
+        );
 
         self.sink.send(outcome);
 
@@ -324,25 +341,28 @@ impl Worker {
         // watch — and the sentence already on screen has to be revised rather
         // than left standing. PRODUCT.md's tie-breaker is explicit about
         // which of the two wins.
-        self.reconcile(&ledger, before);
+        self.reconcile(&ledger, before.map(|b| b.stems));
     }
 
-    /// Lowercased stems of the non-broken files in `/Music`, or `None` when
-    /// the listing could not be read.
+    /// What `/Music` held before the run, in the two shapes the run needs —
+    /// from **one** listing.
     ///
-    /// `None` is not an empty set. Without a *before* picture there is no
+    /// `None` is not an empty picture. Without a *before* picture there is no
     /// evidence a stem is new, so reconciliation declines to run rather than
-    /// guessing — the whole point of it is that it is an observation.
-    fn music_stems(&mut self) -> Option<std::collections::HashSet<String>> {
+    /// guessing, and the collision resolver has nothing to compare against.
+    /// The whole point of both is that they are observations.
+    ///
+    /// This is the listing `start_sync` already took before releasing the
+    /// browsing session; projecting it twice costs nothing, and the count
+    /// does not grow with plan size. The plan targets exactly one directory
+    /// today (`expand_inputs` uses `MUSIC_FOLDER` with flatten on), so one
+    /// walk covers all of it.
+    fn music_before(&mut self) -> Option<MusicBefore> {
         let backend = self.backend.as_mut()?;
+        // The one and only listing. Everything the run needs to know about
+        // the watch's prior contents is projected out of this vector.
         let entries = backend.list_dir(MUSIC_FOLDER).ok()?;
-        Some(
-            entries
-                .iter()
-                .filter(|e| !e.is_folder && !e.is_broken)
-                .map(|e| stem_key(&e.name))
-                .collect(),
-        )
+        Some(project_before(&entries))
     }
 
     fn reconcile(
@@ -407,18 +427,29 @@ impl Worker {
         }
     }
 
-    /// Run the plan one file at a time, so Stop has an honest place to act.
+    /// Hand the whole plan to the engine in **one** call, and render what
+    /// comes back.
     ///
-    /// `transfer::run` carries no cross-job state — each iteration opens its
-    /// own session, stages, uploads and drops — so N calls of one job each
-    /// behave identically to one call of N jobs. The only things that differ
-    /// are the `Planned`/`Finished` bookkeeping and the `done`/`total`
-    /// counters, all of which this layer is rewriting anyway.
+    /// It used to be a call per file, which read well and cost badly: the
+    /// write-time collision guard reads each target directory once per run
+    /// and remembers it, so a run of one file re-read `/Music` for every
+    /// track and the run's memory of what it had written never survived past
+    /// the file that wrote it. One call keeps both. Stop is honoured inside
+    /// the engine, between files — the same granularity this loop used to
+    /// give it, and the only granularity a PTP data phase allows.
+    ///
+    /// `existing` is `/Music` as the watch reported it before the run, from
+    /// the single listing `music_before` took. `None` means the listing could
+    /// not be read, and the plan-time collision check is skipped rather than
+    /// guessed at — the write-time guard in `transfer::run` still refuses to
+    /// write a name it cannot prove is free.
     fn drain_plan(
         &self,
         device: &Device,
         paths: Vec<PathBuf>,
         skip_tag_check: bool,
+        existing: Option<&[(String, String)]>,
+        on_conflict: transfer::OnConflict,
     ) -> (UiEvent, Vec<JobOutcome>) {
         // `skip_tag_check` is true by default and the interface depends on it:
         // the copy promises an untagged file *transfers* and merely stays
@@ -430,7 +461,7 @@ impl Worker {
         };
 
         // Recursive read_dir. On the device thread, never inline in a command.
-        let jobs = match transfer::expand_inputs(&paths, opts.transcode) {
+        let mut jobs = match transfer::expand_inputs(&paths, opts.transcode) {
             Ok(j) => j,
             Err(e) => {
                 self.fail(&e);
@@ -448,14 +479,52 @@ impl Worker {
             }
         };
 
-        let total = jobs.len() as u32;
+        // Compare the plan against what the watch already holds, before a
+        // single byte moves. MTP has no overwrite: per docs/garmin-mtp.md
+        // section 7, writing a name that is taken turns *both* objects into
+        // unreadable stubs, and section 6 records that no DeleteObject
+        // against a stub has ever succeeded. So a collision destroys a file
+        // the user already had, and the only safe answers are to refuse or to
+        // move — never to write.
+        //
+        // Renaming is confined to here, on purpose. The journal key below is
+        // computed from `job.remote_name`, so a rename decided later, inside
+        // `transfer::run`, would journal a name that was never written: the
+        // wall would show a phantom row and treat the file that did land as
+        // unknown-provenance. Plan time is the last moment the shell still
+        // knows the final name.
+        let conflicts = match existing {
+            Some(existing) => {
+                transfer::resolve_conflicts(&mut jobs, existing, on_conflict, opts.transcode)
+            }
+            None => Vec::new(),
+        };
+        // Under `Skip` a refused job is gone from the plan. It is still part
+        // of the run: a collision the user is not told about is a track they
+        // believe they sent and did not.
+        let refused: Vec<&transfer::Conflict> = conflicts
+            .iter()
+            .filter(|c| c.renamed_to.is_none())
+            .collect();
+        // Under `Rename` the job stays, under a name the user did not choose,
+        // so the completion line has to say which.
+        let renamed: std::collections::HashMap<PathBuf, String> = conflicts
+            .iter()
+            .filter_map(|c| c.renamed_to.clone().map(|n| (c.src.clone(), n)))
+            .collect();
+
+        let total = (jobs.len() + refused.len()) as u32;
         // Source bytes are the only denominator available up front — the
         // converted size of a FLAC is not known until ffmpeg has finished
         // writing it. Weighting the meter by source size still makes it
         // monotone and proportional to the work remaining, which is what the
         // bar is for.
         let sizes: Vec<u64> = jobs.iter().map(|j| file_len(&j.src)).collect();
-        let job_total: u64 = sizes.iter().sum();
+        // Refused files count toward the denominator they will never fill.
+        // Leaving them out would let a run that declined to send half the
+        // selection finish with a full bar.
+        let job_total: u64 =
+            sizes.iter().sum::<u64>() + refused.iter().map(|c| file_len(&c.src)).sum::<u64>();
         self.sink.send(UiEvent::Planned {
             total,
             bytes: job_total,
@@ -464,184 +533,272 @@ impl Worker {
         let serial = self.serial();
         let mut tally = Tally::default();
         let mut base_bytes = 0u64;
-        let mut stopped = false;
         let mut ledger: Vec<JobOutcome> = Vec::new();
         // One `Error` per run, not one per file. A journal that cannot be
         // written is worth saying once; saying it twenty times would bury the
         // failures the user actually has to act on.
         let mut journal_problem = false;
 
-        for (job, src_len) in jobs.into_iter().zip(sizes) {
-            if self.cancel.load(Ordering::SeqCst) {
-                stopped = true;
-                break;
-            }
+        // Report the refusals first, and in full. Each carries its own path
+        // so the interface can offer to re-send exactly these under new
+        // names, and the sentence is the engine's — it names the file on the
+        // watch and what sending over it would have done.
+        for c in &refused {
+            let completed = tally.skip();
+            let path = c.src.display().to_string();
+            self.sink.send(UiEvent::FileSkipped {
+                completed,
+                total,
+                ok: tally.ok,
+                skipped: tally.skipped,
+                failed: tally.failed,
+                name: c
+                    .src
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.clone()),
+                path,
+                kind: dto::SkipKind::NameTaken,
+                reason: transfer::name_taken_reason(&c.existing),
+            });
+        }
+
+        // **One `transfer::run` call for the whole plan**, not one per file.
+        //
+        // The write-time collision guard reads each target directory once per
+        // *run* and maintains what it knows from there, so handing it the
+        // plan a file at a time throws that away: every file would pay for
+        // its own folder walk. On a full `/Music` that is the difference
+        // between one enumeration and one per track.
+        //
+        // Stop is honoured by the engine, between files. That is the only
+        // place it can be honoured safely — a PTP data phase cannot be
+        // aborted without leaving an object on the watch that the firmware
+        // will not delete — and it is where this loop used to honour it too.
+        //
+        // Everything the events cannot carry (the journal stem, the source
+        // tags, the byte weight, the name a collision moved the file to) is
+        // computed up front and looked up by source path.
+        let mut staged: Vec<Staged> = Vec::with_capacity(jobs.len());
+        let mut index: HashMap<PathBuf, usize> = HashMap::with_capacity(jobs.len());
+        for (job, src_len) in jobs.iter().zip(&sizes) {
             let path = job.src.display().to_string();
             let name = job
                 .src
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| path.clone());
-            // Journal the name that will actually be written to the watch,
-            // not the local one. `transfer` maps punctuation to dashes,
-            // collapses runs and truncates the stem to 56 chars, so the local
-            // stem matches nothing the device will ever report — and the
-            // wall, which dedupes the journal against the listing, would show
-            // every synced track twice under two different names.
-            let stem = journal_stem(&job.remote_name, &name);
-            // Read the source's tags here, because `job` is moved into the
-            // scoped thread below. Same `read_fast` call `scan.rs` already
-            // makes per file — one cheap metadata read per upload, on a
-            // worker thread, and never on the webview's.
-            let meta = pelican_core::transcode::tags::read_fast(&job.src)
-                .ok()
-                .map(|i| i.tags);
-            let mut outcome = Outcome::Skipped;
-
-            let (tx, rx) = transfer::channel();
-            let mut last_emit = Instant::now() - PROGRESS_MIN_INTERVAL;
-
-            // The upload runs on a scoped thread purely so this thread can
-            // drain progress live; it is still one thread at a time on the
-            // device, because this one does nothing but read `rx` until the
-            // worker has finished and dropped its sender.
-            std::thread::scope(|s| {
-                let opts = &opts;
-                s.spawn(move || {
-                    transfer::run(device, vec![job], opts, &tx);
-                    drop(tx);
-                });
-
-                for ev in rx.iter() {
-                    match ev {
-                        // Per-call bookkeeping for a plan of one. Ours is the
-                        // real plan, emitted once above.
-                        transfer::Event::Planned { .. } | transfer::Event::Finished(_) => {}
-                        transfer::Event::Started(_) => {
-                            self.sink.send(UiEvent::FileStarted {
-                                completed: tally.in_flight(),
-                                total,
-                                ok: tally.ok,
-                                skipped: tally.skipped,
-                                failed: tally.failed,
-                                name: name.clone(),
-                                path: path.clone(),
-                            });
-                        }
-                        transfer::Event::Staging(_) => {
-                            self.sink.send(UiEvent::FileStaging {
-                                completed: tally.in_flight(),
-                                total,
-                                ok: tally.ok,
-                                skipped: tally.skipped,
-                                failed: tally.failed,
-                                name: name.clone(),
-                            });
-                        }
-                        transfer::Event::Progress {
-                            transferred,
-                            total_bytes,
-                            ..
-                        } => {
-                            let final_tick = total_bytes > 0 && transferred >= total_bytes;
-                            if !final_tick && last_emit.elapsed() < PROGRESS_MIN_INTERVAL {
-                                continue;
-                            }
-                            last_emit = Instant::now();
-                            let frac = if total_bytes > 0 {
-                                transferred as f64 / total_bytes as f64
-                            } else {
-                                0.0
-                            };
-                            self.sink.send(UiEvent::FileProgress {
-                                completed: tally.in_flight(),
-                                total,
-                                ok: tally.ok,
-                                skipped: tally.skipped,
-                                failed: tally.failed,
-                                name: name.clone(),
-                                file_bytes: transferred,
-                                file_total: total_bytes,
-                                job_bytes: base_bytes + (src_len as f64 * frac) as u64,
-                                job_total,
-                            });
-                        }
-                        transfer::Event::Done { bytes, .. } => {
-                            let completed = tally.done();
-                            outcome = Outcome::Ok;
-                            // Byte-weighted progress advances only here. It
-                            // used to advance for every job, which walked the
-                            // meter to full on a run where nothing landed.
-                            base_bytes += src_len;
-                            // `transfer::run` never writes history. This is
-                            // our own record that we sent the file; whether
-                            // it is still on the watch is answered by the
-                            // next listing, not by this. Kept optimistic on
-                            // purpose: a crash between here and the post-run
-                            // listing must not lose the only record there is.
-                            if history::record_upload(&serial, &stem, bytes, meta.as_ref()).is_err()
-                            {
-                                journal_problem = true;
-                            }
-                            self.sink.send(UiEvent::FileDone {
-                                completed,
-                                total,
-                                ok: tally.ok,
-                                skipped: tally.skipped,
-                                failed: tally.failed,
-                                name: name.clone(),
-                                bytes,
-                            });
-                        }
-                        transfer::Event::Skipped { reason, .. } => {
-                            let completed = tally.skip();
-                            outcome = Outcome::Skipped;
-                            self.sink.send(UiEvent::FileSkipped {
-                                completed,
-                                total,
-                                ok: tally.ok,
-                                skipped: tally.skipped,
-                                failed: tally.failed,
-                                name: name.clone(),
-                                kind: dto::classify_skip(&reason),
-                                reason,
-                            });
-                        }
-                        transfer::Event::Failed { error, .. } => {
-                            let completed = tally.fail();
-                            let kind = dto::classify_fail(&error);
-                            // "Uncertain" is the drained-but-unconfirmed
-                            // case: every byte crossed the wire and the watch
-                            // did not answer. The post-run listing is what
-                            // resolves it, which is why it is recorded rather
-                            // than collapsed into a plain failure here.
-                            outcome = match kind {
-                                dto::FailKind::Unconfirmed => Outcome::Uncertain,
-                                _ => Outcome::Failed,
-                            };
-                            // Never terminal: `transfer::run` continues past
-                            // every failure, and so does this loop.
-                            self.sink.send(UiEvent::FileFailed {
-                                completed,
-                                total,
-                                ok: tally.ok,
-                                skipped: tally.skipped,
-                                failed: tally.failed,
-                                name: name.clone(),
-                                kind,
-                                error,
-                            });
-                        }
-                    }
-                }
-            });
-
-            ledger.push(JobOutcome {
-                stem,
-                outcome,
-                tags: meta,
+            index.insert(job.src.clone(), staged.len());
+            staged.push(Staged {
+                // Journal the name that will actually be written to the
+                // watch, not the local one. `transfer` maps punctuation to
+                // dashes, collapses runs and truncates the stem to 56 chars,
+                // so the local stem matches nothing the device will ever
+                // report — and the wall, which dedupes the journal against
+                // the listing, would show every synced track twice under two
+                // different names.
+                stem: journal_stem(&job.remote_name, &name),
+                name,
+                path,
+                // Set only when the collision resolver moved this file. The
+                // name on the watch is not the name on disk, and the report
+                // says so.
+                renamed_to: renamed.get(&job.src).cloned(),
+                // Same `read_fast` call `scan.rs` already makes per file —
+                // one cheap metadata read per upload, on a worker thread and
+                // never on the webview's.
+                tags: pelican_core::transcode::tags::read_fast(&job.src)
+                    .ok()
+                    .map(|i| i.tags),
+                src_len: *src_len,
+                outcome: Outcome::Skipped,
+                settled: false,
             });
         }
+
+        let (tx, rx) = transfer::channel();
+        let mut last_emit = Instant::now() - PROGRESS_MIN_INTERVAL;
+        let cancel = self.cancel.clone();
+
+        // The upload runs on a scoped thread purely so this thread can drain
+        // progress live; it is still one thread at a time on the device,
+        // because this one does nothing but read `rx` until the worker has
+        // finished and dropped its sender.
+        std::thread::scope(|s| {
+            let opts = &opts;
+            s.spawn(move || {
+                transfer::run_cancellable(device, jobs, opts, &tx, &|| {
+                    cancel.load(Ordering::SeqCst)
+                });
+                drop(tx);
+            });
+
+            for ev in rx.iter() {
+                // Our plan is the real one, emitted once above; the engine's
+                // own bookkeeping for the same plan is discarded.
+                let at = match &ev {
+                    transfer::Event::Planned { .. } | transfer::Event::Finished(_) => continue,
+                    transfer::Event::Started(at)
+                    | transfer::Event::Staging(at)
+                    | transfer::Event::Progress { at, .. }
+                    | transfer::Event::Skipped { at, .. }
+                    | transfer::Event::Done { at, .. }
+                    | transfer::Event::Failed { at, .. } => at,
+                };
+                // Every job in the plan was indexed above, so this cannot
+                // miss. If it ever did, dropping the event beats attributing
+                // it to the wrong track.
+                let Some(&i) = index.get(&at.src) else {
+                    continue;
+                };
+
+                match ev {
+                    transfer::Event::Planned { .. } | transfer::Event::Finished(_) => {}
+                    transfer::Event::Started(_) => {
+                        self.sink.send(UiEvent::FileStarted {
+                            completed: tally.in_flight(),
+                            total,
+                            ok: tally.ok,
+                            skipped: tally.skipped,
+                            failed: tally.failed,
+                            name: staged[i].name.clone(),
+                            path: staged[i].path.clone(),
+                        });
+                    }
+                    transfer::Event::Staging(_) => {
+                        self.sink.send(UiEvent::FileStaging {
+                            completed: tally.in_flight(),
+                            total,
+                            ok: tally.ok,
+                            skipped: tally.skipped,
+                            failed: tally.failed,
+                            name: staged[i].name.clone(),
+                        });
+                    }
+                    transfer::Event::Progress {
+                        transferred,
+                        total_bytes,
+                        ..
+                    } => {
+                        let final_tick = total_bytes > 0 && transferred >= total_bytes;
+                        if !final_tick && last_emit.elapsed() < PROGRESS_MIN_INTERVAL {
+                            continue;
+                        }
+                        last_emit = Instant::now();
+                        let frac = if total_bytes > 0 {
+                            transferred as f64 / total_bytes as f64
+                        } else {
+                            0.0
+                        };
+                        self.sink.send(UiEvent::FileProgress {
+                            completed: tally.in_flight(),
+                            total,
+                            ok: tally.ok,
+                            skipped: tally.skipped,
+                            failed: tally.failed,
+                            name: staged[i].name.clone(),
+                            file_bytes: transferred,
+                            file_total: total_bytes,
+                            job_bytes: base_bytes + (staged[i].src_len as f64 * frac) as u64,
+                            job_total,
+                        });
+                    }
+                    transfer::Event::Done { bytes, .. } => {
+                        let completed = tally.done();
+                        staged[i].outcome = Outcome::Ok;
+                        staged[i].settled = true;
+                        // Byte-weighted progress advances only here. It used
+                        // to advance for every job, which walked the meter to
+                        // full on a run where nothing landed.
+                        base_bytes += staged[i].src_len;
+                        // `transfer::run` never writes history. This is our
+                        // own record that we sent the file; whether it is
+                        // still on the watch is answered by the next listing,
+                        // not by this. Kept optimistic on purpose: a crash
+                        // between here and the post-run listing must not lose
+                        // the only record there is.
+                        if history::record_upload(
+                            &serial,
+                            &staged[i].stem,
+                            bytes,
+                            staged[i].tags.as_ref(),
+                        )
+                        .is_err()
+                        {
+                            journal_problem = true;
+                        }
+                        self.sink.send(UiEvent::FileDone {
+                            completed,
+                            total,
+                            ok: tally.ok,
+                            skipped: tally.skipped,
+                            failed: tally.failed,
+                            name: staged[i].name.clone(),
+                            bytes,
+                            renamed_to: staged[i].renamed_to.clone(),
+                        });
+                    }
+                    transfer::Event::Skipped { reason, .. } => {
+                        let completed = tally.skip();
+                        staged[i].outcome = Outcome::Skipped;
+                        staged[i].settled = true;
+                        self.sink.send(UiEvent::FileSkipped {
+                            completed,
+                            total,
+                            ok: tally.ok,
+                            skipped: tally.skipped,
+                            failed: tally.failed,
+                            name: staged[i].name.clone(),
+                            path: staged[i].path.clone(),
+                            kind: dto::classify_skip(&reason),
+                            reason,
+                        });
+                    }
+                    transfer::Event::Failed { error, .. } => {
+                        let completed = tally.fail();
+                        let kind = dto::classify_fail(&error);
+                        // "Uncertain" is the drained-but-unconfirmed case:
+                        // every byte crossed the wire and the watch did not
+                        // answer. The post-run listing is what resolves it,
+                        // which is why it is recorded rather than collapsed
+                        // into a plain failure here.
+                        staged[i].outcome = match kind {
+                            dto::FailKind::Unconfirmed => Outcome::Uncertain,
+                            _ => Outcome::Failed,
+                        };
+                        staged[i].settled = true;
+                        // Never terminal: `transfer::run` continues past
+                        // every failure, and so does this loop.
+                        self.sink.send(UiEvent::FileFailed {
+                            completed,
+                            total,
+                            ok: tally.ok,
+                            skipped: tally.skipped,
+                            failed: tally.failed,
+                            name: staged[i].name.clone(),
+                            kind,
+                            error,
+                        });
+                    }
+                }
+            }
+        });
+
+        // "Stopped" is a claim about the plan, not about the button. Pressing
+        // Stop on the last file of a run that then finished it is not a
+        // stopped run, and the summary must not say it was.
+        let stopped = self.cancel.load(Ordering::SeqCst) && staged.iter().any(|j| !j.settled);
+
+        ledger.extend(
+            staged
+                .into_iter()
+                .filter(|j| j.settled)
+                .map(|j| JobOutcome {
+                    stem: j.stem,
+                    outcome: j.outcome,
+                    tags: j.tags,
+                }),
+        );
 
         if journal_problem {
             self.sink.send_error(
@@ -662,6 +819,70 @@ impl Worker {
             ledger,
         )
     }
+}
+
+/// One planned file, and everything about it the engine's events do not
+/// carry.
+///
+/// The engine reports by source path; the interface reports by name, byte
+/// weight and journal stem. This is the join between them, built once before
+/// the run so nothing is recomputed per event.
+struct Staged {
+    /// The local filename, which is what the interface shows.
+    name: String,
+    /// The full local path, which is what "send this one anyway" needs.
+    path: String,
+    /// The stem the *watch* will report, which is what the journal keys on.
+    stem: String,
+    /// Set when the collision resolver moved this file to a name the user
+    /// did not choose. The completion line has to say which.
+    renamed_to: Option<String>,
+    tags: Option<pelican_core::transcode::tags::Tags>,
+    /// Source bytes, for the byte-weighted meter.
+    src_len: u64,
+    outcome: Outcome,
+    /// True once this file reached a terminal event. A run the user stopped
+    /// leaves the untouched tail false, and neither the ledger nor the
+    /// "stopped" claim counts them.
+    settled: bool,
+}
+
+/// Split one `/Music` listing into the two pictures a run needs.
+///
+/// A free function so the two filters can be tested without a watch: they
+/// differ, and the difference is load-bearing.
+fn project_before(entries: &[mtp::RemoteEntry]) -> MusicBefore {
+    MusicBefore {
+        // Reconciliation credits a stem that appears *after* the run and was
+        // not here before, so a broken stub — which is not a file the user
+        // can play — must not count as already present.
+        stems: entries
+            .iter()
+            .filter(|e| !e.is_folder && !e.is_broken)
+            .map(|e| stem_key(&e.name))
+            .collect(),
+        // Collisions are a different question, and its answer includes the
+        // stubs: a handle occupying a name occupies it whether or not its
+        // metadata reads. Their synthesized names can never match a real one,
+        // which is the guard's known blind spot — recorded in
+        // docs/garmin-mtp.md section 7, not papered over.
+        names: entries
+            .iter()
+            .filter(|e| !e.is_folder)
+            .map(|e| (MUSIC_FOLDER.to_string(), e.name.clone()))
+            .collect(),
+    }
+}
+
+/// What `/Music` held before a run, projected two ways from one listing.
+#[derive(Debug)]
+struct MusicBefore {
+    /// Lowercased stems of the readable files, for reconciliation.
+    stems: std::collections::HashSet<String>,
+    /// `(remote_dir, remote_name)` exactly as the watch reports them, for
+    /// `transfer::resolve_conflicts`. Includes broken stubs, whose names the
+    /// firmware will not read back — the guard's known blind spot.
+    names: Vec<(String, String)>,
 }
 
 /// One job's fate, kept so the post-run listing can revise it.
@@ -824,6 +1045,65 @@ mod tests {
         assert_eq!(
             journal_stem(&remote_name, "fallback"),
             journal_stem(&format!("{reported_by_the_watch}.m4a"), "fallback"),
+        );
+    }
+
+    /// A rename decided at *plan* time keeps the journal honest, because the
+    /// shell computes the key from `job.remote_name` after the resolver has
+    /// moved it. A rename decided later, inside `transfer::run`, would
+    /// journal a name that was never written — a phantom row on the wall, and
+    /// the file that did land treated as unknown-provenance. This is the test
+    /// that pins renaming to plan time.
+    #[test]
+    fn a_renamed_job_is_journalled_under_the_name_actually_written() {
+        let mut jobs = vec![transfer::Job {
+            src: std::path::PathBuf::from("/a/track.mp3"),
+            remote_dir: MUSIC_FOLDER.into(),
+            remote_name: "track.mp3".into(),
+            name_checked: false,
+        }];
+        let conflicts = transfer::resolve_conflicts(
+            &mut jobs,
+            &[(MUSIC_FOLDER.to_string(), "track.mp3".to_string())],
+            transfer::OnConflict::Rename,
+            true,
+        );
+        assert_eq!(conflicts[0].renamed_to.as_deref(), Some("track-2.mp3"));
+        assert_eq!(
+            journal_stem(&jobs[0].remote_name, "track.mp3"),
+            "track-2",
+            "the journal must key on the name the watch will report"
+        );
+    }
+
+    /// One listing, two pictures, and they are not the same picture. A broken
+    /// stub is not something the user can play — so it must not count as
+    /// "already there" for reconciliation — but it *is* a handle occupying a
+    /// name, so it counts for collisions.
+    #[test]
+    fn the_two_before_pictures_treat_broken_stubs_differently() {
+        let entry = |name: &str, is_folder: bool, is_broken: bool| mtp::RemoteEntry {
+            name: name.into(),
+            path: format!("Music/{name}"),
+            size: 1,
+            is_folder,
+            is_broken,
+        };
+        let before = project_before(&[
+            entry("Song.mp3", false, false),
+            entry("\u{2039}unreadable #42\u{203a}", false, true),
+            entry("Subfolder", true, false),
+        ]);
+
+        assert_eq!(before.stems, ["song".to_string()].into_iter().collect());
+        assert_eq!(before.names.len(), 2, "{:?}", before.names);
+        assert!(before
+            .names
+            .iter()
+            .any(|(_, n)| n.contains("unreadable #42")));
+        assert!(
+            !before.names.iter().any(|(_, n)| n == "Subfolder"),
+            "a folder is not a name a file can collide with"
         );
     }
 

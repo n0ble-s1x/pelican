@@ -10,14 +10,19 @@
   <project_license>MIT OR Apache-2.0</project_license>
 
   <name>Pelican</name>
-  <summary>Sync your music to a Garmin watch on Linux. No telemetry, no cloud.</summary>
+  <summary>Put your own music on a Garmin watch. No account, no cloud, no telemetry.</summary>
 
   <description>
     <p>
-      Pelican is a Linux-first tool for moving your own music files onto a
-      Garmin watch over USB. Drop a folder of MP3s or FLACs, and the tool
-      transcodes, tags, and uploads — without going through Garmin Express,
-      iTunes, or any cloud service.
+      Pelican moves your own music files onto a Garmin watch over a USB
+      cable. Drop a folder of MP3s or FLACs and it tags, converts what needs
+      converting, and uploads — without going through Garmin Express, iTunes,
+      or any cloud service, and without a vendor account.
+    </p>
+    <p>
+      This package is the Linux build. Pelican also ships a macOS build, which
+      adds a local library browser and in-app playback so you can hear a track
+      before spending part of the watch's roughly 3.7 GB on it.
     </p>
     <p>
       Privacy-first by design. The binary makes zero network connections.
@@ -31,11 +36,13 @@
     <p>Features:</p>
     <ul>
       <li>Drag-and-drop sync from your file manager</li>
-      <li>Auto-transcode FLAC, OGG, Opus, M4A, and more to Garmin-compatible MP3</li>
+      <li>MP3, M4A, M4B, AAC and WAV are copied byte-for-byte — only the tag is rebuilt, with no external tool</li>
+      <li>FLAC, OGG, Opus, WMA, AIFF, ALAC, APE and WavPack convert to Garmin-compatible MP3 via ffmpeg</li>
+      <li>Refuses to write a name the watch already holds — a same-name write destroys both copies</li>
       <li>Local playlists (named track groups you can mass-upload)</li>
-      <li>Right-click delete on watch entries</li>
+      <li>Right-click delete on watch entries, including the broken stubs a failed upload leaves</li>
       <li>Per-device upload journal (persists across runs)</li>
-      <li>Single static binary; no webview, no daemon, no telemetry</li>
+      <li>This build is a single static binary with no webview, no daemon and no telemetry</li>
     </ul>
   </description>
 

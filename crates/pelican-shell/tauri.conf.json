@@ -31,8 +31,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
-    "icon": ["icons/icon.png"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
     "category": "Music",
     "shortDescription": "Sync and play your music on a Garmin watch.",
     "longDescription": "Pelican copies music from this Mac to a Garmin watch over USB. No account, no network, no telemetry."

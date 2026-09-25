@@ -31,6 +31,8 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 
+use pelican_core::transfer;
+
 use crate::device::DeviceOp;
 use crate::dto::UiEvent;
 use crate::{config, scan, Shell};
@@ -161,11 +163,18 @@ pub fn scan_folder(shell: State<'_, Shell>, path: String) -> Result<(), String> 
 }
 
 /// Queue a selection. Progress arrives as the `file*` events.
+///
+/// `on_conflict` is `"skip"` unless the caller passes `"rename"`, and it is
+/// the frontend's answer to a collision the previous run reported — not a
+/// setting. Anything unrecognised, including absent, means skip: the default
+/// has to be the one that cannot put a file on the watch under a name the
+/// user never chose.
 #[tauri::command]
 pub fn start_sync(
     shell: State<'_, Shell>,
     paths: Vec<String>,
     skip_tag_check: bool,
+    on_conflict: Option<String>,
 ) -> Result<(), String> {
     if paths.is_empty() {
         return Err("nothing selected".into());
@@ -197,9 +206,14 @@ pub fn start_sync(
     {
         return Err(BUSY.into());
     }
+    let on_conflict = match on_conflict.as_deref() {
+        Some("rename") => transfer::OnConflict::Rename,
+        _ => transfer::OnConflict::Skip,
+    };
     let posted = shell.device.post(DeviceOp::StartSync {
         paths: out,
         skip_tag_check,
+        on_conflict,
     });
     if posted.is_err() {
         // Nothing will dequeue it, so nothing will release the flag.

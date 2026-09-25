@@ -37,7 +37,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # `default-features = false` is mandatory, not tidiness: Tauri's default
 # `compression` (brotli) feature is not vendored here and breaks an offline
-# build, and it buys nothing — ui/ is 43 KB of static files.
+# build. The offline build is the reason on its own; that ui/ is a
+# three-file, ~155 KB payload read off local disk is why nothing is lost.
 tauri = { version = "2.11", default-features = false, features = ["wry", "common-controls-v6", "protocol-asset"] }
 tauri-build = { version = "2.6", default-features = false }
 tempfile = "3"

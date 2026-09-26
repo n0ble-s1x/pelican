@@ -202,7 +202,7 @@ fn status(a: DeviceArgs) -> Result<ExitCode> {
     drop(dev);
 
     let stubs = listing.iter().filter(|e| e.is_broken).count();
-    let objects = listing.iter().filter(|e| !e.is_folder).count();
+    let objects = transfer::audio_objects(&listing);
     println!("model    {model}");
     println!(
         "serial   {}",

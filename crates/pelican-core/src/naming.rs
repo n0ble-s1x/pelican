@@ -11,9 +11,13 @@
 //! every name in `/Music` as listed at the start of the run, and every name
 //! in the ledger whatever its status. Stubs are counted but cannot be
 //! matched — their names are unreadable, which is exactly why the ledger,
-//! not the listing, is the record of what Pelican has written.
+//! not the listing, is the record of what Pelican has written. When the
+//! ledger cannot account for every stub, the counter is pushed past them
+//! instead; see [`Names::new`].
 
 use std::collections::HashSet;
+
+use anyhow::{anyhow, Result};
 
 use crate::ledger::Ledger;
 use crate::mtp::{fold_name, RemoteEntry};
@@ -24,6 +28,11 @@ pub const EXT: &str = ".mp3";
 /// FR165 firmware drops writes whose filename runs past about 60 chars;
 /// 56 leaves room for `.mp3`.
 pub const MAX_STEM: usize = 56;
+/// Device names whose counter is above this do not move the run's counter.
+/// Pelican gets nowhere near it — a watch holds 500 tracks — so such a name
+/// was put there by something else, and following it would walk the
+/// counter to `u64::MAX` and off the end. The name itself is still taken.
+pub const MAX_DEVICE_COUNTER: u64 = 1_000_000_000;
 
 /// The remote name for `counter`, slugged from `title`.
 ///
@@ -61,6 +70,7 @@ pub struct Names {
     taken: HashSet<String>,
     next: u64,
     stubs: usize,
+    unaccounted: usize,
 }
 
 impl Names {
@@ -69,25 +79,42 @@ impl Names {
     /// The first counter is `max(ledger counters, pl-NNNNN names on the
     /// device) + 1`: a name the ledger lost (another machine, a restored
     /// home dir) but the watch still lists pushes the counter past it.
-    pub fn new(listing: &[RemoteEntry], ledger: &Ledger) -> Self {
+    ///
+    /// Stubs hide their names, so they cannot push the counter that way.
+    /// A stub is what a cut-off or failed write leaves, and the ledger
+    /// records every such write as `failed` or unresolved — so stubs beyond
+    /// that count are writes this ledger never saw, most likely the last
+    /// ones some other ledger made, just above the highest readable name.
+    /// The counter skips one step per such stub. That covers the common
+    /// case (a lost ledger whose final uploads were cut off); it cannot
+    /// cover a stub whose counter sits past a gap, which is why losing the
+    /// ledger is still reported to the user rather than trusted away.
+    pub fn new(listing: &[RemoteEntry], ledger: &Ledger) -> Result<Self> {
         let mut taken: HashSet<String> = ledger.names().collect();
         let mut max = ledger.max_counter();
-        let mut stubs = 0;
+        let mut stubs = 0usize;
         for e in listing {
             if e.is_broken {
                 stubs += 1;
                 continue;
             }
             taken.insert(fold_name(&e.name));
-            if let Some(c) = parse_counter(&e.name) {
+            if let Some(c) = parse_counter(&e.name).filter(|c| *c <= MAX_DEVICE_COUNTER) {
                 max = max.max(c);
             }
         }
-        Self {
+        let t = ledger.totals();
+        let unaccounted = stubs.saturating_sub(t.failed + t.unresolved);
+        let next = u64::try_from(unaccounted)
+            .ok()
+            .and_then(|u| max.checked_add(1)?.checked_add(u))
+            .ok_or_else(|| counter_exhausted(ledger))?;
+        Ok(Self {
             taken,
-            next: max + 1,
+            next,
             stubs,
-        }
+            unaccounted,
+        })
     }
 
     pub fn is_taken(&self, name: &str) -> bool {
@@ -100,6 +127,12 @@ impl Names {
         self.stubs
     }
 
+    /// Stubs beyond what the ledger's failed and unresolved names explain:
+    /// writes this ledger did not make. The counter was pushed past them.
+    pub fn unaccounted_stubs(&self) -> usize {
+        self.unaccounted
+    }
+
     /// The counter the next [`Names::allocate`] will try first.
     pub fn next_counter(&self) -> u64 {
         self.next
@@ -110,17 +143,29 @@ impl Names {
     /// The counter only moves forward. The loop never turns in practice —
     /// every taken `pl` name is below the starting counter — but if some
     /// foreign file ever did hold a future name, this skips it rather than
-    /// writing over it.
-    pub fn allocate(&mut self, title: &str) -> (u64, String) {
+    /// writing over it. Running out of counters is an error, never a wrap
+    /// back to 0.
+    pub fn allocate(&mut self, title: &str) -> Result<(u64, String)> {
         loop {
             let counter = self.next;
-            self.next += 1;
+            self.next = counter
+                .checked_add(1)
+                .ok_or_else(|| anyhow!("the name counter is exhausted at {counter}"))?;
             let name = remote_name(counter, title);
             if self.taken.insert(fold_name(&name)) {
-                return (counter, name);
+                return Ok((counter, name));
             }
         }
     }
+}
+
+fn counter_exhausted(ledger: &Ledger) -> anyhow::Error {
+    anyhow!(
+        "the ledger {} holds a counter too large to continue from ({}). \
+         Pelican will not wrap the counter and risk reusing a name.",
+        ledger.path().display(),
+        ledger.max_counter()
+    )
 }
 
 #[cfg(test)]
@@ -200,13 +245,14 @@ mod tests {
     fn counter_starts_above_ledger_and_device() {
         let tmp = tempfile::tempdir().unwrap();
         let l = ledger_with(tmp.path(), &[(4, "pl00004-a.mp3")]);
-        let mut n = Names::new(&[entry("PL00009-b.MP3"), entry("song.mp3")], &l);
+        let mut n = Names::new(&[entry("PL00009-b.MP3"), entry("song.mp3")], &l).unwrap();
         assert_eq!(n.next_counter(), 10);
-        assert_eq!(n.allocate("c"), (10, "pl00010-c.mp3".into()));
-        assert_eq!(n.allocate("c"), (11, "pl00011-c.mp3".into()));
+        assert_eq!(n.allocate("c").unwrap(), (10, "pl00010-c.mp3".into()));
+        assert_eq!(n.allocate("c").unwrap(), (11, "pl00011-c.mp3".into()));
 
         let l = ledger_with(tempfile::tempdir().unwrap().path(), &[(40, "x")]);
-        assert_eq!(Names::new(&[entry("pl00009-b.mp3")], &l).next_counter(), 41);
+        let n = Names::new(&[entry("pl00009-b.mp3")], &l).unwrap();
+        assert_eq!(n.next_counter(), 41);
     }
 
     #[test]
@@ -216,7 +262,7 @@ mod tests {
             tmp.path(),
             &[(1, "pl00001-a.mp3"), (2, "pl00002-A.mp3"), (3, "Old.mp3")],
         );
-        let mut n = Names::new(&[entry("Foreign Song.MP3"), stub(77), stub(78)], &l);
+        let mut n = Names::new(&[entry("Foreign Song.MP3"), stub(77), stub(78)], &l).unwrap();
         for name in [
             "PL00001-A.MP3",
             "pl00002-a.mp3",
@@ -229,7 +275,7 @@ mod tests {
         // Stub names are unknowable and their synthetic labels are not
         // names on the device, so they are not entered as taken strings.
         assert!(!n.is_taken("‹unreadable #77›"));
-        let (_, fresh) = n.allocate("a");
+        let (_, fresh) = n.allocate("a").unwrap();
         assert!(n.is_taken(&fresh.to_uppercase()));
     }
 
@@ -237,11 +283,73 @@ mod tests {
     fn a_future_name_already_taken_is_skipped_not_overwritten() {
         let tmp = tempfile::tempdir().unwrap();
         let l = ledger_with(tmp.path(), &[(1, "pl00001-a.mp3")]);
-        let mut n = Names::new(&[], &l);
+        let mut n = Names::new(&[], &l).unwrap();
         // Some other tool planted the exact name counter 2 would produce.
         // A listing would have moved the counter past it; forcing it into
         // the taken set directly shows the allocator's own guard.
         n.taken.insert(fold_name("PL00002-SONG.mp3"));
-        assert_eq!(n.allocate("song"), (3, "pl00003-song.mp3".into()));
+        assert_eq!(n.allocate("song").unwrap(), (3, "pl00003-song.mp3".into()));
+    }
+
+    /// A foreign file named with an absurd counter used to make the next
+    /// counter `u64::MAX + 1`: a panic in debug, a wrap to 0 in release,
+    /// and every name after it below every earlier one.
+    #[test]
+    fn an_absurd_device_counter_is_taken_but_not_followed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let l = ledger_with(tmp.path(), &[(7, "pl00007-a.mp3")]);
+        let huge = format!("pl{}-x.mp3", u64::MAX);
+        assert_eq!(parse_counter(&huge), Some(u64::MAX));
+        let over = format!("pl{}-y.mp3", MAX_DEVICE_COUNTER + 1);
+        let at = format!("pl{MAX_DEVICE_COUNTER}-z.mp3");
+
+        let mut n = Names::new(&[entry(&huge), entry(&over)], &l).unwrap();
+        assert!(n.is_taken(&huge) && n.is_taken(&over));
+        assert_eq!(n.allocate("b").unwrap(), (8, "pl00008-b.mp3".into()));
+
+        // At the bound it is still followed.
+        let n = Names::new(&[entry(&at)], &l).unwrap();
+        assert_eq!(n.next_counter(), MAX_DEVICE_COUNTER + 1);
+    }
+
+    #[test]
+    fn an_exhausted_counter_is_an_error_not_a_wrap() {
+        let tmp = tempfile::tempdir().unwrap();
+        let l = ledger_with(tmp.path(), &[(u64::MAX, "pl-max.mp3")]);
+        let err = Names::new(&[], &l).unwrap_err().to_string();
+        assert!(err.contains("will not wrap"), "{err}");
+
+        let l = ledger_with(tempfile::tempdir().unwrap().path(), &[(1, "a")]);
+        let mut n = Names::new(&[], &l).unwrap();
+        n.next = u64::MAX - 1;
+        assert_eq!(n.allocate("z").unwrap().0, u64::MAX - 1);
+        // u64::MAX itself is never handed out: there is no counter after it.
+        assert!(n.allocate("z").is_err());
+        assert!(n.allocate("z").is_err(), "and it stays exhausted");
+    }
+
+    /// The reviewer's case: the last upload of an old run, counter 26, was
+    /// cut off and left a stub, and this machine has no ledger for the
+    /// watch. The readable names stop at 25; starting at 26 would rebuild
+    /// the stub's hidden name.
+    #[test]
+    fn stubs_the_ledger_cannot_explain_push_the_counter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let empty = Ledger::open(tmp.path(), "1").unwrap();
+        let mut listing: Vec<_> = (1..=25).map(|c| entry(&remote_name(c, "Track"))).collect();
+        listing.push(stub(900));
+        let n = Names::new(&listing, &empty).unwrap();
+        assert_eq!(n.unaccounted_stubs(), 1);
+        assert_eq!(n.next_counter(), 27);
+
+        // A ledger that recorded the cut-off write already explains the
+        // stub, and its own counter is the floor.
+        let l = ledger_with(
+            tempfile::tempdir().unwrap().path(),
+            &[(26, "pl00026-Maiden Voyage.mp3")],
+        );
+        let n = Names::new(&listing, &l).unwrap();
+        assert_eq!(n.unaccounted_stubs(), 0);
+        assert_eq!(n.next_counter(), 27);
     }
 }

@@ -5,8 +5,7 @@
 //! `LIBUSB_ERROR_BUSY`. We surface this clearly rather than letting the
 //! underlying error confuse the user.
 //!
-//! Unlike the macOS equivalent, this one is the user's to fix with no
-//! privileges — `gio mount -u` is enough.
+//! The user can fix it with no privileges — `gio mount -u` is enough.
 
 use std::fs;
 
@@ -70,8 +69,6 @@ pub fn detect() -> Option<Contention> {
         holder: "GVFS".to_string(),
         detail: mount.path,
         remedy: format!("gio mount -u {uri}"),
-        // Unprivileged and reliable — unlike ptpcamerad on macOS.
-        self_fixable: true,
     })
 }
 

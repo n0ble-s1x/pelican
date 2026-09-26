@@ -518,6 +518,29 @@ fn stubs_count_toward_the_object_limit() {
     assert!(h.run(&[h.music()], one_retry()).is_err());
 }
 
+/// The limit is on audio: readable non-audio files in /Music do not count,
+/// so 480 tracks plus 20 other files leave room for 5 more.
+#[test]
+fn readable_non_audio_does_not_count_toward_the_object_limit() {
+    let h = Harness::new();
+    for i in 0..480 {
+        h.dev.add_file("Music", &format!("t{i}.mp3"), b"x");
+    }
+    for i in 0..20 {
+        let ext = ["m3u8", "txt", "jpg", "DAT"][i % 4];
+        h.dev.add_file("Music", &format!("other{i}.{ext}"), b"x");
+    }
+    let listing = h.dev.backend().list_dir("Music").unwrap();
+    assert_eq!(pelican_core::transfer::audio_objects(&listing), 480);
+    for n in 1..=5 {
+        h.source(&format!("A/0{n} - Song.wav"), None);
+    }
+    assert_eq!(
+        h.run(&[h.music()], one_retry()).unwrap().tally().verified,
+        5
+    );
+}
+
 /// A retry is a write and gets its own capacity check.
 #[test]
 fn no_retry_when_the_watch_is_full() {

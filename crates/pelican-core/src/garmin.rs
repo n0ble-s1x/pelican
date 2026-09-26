@@ -19,8 +19,8 @@ impl Device {
     /// Human-readable device label.
     ///
     /// Product and serial come from USB descriptors the device controls, and
-    /// this string is printed to the terminal and rendered in the GUI, so
-    /// control bytes are stripped at the source rather than at each call site.
+    /// this string is printed to the terminal, so control bytes are stripped
+    /// at the source rather than at each call site.
     pub fn label(&self) -> String {
         let name = strip_control(self.product.as_deref().unwrap_or("Garmin device"));
         match &self.serial {

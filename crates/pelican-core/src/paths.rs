@@ -35,8 +35,22 @@ fn ensure(p: PathBuf) -> Option<PathBuf> {
     Some(p)
 }
 
+/// `$HOME`, if it is an absolute path. A relative or empty `HOME` would
+/// anchor the store to whatever directory the command was run from.
 fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
+    absolute(std::env::var_os("HOME"))
+}
+
+/// An environment value as a base directory, or `None` if it is unset,
+/// empty or relative. The XDG Base Directory spec says an empty value is
+/// to be treated as unset and a relative one is invalid and ignored; taken
+/// verbatim either one resolves against the current directory, so a run
+/// started from `~/Music` would open a different — empty — ledger than a
+/// run started from `~`, and every name only that ledger knew would stop
+/// being guarded.
+fn absolute(v: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    let p = PathBuf::from(v?);
+    p.is_absolute().then_some(p)
 }
 
 #[cfg(target_os = "macos")]
@@ -59,8 +73,8 @@ fn data_dir_unchecked() -> Option<PathBuf> {
 
 #[cfg(not(target_os = "macos"))]
 fn cache_dir_unchecked() -> Option<PathBuf> {
-    let mut p = match std::env::var_os("XDG_CACHE_HOME") {
-        Some(x) => PathBuf::from(x),
+    let mut p = match absolute(std::env::var_os("XDG_CACHE_HOME")) {
+        Some(x) => x,
         None => {
             let mut h = home()?;
             h.push(".cache");
@@ -73,8 +87,8 @@ fn cache_dir_unchecked() -> Option<PathBuf> {
 
 #[cfg(not(target_os = "macos"))]
 fn data_dir_unchecked() -> Option<PathBuf> {
-    let mut p = match std::env::var_os("XDG_DATA_HOME") {
-        Some(x) => PathBuf::from(x),
+    let mut p = match absolute(std::env::var_os("XDG_DATA_HOME")) {
+        Some(x) => x,
         None => {
             let mut h = home()?;
             h.push(".local");
@@ -100,6 +114,21 @@ mod tests {
             let home = home().expect("HOME set in test env");
             assert!(d.starts_with(&home), "{d:?} escaped {home:?}");
         }
+    }
+
+    #[test]
+    fn empty_or_relative_values_are_unset() {
+        // `XDG_DATA_HOME=""` and `XDG_DATA_HOME=data` both used to become
+        // a path relative to the cwd; the ledger has to be the same file
+        // wherever the command is run from.
+        for v in ["", "data", "./data", "pelican", "~/.local/share"] {
+            assert_eq!(absolute(Some(v.into())), None, "{v:?}");
+        }
+        assert_eq!(absolute(None), None);
+        assert_eq!(
+            absolute(Some("/home/six/.local/share".into())),
+            Some(PathBuf::from("/home/six/.local/share"))
+        );
     }
 
     #[test]

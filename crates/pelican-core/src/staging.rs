@@ -52,14 +52,6 @@ pub struct StagingDir {
 }
 
 impl StagingDir {
-    /// Create this run's directory under the per-user cache dir.
-    pub fn create() -> Result<Self> {
-        let base = crate::paths::cache_dir().ok_or_else(|| {
-            anyhow!("no per-user cache dir (neither XDG_CACHE_HOME nor HOME is set)")
-        })?;
-        Self::create_in(&base)
-    }
-
     /// Create a run directory under `base/staging/`. `base` is the cache
     /// dir in production and a temp dir in tests.
     pub fn create_in(base: &Path) -> Result<Self> {

@@ -3,6 +3,9 @@
 
 use anyhow::Result;
 use mtp::MtpDevice;
+// The one fold Pelican uses for every device name, so `CAFÉ.mp3` finds
+// `café.mp3` here exactly as it does in a run.
+use pelican_core::mtp::same_file;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
@@ -20,12 +23,12 @@ async fn main() -> Result<()> {
     let root = storage.list_objects(None).await?;
     let music = root
         .iter()
-        .find(|o| o.is_folder() && o.filename.eq_ignore_ascii_case("Music"))
+        .find(|o| o.is_folder() && same_file(&o.filename, "Music"))
         .ok_or_else(|| anyhow::anyhow!("no Music folder"))?;
     let entries = storage.list_objects(Some(music.handle)).await?;
     let target = entries
         .into_iter()
-        .find(|o| !o.is_folder() && o.filename.eq_ignore_ascii_case(name))
+        .find(|o| !o.is_folder() && same_file(&o.filename, name))
         .ok_or_else(|| anyhow::anyhow!("file not found: {name}"))?;
 
     println!(

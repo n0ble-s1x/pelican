@@ -598,7 +598,6 @@ dependencies = [
  "clap",
  "pelican-core",
  "tempfile",
- "tracing",
  "tracing-subscriber",
 ]
 

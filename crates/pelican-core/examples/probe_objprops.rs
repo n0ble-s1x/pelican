@@ -1,6 +1,7 @@
 //! Can the watch actually report tags over MTP?
 //!
-//! The UI currently asserts it cannot. Read-only: no writes, no deletes.
+//! Pelican itself never asks — it writes its own tags and proves the bytes.
+//! Read-only: no writes, no deletes.
 use mtp::ptp::ObjectPropertyCode;
 use mtp::MtpDevice;
 

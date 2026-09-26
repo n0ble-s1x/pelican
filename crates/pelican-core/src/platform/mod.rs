@@ -19,14 +19,11 @@ pub mod gvfs;
 pub struct Contention {
     /// What is holding it, in words a user recognises.
     pub holder: String,
-    /// Where we saw it — a mount path, a pid, an IORegistry owner string.
+    /// Where we saw it — a mount path.
     pub detail: String,
     /// The exact command that releases the device. Any device-controlled
     /// text inside is already shell-quoted.
     pub remedy: String,
-    /// True when Pelican could run `remedy` itself without privileges.
-    /// False means the user has to run it.
-    pub self_fixable: bool,
 }
 
 impl Contention {

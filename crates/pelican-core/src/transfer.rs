@@ -28,7 +28,7 @@ use anyhow::{bail, Context, Result};
 use crate::garmin::MUSIC_FOLDER;
 use crate::hash;
 use crate::ledger::{Event, Kind, Ledger};
-use crate::mtp::Backend;
+use crate::mtp::{Backend, RemoteEntry};
 use crate::naming::Names;
 use crate::source::Source;
 use crate::staging::StagingDir;
@@ -39,6 +39,19 @@ pub const FREE_MARGIN: u64 = 2 << 20;
 
 /// Garmin's documented ceiling on audio files in the music library.
 pub const MAX_OBJECTS: usize = 500;
+
+/// How many of `listing`'s entries count toward [`MAX_OBJECTS`].
+///
+/// The limit is on audio, so a readable `.m3u8` or `.txt` does not count.
+/// A stub does: it is an object the library still holds, and whether it is
+/// audio cannot be told from a name nobody can read. `pelican status` and
+/// the run's own check both use this, so the two numbers agree.
+pub fn audio_objects(listing: &[RemoteEntry]) -> usize {
+    listing
+        .iter()
+        .filter(|e| !e.is_folder && (e.is_broken || crate::transcode::is_audio(Path::new(&e.name))))
+        .count()
+}
 
 /// One source and what its tag will say — or why it cannot be sent.
 #[derive(Debug, Clone)]
@@ -328,11 +341,8 @@ fn send_all(
     let listing = dev
         .list_dir(MUSIC_FOLDER)
         .with_context(|| format!("listing /{MUSIC_FOLDER}"))?;
-    let mut names = Names::new(&listing, ledger);
-    // Every non-folder counts toward the 500, stubs included: they are
-    // objects the library still holds, and "audio" cannot be told from a
-    // name we cannot read.
-    let mut objects = listing.iter().filter(|e| !e.is_folder).count();
+    let mut names = Names::new(&listing, ledger)?;
+    let mut objects = audio_objects(&listing);
 
     // R7, before the first write.
     let planned: u64 = ready.iter().map(|r| r.bytes).sum();
@@ -355,11 +365,21 @@ fn send_all(
             ready.len()
         );
     }
-    if names.stubs() > 0 {
+    if names.unaccounted_stubs() > 0 {
+        tracing::warn!(
+            stubs = names.stubs(),
+            unaccounted = names.unaccounted_stubs(),
+            first_counter = names.next_counter(),
+            "/{MUSIC_FOLDER} holds unreadable objects this machine's ledger has no record of \
+             (another machine, or a lost ledger). Their names cannot be seen, so the counter \
+             was moved past them; if that ledger still exists elsewhere, it is the only full \
+             record of the names used on this watch"
+        );
+    } else if names.stubs() > 0 {
         tracing::warn!(
             stubs = names.stubs(),
             "/{MUSIC_FOLDER} holds unreadable objects from earlier failed writes; \
-             their names cannot be seen, so only the ledger guards them"
+             their names cannot be seen, and the ledger's failed names account for them"
         );
     }
     dev.ensure_folder(MUSIC_FOLDER)?;
@@ -368,7 +388,7 @@ fn send_all(
         let mut remotes = Vec::new();
         let mut attempt = 0u32;
         let outcome = loop {
-            let (counter, remote) = names.allocate(&r.tags.title);
+            let (counter, remote) = names.allocate(&r.tags.title)?;
             // Burned before a byte moves: if we die inside the upload the
             // ledger still knows this name was used.
             ledger.append(event(Kind::Reserve, counter, &remote, &r, None))?;

@@ -352,7 +352,9 @@ mod tests {
 
     #[test]
     fn numbers_that_are_the_title_are_kept() {
-        for stem in ["2001 A Space Odyssey", "1999", "42"] {
+        // `01Intro` too: without a separator the digits are part of the name,
+        // as R2 (amended) says.
+        for stem in ["2001 A Space Odyssey", "1999", "42", "01Intro", "4Minutes"] {
             let r = untagged(&format!("/a/b/{stem}.wav"), None);
             assert_eq!(r.title, stem);
             assert_eq!(r.track, None, "{stem:?} has no track prefix");

@@ -38,7 +38,11 @@ Written tags: `title`, `artist`, `album_artist`, `album`, `track`, `date`, `genr
 Resolution order per field: CLI override → source tag (lofty) → path fallback.
 - title: tag → filename stem with a leading track number and separator
   (`01 - `, `01_`, `01.`, `1 `) stripped.
-- track: tag → leading digits of the filename.
+- track: tag → leading digits of the filename — one to three of them, and
+  only when one of the separators above follows (the same prefix the title
+  rule strips). So `01Intro` and `1999` get no track, and `2001 A Space
+  Odyssey` keeps its year as part of the title. *(Amended 2026-09-26 to
+  match the tested behaviour.)*
 - album: tag → parent directory name.
 - artist: tag (`album_artist` preferred, as today) → grandparent directory name
   **if** the source was reached by walking a directory given on the command line

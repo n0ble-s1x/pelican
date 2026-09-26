@@ -265,6 +265,18 @@ impl Ledger {
             .find(|e| e.event == Kind::Verified && e.source_sha256 == source_sha256)
     }
 
+    /// Names, folded, whose last event is `failed` or a bare `reserve`:
+    /// writes that may have left an unreadable object on the watch.
+    pub fn unproven_names(&self) -> impl Iterator<Item = String> {
+        let mut last: std::collections::HashMap<String, Kind> = std::collections::HashMap::new();
+        for e in &self.events {
+            last.insert(fold_name(&e.remote), e.event);
+        }
+        last.into_iter()
+            .filter(|(_, k)| *k != Kind::Verified)
+            .map(|(n, _)| n)
+    }
+
     pub fn totals(&self) -> Totals {
         let mut t = Totals::default();
         let mut open = std::collections::HashSet::new();

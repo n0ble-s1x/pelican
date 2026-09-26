@@ -11,9 +11,9 @@
 //! every name in `/Music` as listed at the start of the run, and every name
 //! in the ledger whatever its status. Stubs are counted but cannot be
 //! matched — their names are unreadable, which is exactly why the ledger,
-//! not the listing, is the record of what Pelican has written. When the
-//! ledger cannot account for every stub, the counter is pushed past them
-//! instead; see [`Names::new`].
+//! not the listing, is the record of what Pelican has written. The
+//! counter is also pushed one step past the highest known name for every
+//! stub; see [`Names::new`].
 
 use std::collections::HashSet;
 
@@ -81,31 +81,43 @@ impl Names {
     /// home dir) but the watch still lists pushes the counter past it.
     ///
     /// Stubs hide their names, so they cannot push the counter that way.
-    /// A stub is what a cut-off or failed write leaves, and the ledger
-    /// records every such write as `failed` or unresolved — so stubs beyond
-    /// that count are writes this ledger never saw, most likely the last
-    /// ones some other ledger made, just above the highest readable name.
-    /// The counter skips one step per such stub. That covers the common
-    /// case (a lost ledger whose final uploads were cut off); it cannot
-    /// cover a stub whose counter sits past a gap, which is why losing the
-    /// ledger is still reported to the user rather than trusted away.
+    /// A stub this ledger never saw is most likely one of the last writes
+    /// some other ledger made, just above the highest readable name — so
+    /// the counter skips one step per stub, every stub. The ledger's own
+    /// failed writes are not credited against them: a failed write may
+    /// have left no object at all (it died before `SendObjectInfo`) or a
+    /// readable one, and a failure wrongly taken as "the stub" would put
+    /// the counter back on the stub's hidden name. Skipped counters cost
+    /// nothing; a reused name costs two more stubs (libmtp #307).
+    ///
+    /// That covers the common case (a lost ledger whose final uploads were
+    /// cut off); it cannot cover a stub whose counter sits past a gap,
+    /// which is why losing the ledger is still reported to the user rather
+    /// than trusted away.
     pub fn new(listing: &[RemoteEntry], ledger: &Ledger) -> Result<Self> {
         let mut taken: HashSet<String> = ledger.names().collect();
         let mut max = ledger.max_counter();
         let mut stubs = 0usize;
+        let mut readable = HashSet::new();
         for e in listing {
             if e.is_broken {
                 stubs += 1;
                 continue;
             }
-            taken.insert(fold_name(&e.name));
+            readable.insert(fold_name(&e.name));
             if let Some(c) = parse_counter(&e.name).filter(|c| *c <= MAX_DEVICE_COUNTER) {
                 max = max.max(c);
             }
         }
-        let t = ledger.totals();
-        let unaccounted = stubs.saturating_sub(t.failed + t.unresolved);
-        let next = u64::try_from(unaccounted)
+        // Only for the warning: which stubs this ledger may have made. A
+        // failed or unresolved name the listing shows readable is not one.
+        let could_be_stubs = ledger
+            .unproven_names()
+            .filter(|n| !readable.contains(n))
+            .count();
+        let unaccounted = stubs.saturating_sub(could_be_stubs);
+        taken.extend(readable);
+        let next = u64::try_from(stubs)
             .ok()
             .and_then(|u| max.checked_add(1)?.checked_add(u))
             .ok_or_else(|| counter_exhausted(ledger))?;
@@ -127,8 +139,9 @@ impl Names {
         self.stubs
     }
 
-    /// Stubs beyond what the ledger's failed and unresolved names explain:
-    /// writes this ledger did not make. The counter was pushed past them.
+    /// Stubs beyond what this ledger's failed and unresolved writes could
+    /// have left: writes some other ledger made. An estimate for telling
+    /// the user; the counter does not depend on it.
     pub fn unaccounted_stubs(&self) -> usize {
         self.unaccounted
     }
@@ -342,14 +355,61 @@ mod tests {
         assert_eq!(n.unaccounted_stubs(), 1);
         assert_eq!(n.next_counter(), 27);
 
-        // A ledger that recorded the cut-off write already explains the
-        // stub, and its own counter is the floor.
+        // A ledger that recorded the cut-off write explains the stub for
+        // the warning; the counter still steps past it, which costs one
+        // unused number.
         let l = ledger_with(
             tempfile::tempdir().unwrap().path(),
             &[(26, "pl00026-Maiden Voyage.mp3")],
         );
         let n = Names::new(&listing, &l).unwrap();
         assert_eq!(n.unaccounted_stubs(), 0);
+        assert_eq!(n.next_counter(), 28);
+    }
+
+    /// Round 2's case: the stub is another machine's cut-off write of
+    /// counter 26, and this ledger's only failure left no object at all.
+    /// Crediting that failure against the stub put the counter on 26 and
+    /// rebuilt the stub's hidden name.
+    #[test]
+    fn a_failure_that_left_no_stub_does_not_explain_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut l = Ledger::open(tmp.path(), "1").unwrap();
+        let mut failed = Event::new(Kind::Failed, 3, "pl00003-Other.mp3");
+        failed.reason = Some("upload failed: opening /tmp/staged/0.mp3".into());
+        l.append(Event::new(Kind::Reserve, 3, "pl00003-Other.mp3"))
+            .unwrap();
+        l.append(failed).unwrap();
+        let mut listing: Vec<_> = (1..=25).map(|c| entry(&remote_name(c, "Track"))).collect();
+        listing.push(stub(900));
+        let mut n = Names::new(&listing, &l).unwrap();
         assert_eq!(n.next_counter(), 27);
+        assert_ne!(
+            n.allocate("Maiden Voyage").unwrap().1,
+            "pl00026-Maiden Voyage.mp3"
+        );
+    }
+
+    /// A failed write whose object the listing shows readable (a read-back
+    /// mismatch) is not a stub, so it does not hide a foreign stub from
+    /// the warning either.
+    #[test]
+    fn a_readable_failed_name_is_not_counted_as_a_stub() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut l = Ledger::open(tmp.path(), "1").unwrap();
+        l.append(Event::new(Kind::Reserve, 25, "pl00025-Track.mp3"))
+            .unwrap();
+        l.append(Event::new(Kind::Failed, 25, "pl00025-Track.mp3"))
+            .unwrap();
+        // Unresolved and not in the listing: this one may be the stub.
+        l.append(Event::new(Kind::Reserve, 24, "pl00024-Gone.mp3"))
+            .unwrap();
+        let mut listing: Vec<_> = (1..=25).map(|c| entry(&remote_name(c, "Track"))).collect();
+        listing.push(stub(900));
+        listing.push(stub(901));
+        let n = Names::new(&listing, &l).unwrap();
+        assert_eq!(n.stubs(), 2);
+        assert_eq!(n.unaccounted_stubs(), 1);
+        assert_eq!(n.next_counter(), 28);
     }
 }

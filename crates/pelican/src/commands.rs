@@ -2,6 +2,7 @@
 //! progress and warnings go to stderr, so `pelican ls > list.txt` holds
 //! only the listing.
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -54,7 +55,12 @@ fn push(a: PushArgs) -> Result<ExitCode> {
             },
             None => None,
         };
-        let ok = dry_run(&entries, ledger.as_ref(), &mut std::io::stdout().lock())?;
+        let ok = dry_run(
+            &entries,
+            ledger.as_ref(),
+            a.resend,
+            &mut std::io::stdout().lock(),
+        )?;
         return Ok(exit(ok));
     }
 
@@ -92,39 +98,62 @@ fn push(a: PushArgs) -> Result<ExitCode> {
 }
 
 /// Print the plan. Returns false if any file would be refused.
-fn dry_run(entries: &[PlanEntry], ledger: Option<&Ledger>, out: &mut impl Write) -> Result<bool> {
+///
+/// Skips are decided the way [`transfer::push`] decides them — the ledger
+/// first unless `resend`, then a repeat of audio earlier in the plan — so
+/// the plan printed is the run that would happen.
+fn dry_run(
+    entries: &[PlanEntry],
+    ledger: Option<&Ledger>,
+    resend: bool,
+    out: &mut impl Write,
+) -> Result<bool> {
     let mut refused = 0;
-    let mut skipped = 0;
+    let mut on_watch = 0;
+    let mut repeats = 0;
+    let mut seen: HashMap<String, &Path> = HashMap::new();
     for e in entries {
-        writeln!(out, "{}", show(&e.source.path))?;
-        match &e.tags {
-            Ok(t) => {
-                writeln!(out, "    {}", tag_line(t))?;
-                let on_watch = match ledger {
-                    Some(l) => hash::file(&e.source.path)
-                        .ok()
-                        .and_then(|sha| l.verified(&sha).map(|v| v.remote.clone())),
-                    None => None,
-                };
-                match on_watch {
-                    Some(remote) => {
-                        skipped += 1;
-                        writeln!(out, "    → already on watch as {remote} (skipped)")?;
-                    }
-                    None => writeln!(out, "    → (remote name assigned at run time)")?,
-                }
-            }
+        let path = &e.source.path;
+        writeln!(out, "{}", show(path))?;
+        let t = match &e.tags {
+            Ok(t) => t,
             Err(reason) => {
                 refused += 1;
                 writeln!(out, "    refused: {}", strip_control(reason))?;
+                continue;
             }
+        };
+        writeln!(out, "    {}", tag_line(t))?;
+        // The run hashes every source too, and a file it cannot read fails
+        // there; saying so now is the honest plan.
+        let sha = match hash::file(path) {
+            Ok(sha) => sha,
+            Err(err) => {
+                refused += 1;
+                writeln!(out, "    refused: {}", strip_control(&format!("{err:#}")))?;
+                continue;
+            }
+        };
+        let verified = ledger
+            .filter(|_| !resend)
+            .and_then(|l| l.verified(&sha).map(|v| v.remote.clone()));
+        let first = seen.get(&sha).copied();
+        seen.entry(sha).or_insert(path);
+        if let Some(remote) = verified {
+            on_watch += 1;
+            writeln!(out, "    → already on watch as {remote} (skipped)")?;
+        } else if let Some(first) = first {
+            repeats += 1;
+            writeln!(out, "    → same audio as {} (skipped)", show(first))?;
+        } else {
+            writeln!(out, "    → (remote name assigned at run time)")?;
         }
     }
     writeln!(
         out,
-        "dry run: {} planned, {skipped} already on watch, {refused} refused. \
-         Nothing was transcoded and no device was touched.",
-        entries.len() - refused - skipped
+        "dry run: {} planned, {on_watch} already on watch, {repeats} repeated in this run, \
+         {refused} refused. Nothing was transcoded and no device was touched.",
+        entries.len() - refused - on_watch - repeats
     )?;
     Ok(refused == 0)
 }
@@ -385,7 +414,7 @@ mod tests {
         let sources = source::expand(std::slice::from_ref(&album)).unwrap();
         let entries = transfer::plan(sources, &Overrides::default());
         let mut out = Vec::new();
-        let ok = dry_run(&entries, None, &mut out).unwrap();
+        let ok = dry_run(&entries, None, false, &mut out).unwrap();
         let text = String::from_utf8(out).unwrap();
 
         assert!(!ok, "a refused file makes the dry run fail");
@@ -398,7 +427,7 @@ mod tests {
         );
         assert!(text.contains("refused: "), "{text}");
         assert!(
-            text.contains("1 planned, 0 already on watch, 1 refused"),
+            text.contains("1 planned, 0 already on watch, 0 repeated in this run, 1 refused"),
             "{text}"
         );
         assert_eq!(snapshot(tmp.path()), before, "a dry run wrote something");
@@ -419,10 +448,37 @@ mod tests {
         let l = Ledger::read(&data, "42").unwrap();
         let entries = transfer::plan(source::expand(&[f]).unwrap(), &Overrides::default());
         let mut out = Vec::new();
-        assert!(dry_run(&entries, Some(&l), &mut out).unwrap());
+        assert!(dry_run(&entries, Some(&l), false, &mut out).unwrap());
         let text = String::from_utf8(out).unwrap();
         assert!(
             text.contains("already on watch as pl00003-One.mp3"),
+            "{text}"
+        );
+
+        // `--resend` sends it again, so the plan must say it will be sent.
+        let mut out = Vec::new();
+        assert!(dry_run(&entries, Some(&l), true, &mut out).unwrap());
+        let text = String::from_utf8(out).unwrap();
+        assert!(!text.contains("already on watch as"), "{text}");
+        assert!(text.contains("dry run: 1 planned, 0 already"), "{text}");
+    }
+
+    /// The run skips a second copy of the same audio; the plan says so
+    /// rather than counting it as planned.
+    #[test]
+    fn dry_run_marks_repeats_within_the_run() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("01 - One.wav");
+        let b = tmp.path().join("02 - Again.wav");
+        std::fs::write(&a, b"same bytes").unwrap();
+        std::fs::write(&b, b"same bytes").unwrap();
+        let entries = transfer::plan(source::expand(&[a, b]).unwrap(), &Overrides::default());
+        let mut out = Vec::new();
+        assert!(dry_run(&entries, None, false, &mut out).unwrap());
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("→ same audio as "), "{text}");
+        assert!(
+            text.contains("1 planned, 0 already on watch, 1 repeated in this run, 0 refused"),
             "{text}"
         );
     }

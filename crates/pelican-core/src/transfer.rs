@@ -379,12 +379,22 @@ fn send_all(
         tracing::warn!(
             stubs = names.stubs(),
             "/{MUSIC_FOLDER} holds unreadable objects from earlier failed writes; \
-             their names cannot be seen, and the ledger's failed names account for them"
+             their names cannot be seen, so the counter was moved past them"
         );
     }
     dev.ensure_folder(MUSIC_FOLDER)?;
 
+    // What the files after this one still need. The up-front check set
+    // their room aside; a retry may only use what is left over.
+    let mut later_files = ready.len();
+    let mut later_bytes = planned;
     for r in ready {
+        later_files -= 1;
+        later_bytes -= r.bytes;
+        let later = Later {
+            files: later_files,
+            bytes: later_bytes,
+        };
         let mut remotes = Vec::new();
         let mut attempt = 0u32;
         let outcome = loop {
@@ -408,7 +418,7 @@ fn send_all(
                     let mut final_reason = reason.clone();
                     let mut retrying = attempt < opts.retries;
                     if retrying {
-                        if let Err(why) = room_for_retry(dev, &r, objects) {
+                        if let Err(why) = room_for_retry(dev, &r, objects, later) {
                             retrying = false;
                             final_reason = format!("{reason}; not retried: {why}");
                         }
@@ -456,17 +466,44 @@ fn send_one(dev: &mut dyn Backend, r: &Ready, remote: &str) -> std::result::Resu
     Ok(())
 }
 
+/// The files still queued behind the current one.
+#[derive(Debug, Clone, Copy)]
+struct Later {
+    files: usize,
+    bytes: u64,
+}
+
 /// A retry is another write, so it gets the same capacity check the run
-/// got — against the watch as it is now, after the failed attempt.
-fn room_for_retry(dev: &mut dyn Backend, r: &Ready, objects: usize) -> Result<(), String> {
+/// got — against the watch as it is now, after the failed attempt, and
+/// with the room the queued files were promised still held back for them.
+/// Otherwise a retry spends a later file's slot and the run ends past 500
+/// having checked every write. `objects` already counts the failed attempt.
+fn room_for_retry(
+    dev: &mut dyn Backend,
+    r: &Ready,
+    objects: usize,
+    later: Later,
+) -> Result<(), String> {
     let (free, _) = dev
         .free_space()
         .map_err(|e| format!("could not read free space: {e:#}"))?;
-    if r.bytes.saturating_add(FREE_MARGIN) > free {
-        return Err(format!("only {} free", mib(free)));
+    let need = r
+        .bytes
+        .saturating_add(later.bytes)
+        .saturating_add(FREE_MARGIN);
+    if need > free {
+        return Err(format!(
+            "only {} free, and the {} file(s) queued after this one need theirs",
+            mib(free),
+            later.files
+        ));
     }
-    if objects >= MAX_OBJECTS {
-        return Err(format!("the music library is at {MAX_OBJECTS} objects"));
+    if objects + 1 + later.files > MAX_OBJECTS {
+        return Err(format!(
+            "the music library would pass {MAX_OBJECTS} objects: it holds {objects} \
+             and {} more are queued after this one",
+            later.files
+        ));
     }
     Ok(())
 }

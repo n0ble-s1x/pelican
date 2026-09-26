@@ -273,7 +273,9 @@ fn taken_names_are_never_written() {
     h.source("X/01 - Old.wav", None);
     h.source("X/02 - Lost.wav", None);
     let report = h.run(&[h.music()], one_retry()).unwrap();
-    assert_eq!(verified(&report), ["pl00013-Old.mp3", "pl00014-Lost.mp3"]);
+    // 12 is the highest known counter; the one stub moves it one further,
+    // since its hidden name could be 13.
+    assert_eq!(verified(&report), ["pl00014-Old.mp3", "pl00015-Lost.mp3"]);
     for name in h.uploads() {
         assert!(
             !before.contains(&pelican_core::mtp::fold_name(&name)),
@@ -563,6 +565,88 @@ fn no_retry_when_the_watch_is_full() {
         o => panic!("{o:?}"),
     }
     assert_eq!(h.uploads().len(), 1);
+}
+
+/// The reviewer's case: 495 tracks, 5 planned, the first read-back bad.
+/// The up-front check reserved exactly five slots; the failed attempt
+/// spent one, so a retry would take a later file's and the run would end
+/// at 501. The retry is refused and the library stays at 500.
+#[test]
+fn a_retry_does_not_spend_a_later_files_slot() {
+    let h = Harness::new();
+    for i in 0..495 {
+        h.dev.add_file("Music", &format!("t{i}.mp3"), b"x");
+    }
+    for n in 1..=5 {
+        h.source(&format!("A/0{n} - Song.wav"), None);
+    }
+    h.dev.set_faults(Faults {
+        corrupt_uploads: 1,
+        ..Default::default()
+    });
+    let report = h.run(&[h.music()], one_retry()).unwrap();
+    match &report.files[0].outcome {
+        Outcome::Failed { reason, remotes } => {
+            assert!(reason.contains("not retried"), "{reason}");
+            assert!(reason.contains("4 more are queued"), "{reason}");
+            assert_eq!(remotes.len(), 1);
+        }
+        o => panic!("{o:?}"),
+    }
+    let t = report.tally();
+    assert_eq!((t.verified, t.failed), (4, 1));
+    let listing = h.dev.backend().list_dir("Music").unwrap();
+    assert_eq!(pelican_core::transfer::audio_objects(&listing), 500);
+}
+
+/// With room to spare the same failure is retried as usual: the check
+/// holds back what later files need, not more.
+#[test]
+fn a_retry_with_room_for_everything_still_happens() {
+    let h = Harness::new();
+    for i in 0..494 {
+        h.dev.add_file("Music", &format!("t{i}.mp3"), b"x");
+    }
+    for n in 1..=5 {
+        h.source(&format!("A/0{n} - Song.wav"), None);
+    }
+    h.dev.set_faults(Faults {
+        corrupt_uploads: 1,
+        ..Default::default()
+    });
+    let report = h.run(&[h.music()], one_retry()).unwrap();
+    assert_eq!(report.tally().verified, 5);
+    let listing = h.dev.backend().list_dir("Music").unwrap();
+    assert_eq!(pelican_core::transfer::audio_objects(&listing), 500);
+}
+
+/// Bytes the same way: room for both files plus the margin and nothing
+/// more. A retry of the first would leave the second without room.
+#[test]
+fn a_retry_does_not_spend_a_later_files_bytes() {
+    let h = Harness::new();
+    h.source("A/01 - One.wav", None);
+    h.source("A/02 - Two.wav", None);
+    let staged = ("ID3|One|A/01 - One.wav".len() + "ID3|Two|A/02 - Two.wav".len()) as u64;
+    h.dev.set_space((2 << 20) + staged, 4 << 30);
+    h.dev.set_faults(Faults {
+        corrupt_uploads: 1,
+        ..Default::default()
+    });
+    let report = h.run(&[h.music()], one_retry()).unwrap();
+    match &report.files[0].outcome {
+        Outcome::Failed { reason, .. } => {
+            assert!(reason.contains("not retried"), "{reason}");
+            assert!(reason.contains("1 file(s) queued after"), "{reason}");
+        }
+        o => panic!("{o:?}"),
+    }
+    assert!(
+        matches!(report.files[1].outcome, Outcome::Verified { .. }),
+        "{:?}",
+        report.files[1]
+    );
+    assert_eq!(h.uploads().len(), 2);
 }
 
 #[test]

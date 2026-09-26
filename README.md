@@ -257,7 +257,7 @@ pelican --delete "Music/foo.mp3" --delete "Music/bar.mp3"
 pelican --list-playlists
 
 # Pick a specific watch when multiple are attached
-pelican --serial 0000d221c983 --copy ~/Music/Album
+pelican --serial 0000a1b2c3d4 --copy ~/Music/Album
 ```
 
 ---

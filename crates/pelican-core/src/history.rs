@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn a_journal_written_before_tags_existed_still_loads() {
         let old = r#"{
-          "serial": "0000d221c983",
+          "serial": "0000a1b2c3d4",
           "uploads": [
             { "name": "01 - Iva Davies- Christopher Gordon- Richard Tognetti",
               "bytes": 13526597, "at": 1788395288 },

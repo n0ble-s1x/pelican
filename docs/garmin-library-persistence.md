@@ -114,3 +114,48 @@ Run experiment 1 first: it is read-only, costs nothing, and needs no reset.
 
 Only files an agent uploaded itself may be deleted. `wipe_music`,
 `wipe_stubs` and `test_delete` are never to be run against the owner's device.
+
+## Results — Linux, 2026-09-26
+
+Run on the maintainer's workstation (CachyOS, kernel 7.2.7, libmtp 1.1.23, systemd 262) against the
+reference FR165 Music, FW 2506. Experiments 1 and 2 above, and the first half of 3.
+
+**Access.** libmtp does not list `091e:5151`; it still connects via the
+vendor-class interface probe ("UNKNOWN in libmtp", cosmetic). The node had no
+user ACL: `udev/99-garmin-music.rules` can never work on systemd, because
+`uaccess` is applied by `RUN{builtin}+="uaccess"` in `73-seat-late.rules` and a
+`TAG` added at 99 arrives after it. A rule at `70-` fixes it.
+
+**Experiment 1 — read-back of what is on the watch.** Three audio objects
+exist (`/Music` m4a + wav, `/Audiobooks/probe.mp3`), all Mac-era. Each came
+back at full listed size and decodes end to end with zero ffmpeg errors. The
+earlier Linux batch is no longer present as objects, so *its* integrity cannot
+be rechecked.
+
+**Playback on the watch** (owner, same day): the m4a (AAC 192k) plays;
+`probe.mp3` (CBR 192k, ID3v2.3) plays from Audiobooks; the WAV is not listed
+(no ID3 title/artist — only BWF/REAPER tags). Every other entry in the music
+app is a ghost with no object behind it, including duplicate "versions" of the
+same track and an entry named "6. 2". **The watch plays every intact file it
+has; the failures are ghosts and damaged writes.**
+
+**Experiment 2 — fresh upload.** A NAS WAV (an album never before on the
+watch) → ffmpeg `-map_metadata -1 -c:a libmp3lame -b:a 192k -ar 44100 -ac 2
+-id3v2_version 3`, explicit title/artist/album_artist/album/track/date/genre →
+`mtp-sendfile pl0001.mp3 Music/pl0001.mp3` (plain object, no MTP track
+metadata) → `mtp-getfile` read-back: **SHA-256 identical**
+(`490020e8…6eaaefb4`, 3 807 097 B). Owner confirms it **appears and plays
+through**.
+
+**Upstream corroboration found today.** libmtp issue #307 (2025-06, FR645):
+sending to a path that already exists turns both objects into stubs,
+DeleteObject on them errors, and the path stays poisoned for every later send,
+Windows included — factory reset only. That is this repo's "collision destroys
+both files" and "stubs cannot be deleted", observed independently.
+
+**Verdict under the decision rule:** a clean upload plays, even on a device
+still carrying ghosts. Pelican continues, with three changes: never reuse a
+remote filename (persistent per-serial ledger), verify every upload by
+read-back hash, and state plainly that delete cannot clear the library.
+Still open: whether mtp-rs writes as cleanly as libmtp did — the hash check
+in the rebuild settles it on first run.

@@ -3,16 +3,22 @@
 As of the `rebuild` branch, 2026-09-26. Requirement IDs (R1–R12) are
 `docs/rebuild-plan.md`'s.
 
-**Pelican itself has not yet run against a watch.** Every claim below about
-the push is proven against the fake MTP backend (`mtp::fake`) and, for the
-encode, against a real ffmpeg. The hardware facts the design rests on — a
-clean upload of this exact MP3 profile appears and plays, and a libmtp
-write reads back byte-identical — were established by hand with
-`mtp-sendfile`/`mtp-getfile`, not with Pelican's code
-(`docs/garmin-library-persistence.md` § Results — Linux, 2026-09-26).
-Whether mtp-rs writes as cleanly as libmtp did is what the hardware
-acceptance run (end of `rebuild-plan.md`) settles. Until that run this page
-claims nothing about Pelican on the device.
+**Hardware acceptance passed, 2026-09-26.** `pelican push` of 24 tracks from
+the Sea of Thieves album (WAV, no usable tags, on the NAS) to a Forerunner
+165 Music · FW 2506 on Linux: **24 verified, 0 failed** in 57 s including
+transcode. Staging dir empty afterwards; ledger holds 24 `reserve` + 24
+`verified`; `pelican ls` shows 24 `ledger` rows and no new stubs. An
+independent read-back through libmtp (`mtp-getfile`, separate stack, fresh
+session) of `pl00013-Spectral Sails.mp3` matched the ledger's
+`upload_sha256`, decoded cleanly and carried its tags. After a replug the
+album appears in the watch's music app with the path-derived tags and the
+owner's spot check of playback — including titles with apostrophes and
+dashes — is green. mtp-rs writes as cleanly as libmtp.
+
+Track 02 was deliberately left out: it was already on the watch as
+`pl0001.mp3` from the hand-run libmtp test, and a second push would have
+left a permanent duplicate library entry. The counter correctly started
+at 2 because `pl0001` was on the device.
 
 Reference hardware for that run: Forerunner 165 Music · FW 2506, on Linux.
 macOS is out of scope for the rebuild.
@@ -100,16 +106,15 @@ silent corruption, and models stubs and free space. What it cannot test:
   `probe_objprops`) and the hardware acceptance run cover it.
 - `garmin::pick_device` — wraps nusb enumeration.
 - `platform::gvfs::detect` — reads the live gvfs mount directory.
-- Whether the watch's music app indexes and plays what Pelican sends. That
-  is the acceptance run's last step, and a person does it.
+- Whether the watch's music app indexes and plays what Pelican sends —
+  checked by a person on the watch (green, 2026-09-26), not by any test.
 
 ## Known unknowns
 
-- Whether mtp-rs's write is as clean as libmtp's. The read-back hash will
-  say so on the first file of the acceptance run.
-- Whether a read-back through mtp-rs can pass while the object on flash is
-  still wrong (a device-side cache). The libmtp run on 2026-09-26 found no
-  such effect; it has not been checked through mtp-rs.
+- Whether a read-back can pass while the object on flash is still wrong (a
+  device-side cache). A cross-stack read-back (libmtp, fresh session) after
+  the acceptance run matched, and the tracks play, so no such effect has
+  been seen; it is not proven impossible.
 - Whether the firmware treats names differing only in extension as one
   file. Irrelevant to Pelican's own writes (always `.mp3`, always a fresh
   counter); relevant only to foreign objects.

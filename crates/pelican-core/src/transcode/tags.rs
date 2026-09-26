@@ -21,6 +21,7 @@ use lofty::config::ParseOptions;
 use lofty::file::TaggedFileExt;
 use lofty::prelude::{Accessor, ItemKey};
 use lofty::probe::Probe;
+use serde::{Deserialize, Serialize};
 
 use super::sanitize_tag_value;
 
@@ -136,12 +137,26 @@ pub struct Overrides {
 pub struct Resolved {
     pub title: String,
     pub artist: Option<String>,
+    /// Written as `album_artist` when set; otherwise the artist stands in.
+    /// Only a mix sets it, so the watch groups songs by different artists
+    /// under one album.
+    pub album_artist: Option<String>,
     pub album: Option<String>,
     /// Just the number, without a `/total` — the watch sorts by it.
     pub track: Option<String>,
     pub date: Option<String>,
     pub genre: Option<String>,
 }
+
+/// A user-ordered set of songs sent as one album — the watch rejects MTP
+/// playlists (`docs/playlists.md`), so an album is the only order it keeps.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Mix {
+    pub name: String,
+}
+
+/// The album artist every song in a mix carries, whoever sang it.
+pub const MIX_ALBUM_ARTIST: &str = "Various Artists";
 
 impl Resolved {
     /// Read `src` and resolve. `root` is the directory named on the command
@@ -201,6 +216,7 @@ impl Resolved {
         Ok(Self {
             title,
             artist,
+            album_artist: None,
             album,
             track,
             date: pick(&ov.year, &tags.date),
@@ -208,18 +224,37 @@ impl Resolved {
         })
     }
 
+    /// Re-resolve as song `position` (1-based) of `mix`: the album is the
+    /// mix, the album artist [`MIX_ALBUM_ARTIST`], the track number the
+    /// position. Title and artist stay the song's own. Year and genre come
+    /// only from `ov` — a song's own year says nothing about the mix.
+    ///
+    /// Refused if the mix name sanitizes to nothing: an album with no name
+    /// is not one the watch can show.
+    pub fn into_mix(mut self, mix: &Mix, position: usize, ov: &Overrides) -> Result<Self> {
+        let name = clean(mix.name.clone())
+            .ok_or_else(|| anyhow!("the mix needs a name that is not blank"))?;
+        self.album = Some(name);
+        self.album_artist = Some(MIX_ALBUM_ARTIST.to_string());
+        self.track = Some(position.to_string());
+        self.date = ov.year.clone().and_then(clean);
+        self.genre = ov.genre.clone().and_then(clean);
+        Ok(self)
+    }
+
     /// `(key, value)` pairs for ffmpeg's `-metadata`, in a fixed order.
     ///
-    /// `album_artist` is written from the resolved artist, not read
-    /// separately: Garmin groups by it, and a soundtrack whose per-track
-    /// artists differ from its album artist fragments into several albums.
-    /// Absent fields are left out, never written empty.
+    /// `album_artist` is the resolved artist unless a mix set its own, not
+    /// read separately: Garmin groups by it, and a soundtrack whose
+    /// per-track artists differ from its album artist fragments into
+    /// several albums. Absent fields are left out, never written empty.
     pub fn as_ffmpeg_args(&self) -> Vec<(&'static str, String)> {
         let title = Some(self.title.clone());
+        let album_artist = self.album_artist.clone().or_else(|| self.artist.clone());
         [
             ("title", &title),
             ("artist", &self.artist),
-            ("album_artist", &self.artist),
+            ("album_artist", &album_artist),
             ("album", &self.album),
             ("track", &self.track),
             ("date", &self.date),
@@ -508,6 +543,7 @@ mod tests {
         let r = Resolved {
             title: "t".into(),
             artist: Some("a".into()),
+            album_artist: None,
             album: Some("b".into()),
             track: Some("1".into()),
             date: Some("2026".into()),
@@ -545,5 +581,47 @@ mod tests {
         let r = Resolved::for_file(&f, None, &Overrides::default()).unwrap();
         assert_eq!(r.title, "Maiden Voyage");
         assert_eq!(r.album.as_deref(), Some("Sea of Thieves"));
+    }
+
+    #[test]
+    fn a_mix_is_an_album_of_other_artists_in_order() {
+        let r = Resolved::resolve(
+            Path::new("/lib/Windrose/Wintersaga/03_Mylir.flac"),
+            Some(Path::new("/lib")),
+            &Tags {
+                date: Some("2019".into()),
+                genre: Some("Metal".into()),
+                ..Tags::default()
+            },
+            &Overrides::default(),
+        )
+        .unwrap();
+        let ov = Overrides {
+            genre: Some("Running".into()),
+            ..Overrides::default()
+        };
+        let mix = Mix {
+            name: "Long Run".into(),
+        };
+        let m = r.into_mix(&mix, 7, &ov).unwrap();
+        assert_eq!(m.title, "Mylir");
+        assert_eq!(m.artist.as_deref(), Some("Windrose"));
+        assert_eq!(m.album.as_deref(), Some("Long Run"));
+        assert_eq!(m.album_artist.as_deref(), Some(MIX_ALBUM_ARTIST));
+        assert_eq!(m.track.as_deref(), Some("7"));
+        assert_eq!(m.date, None, "a song's own year is not the mix's");
+        assert_eq!(m.genre.as_deref(), Some("Running"));
+        let args = m.as_ffmpeg_args();
+        assert!(args.contains(&("album_artist", MIX_ALBUM_ARTIST.to_string())));
+        assert!(args.contains(&("artist", "Windrose".to_string())));
+    }
+
+    #[test]
+    fn a_blank_mix_name_is_refused() {
+        let r = untagged("/m/A/01 - One.wav", None);
+        let mix = Mix {
+            name: " \u{2117} ".into(),
+        };
+        assert!(r.into_mix(&mix, 1, &Overrides::default()).is_err());
     }
 }

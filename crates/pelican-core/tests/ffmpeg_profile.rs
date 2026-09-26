@@ -250,6 +250,39 @@ fn run_overrides_reach_the_file() {
     assert_eq!(back.date.as_deref(), Some("2010"));
 }
 
+/// A mix song, as ffmpeg writes it: the mix is the album, "Various
+/// Artists" the album artist, the song keeps its artist, and the track is
+/// its place in the mix. Not yet proven on the watch.
+#[test]
+fn a_mix_song_carries_the_mix_tags() {
+    use pelican_core::transcode::tags::{Mix, MIX_ALBUM_ARTIST};
+
+    if !ffmpeg_or_skip("a_mix_song_carries_the_mix_tags") {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let album = dir.path().join("Windrose");
+    std::fs::create_dir(&album).unwrap();
+    let wav = album.join("01 - Intro.wav");
+    write_tone_wav(&wav, 44_100, 2);
+    let mix = Mix {
+        name: "Long Run".into(),
+    };
+    let tags = Resolved::for_file(&wav, None, &Overrides::default())
+        .unwrap()
+        .into_mix(&mix, 3, &Overrides::default())
+        .unwrap();
+    let staging = StagingDir::create_in(dir.path()).unwrap();
+    encoder::encode(&wav, &staging.file(1), &tags).unwrap();
+    let f = Probe::open(staging.file(1)).unwrap().read().unwrap();
+    let t = f.tag(TagType::Id3v2).unwrap();
+    assert_eq!(t.title().as_deref(), Some("Intro"));
+    assert_eq!(t.artist().as_deref(), Some("Windrose"));
+    assert_eq!(t.album().as_deref(), Some("Long Run"));
+    assert_eq!(t.get_string(ItemKey::AlbumArtist), Some(MIX_ALBUM_ARTIST));
+    assert_eq!(t.track(), Some(3));
+}
+
 #[test]
 fn ffmpeg_failure_is_an_error_naming_the_file() {
     if !ffmpeg_or_skip("ffmpeg_failure_is_an_error_naming_the_file") {
@@ -295,6 +328,7 @@ fn a_push_sends_the_profile_and_proves_it() {
             staging_base: &cache,
             encode: &encoder::encode,
             progress: &mut |_| {},
+            stop: transfer::Stop::new(),
         },
     )
     .unwrap();

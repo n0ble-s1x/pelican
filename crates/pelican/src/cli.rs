@@ -66,6 +66,13 @@ pub struct PushArgs {
     /// Year for every file in this run.
     #[arg(long, value_name = "Y")]
     pub year: Option<String>,
+    /// Send the files as one album named NAME, in the order given: track
+    /// numbers follow that order, the album artist is "Various Artists",
+    /// and each song keeps its own title and artist. The watch has no
+    /// playlists; this is how a mix plays in order. Year and genre come
+    /// only from --year and --genre.
+    #[arg(long, value_name = "NAME", conflicts_with_all = ["artist", "album"])]
+    pub mix: Option<String>,
     /// Which watch, by USB serial, when more than one is plugged in. With
     /// `--dry-run`, also marks what that watch's ledger already has.
     #[arg(long, value_name = "S")]
@@ -130,6 +137,22 @@ mod tests {
         };
         assert_eq!(p.retries, 1);
         assert!(!p.dry_run && !p.resend);
+    }
+
+    #[test]
+    fn mix_takes_a_name_and_keeps_the_path_order() {
+        let cli = Cli::try_parse_from(["pelican", "push", "--mix", "Long Run", "b.flac", "a.flac"])
+            .unwrap();
+        let Command::Push(p) = cli.command else {
+            panic!("not push")
+        };
+        assert_eq!(p.mix.as_deref(), Some("Long Run"));
+        assert_eq!(p.paths, [PathBuf::from("b.flac"), PathBuf::from("a.flac")]);
+        // A mix's album is its name and its artists are the songs' own.
+        for clash in ["--album", "--artist"] {
+            let r = Cli::try_parse_from(["pelican", "push", "--mix", "M", clash, "X", "a.flac"]);
+            assert!(r.is_err(), "{clash}");
+        }
     }
 
     #[test]

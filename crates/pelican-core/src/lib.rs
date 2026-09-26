@@ -14,14 +14,18 @@
 //! waits). [`ledger`] is the per-device record of every name ever written,
 //! and [`naming`] turns it into names that have never been used. [`watch`]
 //! is the read-only side: what is on the device now, and whose it is.
+//! [`preview`] shapes a plan for a front-end to show before a run, and
+//! [`library`] browses the music on disk one folder at a time.
 
 pub mod garmin;
 pub mod hash;
 pub mod ledger;
+pub mod library;
 pub mod mtp;
 pub mod naming;
 pub mod paths;
 pub mod platform;
+pub mod preview;
 pub mod source;
 pub mod staging;
 pub mod transcode;

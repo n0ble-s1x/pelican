@@ -13,7 +13,9 @@ use pelican_core::ledger::{Kind, Ledger};
 use pelican_core::mtp;
 use pelican_core::transcode::encoder;
 use pelican_core::transcode::tags::{Overrides, Resolved};
-use pelican_core::transfer::{self, Env, Options, Outcome, PlanEntry, Progress, Skip, Verdict};
+use pelican_core::transfer::{
+    self, Env, Mix, Options, Outcome, PlanEntry, Progress, Skip, Stop, Verdict,
+};
 use pelican_core::watch::{self, Origin, Row};
 use pelican_core::{paths, platform, source};
 
@@ -39,7 +41,8 @@ fn push(a: PushArgs) -> Result<ExitCode> {
     if sources.is_empty() {
         return Err(anyhow!("no audio files found in the paths given"));
     }
-    let entries = transfer::plan(sources, &ov);
+    let mix = a.mix.map(|name| Mix { name });
+    let entries = transfer::plan_with(sources, &ov, mix.as_ref())?;
 
     if a.dry_run {
         // A named watch's ledger can say what would be skipped. Reading it
@@ -87,6 +90,7 @@ fn push(a: PushArgs) -> Result<ExitCode> {
             staging_base: &cache,
             encode: &encoder::encode,
             progress: &mut print_progress,
+            stop: Stop::new(),
         },
     )?;
     let t = report.tally();
@@ -124,6 +128,10 @@ fn dry_run(
                 repeats += 1;
                 writeln!(out, "    → same audio as {} (skipped)", show(&first))?;
             }
+            // A preview is never stopped; said plainly if one ever is.
+            Verdict::Skip(skip @ Skip::Stopped {}) => {
+                writeln!(out, "    → {} (skipped)", skip.reason())?;
+            }
             Verdict::Refused { reason } => {
                 refused += 1;
                 writeln!(out, "    refused: {}", strip_control(&reason))?;
@@ -143,6 +151,7 @@ fn tag_line(t: &Resolved) -> String {
     let mut parts = vec![format!("title {:?}", t.title)];
     for (k, v) in [
         ("artist", &t.artist),
+        ("album artist", &t.album_artist),
         ("album", &t.album),
         ("track", &t.track),
         ("date", &t.date),
@@ -157,7 +166,7 @@ fn tag_line(t: &Resolved) -> String {
 
 fn print_progress(p: Progress) {
     match p {
-        Progress::Transcoding { n, of, source } => {
+        Progress::Transcoding { n, of, source, .. } => {
             eprintln!("transcoding {n}/{of}  {}", show(&source));
         }
         Progress::Connecting { files, bytes } => {
@@ -182,8 +191,9 @@ fn print_progress(p: Progress) {
                 strip_control(&reason)
             );
         }
-        // One line per file is the CLI's contract; these are for a UI.
-        Progress::Sending { .. } | Progress::Uploading { .. } => {}
+        // One line per file is the CLI's contract; these are for a UI. The
+        // tally is printed from the report.
+        Progress::Sending { .. } | Progress::Uploading { .. } | Progress::Finished(_) => {}
         Progress::Done(r) => {
             let src = show(&r.source);
             match &r.outcome {
@@ -193,6 +203,9 @@ fn print_progress(p: Progress) {
                 }
                 Outcome::Skipped(Skip::DuplicateOf(first)) => {
                     println!("skipped   same audio as {}  ← {src}", show(first))
+                }
+                Outcome::Skipped(Skip::Stopped {}) => {
+                    println!("skipped   run stopped before it was sent  ← {src}")
                 }
                 Outcome::Failed { reason, .. } => {
                     println!("failed    {}  ← {src}", strip_control(reason))
@@ -405,6 +418,9 @@ mod tests {
             let mut l = Ledger::open(&data, "42").unwrap();
             let mut e = Event::new(Kind::Verified, 3, "pl00003-One.mp3");
             e.source_sha256 = hash::file(&f).unwrap();
+            e.album = Resolved::for_file(&f, None, &Overrides::default())
+                .unwrap()
+                .album;
             l.append(e).unwrap();
         }
         let l = Ledger::read(&data, "42").unwrap();

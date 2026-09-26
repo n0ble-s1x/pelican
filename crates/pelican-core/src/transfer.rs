@@ -18,7 +18,12 @@
 //!
 //! A front-end calls [`push`] and hears about the run through
 //! [`Env::progress`], one owned, serializable [`Progress`] at a time, so the
-//! events can be forwarded across a thread or to a webview as they are.
+//! events can be forwarded across a thread or to a webview as they are. It
+//! can ask the run to end early through [`Env::stop`]; the run looks only
+//! between files, so no file is ever cut off mid-write.
+//!
+//! A [`Mix`] is a user-ordered set of songs sent as one album — see
+//! [`plan_with`].
 //!
 //! Nothing here deletes, and nothing writes a name twice. A failed write
 //! leaves an object on the watch that Pelican cannot remove — the music
@@ -27,6 +32,8 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use serde::Serialize;
@@ -38,6 +45,7 @@ use crate::mtp::Backend;
 use crate::naming::Names;
 use crate::source::Source;
 use crate::staging::StagingDir;
+pub use crate::transcode::tags::Mix;
 use crate::transcode::tags::{Overrides, Resolved};
 use crate::watch::{audio_objects, MAX_OBJECTS};
 
@@ -64,6 +72,54 @@ pub fn plan(sources: Vec<Source>, ov: &Overrides) -> Vec<PlanEntry> {
             PlanEntry { source, tags }
         })
         .collect()
+}
+
+/// [`plan`], or with a mix, every source as one song of that album in the
+/// order given: track numbers 1..n, album artist "Various Artists", each
+/// song's own title and artist, and year and genre only from `ov`.
+///
+/// Errs only when the mix itself cannot be sent (a blank name).
+pub fn plan_with(
+    sources: Vec<Source>,
+    ov: &Overrides,
+    mix: Option<&Mix>,
+) -> Result<Vec<PlanEntry>> {
+    let Some(mix) = mix else {
+        return Ok(plan(sources, ov));
+    };
+    // Album and artist overrides make no sense for a mix: the album is its
+    // name, and the artists are the songs' own.
+    let own = Overrides::default();
+    let mut out = Vec::with_capacity(sources.len());
+    for (i, source) in sources.into_iter().enumerate() {
+        let tags = match Resolved::for_file(&source.path, source.root.as_deref(), &own) {
+            Ok(r) => Ok(r.into_mix(mix, i + 1, ov)?),
+            Err(e) => Err(format!("{e:#}")),
+        };
+        out.push(PlanEntry { source, tags });
+    }
+    Ok(out)
+}
+
+/// Asks a run to end after the file in flight. Cheap to clone; every clone
+/// is the same switch.
+#[derive(Debug, Clone, Default)]
+pub struct Stop(Arc<AtomicBool>);
+
+impl Stop {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Stop before the next file. The file in flight — including its
+    /// retries — finishes and is proven or failed as usual.
+    pub fn request(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+
+    pub fn is_requested(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -128,9 +184,13 @@ pub fn preview(entries: &[PlanEntry], ledger: Option<&Ledger>, resend: bool) -> 
             };
             // "Already on the watch" is the more useful thing to say about
             // a copy, so the ledger is asked first.
+            // Keyed on the album too: the same song inside a mix is a
+            // different entry in the watch's library from the one on its
+            // own album.
+            let album = e.tags.as_ref().ok().and_then(|t| t.album.as_deref());
             let on_watch = ledger
                 .filter(|_| !resend)
-                .and_then(|l| l.verified(&sha))
+                .and_then(|l| l.verified_in(&sha, album))
                 .map(|v| v.remote.clone());
             let first = seen.get(&sha).map(|p| p.to_path_buf());
             seen.entry(sha.clone()).or_insert(path);
@@ -147,8 +207,13 @@ pub fn preview(entries: &[PlanEntry], ledger: Option<&Ledger>, resend: bool) -> 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Outcome {
-    /// Uploaded and read back byte-identical.
-    Verified { remote: String, bytes: u64 },
+    /// Uploaded and read back byte-identical. `sha256` is the hash both
+    /// sides agreed on.
+    Verified {
+        remote: String,
+        bytes: u64,
+        sha256: String,
+    },
     /// Not sent, and nothing is wrong.
     Skipped(Skip),
     /// Not proven on the watch. Every name tried is in `remotes` and burned.
@@ -165,10 +230,37 @@ pub enum Skip {
     AlreadyOnWatch { remote: String },
     /// The same audio appears earlier in this run.
     DuplicateOf(PathBuf),
+    /// The run was stopped before this file was sent. Nothing of it
+    /// reached the watch and no name was used for it.
+    Stopped {},
+}
+
+impl Skip {
+    /// Why, in one line.
+    pub fn reason(&self) -> String {
+        match self {
+            Skip::AlreadyOnWatch { remote } => format!("already on watch as {remote}"),
+            Skip::DuplicateOf(first) => format!("same audio as {}", first.display()),
+            Skip::Stopped {} => "stopped before it was sent".into(),
+        }
+    }
+}
+
+impl Outcome {
+    /// One line on why a file was not verified; `None` when it was.
+    pub fn reason(&self) -> Option<String> {
+        match self {
+            Outcome::Verified { .. } => None,
+            Outcome::Skipped(skip) => Some(skip.reason()),
+            Outcome::Failed { reason, .. } => Some(reason.clone()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FileReport {
+    /// Position in the plan, from 0.
+    pub index: usize,
     pub source: PathBuf,
     pub outcome: Outcome,
 }
@@ -182,8 +274,11 @@ pub struct Report {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Tally {
     pub verified: usize,
+    /// Includes files a stop left unsent.
     pub skipped: usize,
     pub failed: usize,
+    /// A stop left at least one file unsent.
+    pub stopped: bool,
 }
 
 impl Report {
@@ -192,6 +287,10 @@ impl Report {
         for f in &self.files {
             match f.outcome {
                 Outcome::Verified { .. } => t.verified += 1,
+                Outcome::Skipped(Skip::Stopped {}) => {
+                    t.skipped += 1;
+                    t.stopped = true;
+                }
                 Outcome::Skipped(_) => t.skipped += 1,
                 Outcome::Failed { .. } => t.failed += 1,
             }
@@ -203,12 +302,16 @@ impl Report {
 /// What the run is doing, as it happens.
 ///
 /// Owned, so a front-end can send it to another thread or serialize it as
-/// is. Every planned file ends in exactly one [`Progress::Done`]; the rest
-/// are for showing work in flight.
+/// is. Every planned file ends in exactly one [`Progress::Done`], and a run
+/// that returns `Ok` ends with one [`Progress::Finished`]; the rest are for
+/// showing work in flight. `index` is always the file's position in the
+/// plan, from 0, so a front-end can find its row.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Progress {
+    /// `n` of `of` counts only the files being transcoded.
     Transcoding {
+        index: usize,
         n: usize,
         of: usize,
         source: PathBuf,
@@ -216,8 +319,12 @@ pub enum Progress {
     /// Every file is transcoded; the session is about to open.
     Connecting { files: usize, bytes: u64 },
     /// An attempt is starting — `attempt` counts from 1. `remote` is
-    /// already burned in the ledger.
+    /// already burned in the ledger. `n` of `of` counts only the files
+    /// being sent.
     Sending {
+        index: usize,
+        n: usize,
+        of: usize,
         source: PathBuf,
         remote: String,
         attempt: u32,
@@ -225,12 +332,14 @@ pub enum Progress {
     /// Bytes of the current attempt's upload that have crossed the wire.
     /// Read-back follows; nothing is proven until [`Progress::Done`].
     Uploading {
+        index: usize,
         remote: String,
         sent: u64,
         total: u64,
     },
     /// One attempt failed. `retrying` says whether another name is next.
     AttemptFailed {
+        index: usize,
         source: PathBuf,
         remote: String,
         reason: String,
@@ -238,6 +347,8 @@ pub enum Progress {
     },
     /// A file is finished, whichever way.
     Done(FileReport),
+    /// The run is over; every file has had its `Done`.
+    Finished(Tally),
 }
 
 /// Transcodes `src` to `dst` writing `tags`. [`crate::transcode::encoder::encode`]
@@ -252,6 +363,10 @@ pub struct Env<'a> {
     /// `Send` because upload progress is reported from inside the
     /// backend's upload, which requires it.
     pub progress: &'a mut (dyn FnMut(Progress) + Send),
+    /// Checked before each file is transcoded and before each is sent —
+    /// never inside one. Files it leaves unsent end as
+    /// [`Skip::Stopped`], and none of them has a ledger line.
+    pub stop: Stop,
 }
 
 /// A file that made it to step 4.
@@ -274,6 +389,7 @@ struct Out<'a> {
 impl Out<'_> {
     fn done(&mut self, idx: usize, source: &Path, outcome: Outcome) {
         let report = FileReport {
+            index: idx,
             source: source.to_path_buf(),
             outcome,
         };
@@ -287,6 +403,10 @@ impl Out<'_> {
             remotes: Vec::new(),
         };
         self.done(idx, source, outcome);
+    }
+
+    fn stopped(&mut self, idx: usize, source: &Path) {
+        self.done(idx, source, Outcome::Skipped(Skip::Stopped {}));
     }
 }
 
@@ -334,7 +454,12 @@ pub fn push(
     let mut ready = Vec::new();
     let of = todo.len();
     for (n, (idx, source, source_sha256, tags)) in todo.into_iter().enumerate() {
+        if env.stop.is_requested() {
+            out.stopped(idx, &source);
+            continue;
+        }
         (out.progress)(Progress::Transcoding {
+            index: idx,
             n: n + 1,
             of,
             source: source.clone(),
@@ -361,7 +486,13 @@ pub fn push(
         }
     }
 
-    // Step 4.
+    // Step 4. A stop that came during the transcodes ends the run here,
+    // without opening the watch.
+    if env.stop.is_requested() {
+        for r in ready.drain(..) {
+            out.stopped(r.idx, &r.source);
+        }
+    }
     if !ready.is_empty() {
         let bytes = ready.iter().map(|r| r.bytes).sum();
         (out.progress)(Progress::Connecting {
@@ -369,7 +500,7 @@ pub fn push(
             bytes,
         });
         let mut dev = open()?;
-        send_all(dev.as_mut(), ledger, ready, opts, &mut out)?;
+        send_all(dev.as_mut(), ledger, ready, opts, &env.stop, &mut out)?;
     }
     drop(staging);
 
@@ -378,7 +509,9 @@ pub fn push(
         .into_iter()
         .map(|r| r.expect("every planned file gets exactly one outcome"))
         .collect();
-    Ok(Report { files })
+    let report = Report { files };
+    (out.progress)(Progress::Finished(report.tally()));
+    Ok(report)
 }
 
 /// The session: one listing, the capacity check, then write-and-prove.
@@ -387,6 +520,7 @@ fn send_all(
     ledger: &mut Ledger,
     ready: Vec<Ready>,
     opts: Options,
+    stop: &Stop,
     out: &mut Out<'_>,
 ) -> Result<()> {
     let listing = dev
@@ -437,9 +571,20 @@ fn send_all(
 
     // What the files after this one still need. The up-front check set
     // their room aside; a retry may only use what is left over.
+    let of = ready.len();
     let mut later_files = ready.len();
     let mut later_bytes = planned;
-    for r in ready {
+    let mut ready = ready.into_iter().enumerate();
+    while let Some((n, r)) = ready.next() {
+        // Between files only, and before the name is reserved, so a stop
+        // never leaves a reserve line without its outcome.
+        if stop.is_requested() {
+            out.stopped(r.idx, &r.source);
+            for (_, r) in ready.by_ref() {
+                out.stopped(r.idx, &r.source);
+            }
+            break;
+        }
         later_files -= 1;
         later_bytes -= r.bytes;
         let later = Later {
@@ -456,6 +601,9 @@ fn send_all(
             remotes.push(remote.clone());
             objects += 1;
             (out.progress)(Progress::Sending {
+                index: r.idx,
+                n: n + 1,
+                of,
                 source: r.source.clone(),
                 remote: remote.clone(),
                 attempt: attempt + 1,
@@ -466,6 +614,7 @@ fn send_all(
                     break Outcome::Verified {
                         remote,
                         bytes: r.bytes,
+                        sha256: r.staged_sha256.clone(),
                     };
                 }
                 Err(reason) => {
@@ -480,6 +629,7 @@ fn send_all(
                         }
                     }
                     (out.progress)(Progress::AttemptFailed {
+                        index: r.idx,
                         source: r.source.clone(),
                         remote: remote.clone(),
                         reason: reason.clone(),
@@ -512,6 +662,7 @@ fn send_one(
 ) -> std::result::Result<(), String> {
     let mut on_bytes = |sent, total| {
         progress(Progress::Uploading {
+            index: r.idx,
             remote: remote.to_string(),
             sent,
             total,

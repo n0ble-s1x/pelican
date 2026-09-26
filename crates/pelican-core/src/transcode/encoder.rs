@@ -149,6 +149,7 @@ mod tests {
         Resolved {
             title: "Maiden Voyage".into(),
             artist: Some("Sea of Thieves".into()),
+            album_artist: None,
             album: Some("Sea of Thieves".into()),
             track: Some("2".into()),
             date: None,

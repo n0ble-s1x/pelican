@@ -20,7 +20,9 @@ use pelican_core::mtp::fake::{Call, FakeDevice, Faults};
 use pelican_core::mtp::Backend;
 use pelican_core::source;
 use pelican_core::transcode::tags::{Overrides, Resolved};
-use pelican_core::transfer::{self, Env, Options, Outcome, Progress, Report, Skip, Verdict};
+use pelican_core::transfer::{
+    self, Env, Mix, Options, Outcome, Progress, Report, Skip, Stop, Verdict,
+};
 
 const SERIAL: &str = "3456789012";
 
@@ -96,6 +98,34 @@ impl Harness {
     ) -> Result<Report> {
         let sources = source::expand(paths).unwrap();
         let entries = transfer::plan(sources, &Overrides::default());
+        self.run_entries(entries, opts, encode, &Stop::new(), &mut |_| {})
+    }
+
+    /// Send `paths` as the mix `name`, with `ov`.
+    fn run_mix(
+        &self,
+        paths: &[PathBuf],
+        name: &str,
+        ov: &Overrides,
+        opts: Options,
+        encode: &dyn Fn(&Path, &Path, &Resolved) -> Result<()>,
+    ) -> Result<Report> {
+        let sources = source::expand(paths).unwrap();
+        let mix = Mix { name: name.into() };
+        let entries = transfer::plan_with(sources, ov, Some(&mix)).unwrap();
+        self.run_entries(entries, opts, encode, &Stop::new(), &mut |_| {})
+    }
+
+    /// The run, with `on` seeing every event first (and free to pull
+    /// `stop`).
+    fn run_entries(
+        &self,
+        entries: Vec<transfer::PlanEntry>,
+        opts: Options,
+        encode: &dyn Fn(&Path, &Path, &Resolved) -> Result<()>,
+        stop: &Stop,
+        on: &mut (dyn FnMut(&Progress) + Send),
+    ) -> Result<Report> {
         let mut ledger = Ledger::open(&self.data(), SERIAL).unwrap();
         let mut lines = Vec::new();
         let dev = self.dev.clone();
@@ -110,9 +140,17 @@ impl Harness {
             Env {
                 staging_base: &self.cache(),
                 encode,
-                progress: &mut |p| lines.push(format!("{p:?}")),
+                progress: &mut |p| {
+                    on(&p);
+                    lines.push(format!("{p:?}"));
+                },
+                stop: stop.clone(),
             },
         );
+        // A run that returns ends with its tally, and only then.
+        if report.is_ok() {
+            assert!(lines.last().unwrap().starts_with("Finished"), "{lines:?}");
+        }
         // However the run went, its staging dir is gone (R8).
         self.assert_staging_empty();
         // And no text it produced tells anyone to delete anything (R6).
@@ -297,8 +335,9 @@ fn already_verified_audio_is_skipped_unless_resent() {
     h.run(&[h.music()], one_retry()).unwrap();
     assert_eq!(h.opens.get(), 1);
 
-    // The same audio, moved and renamed: the hash is the identity.
-    let moved = h.tmp.path().join("elsewhere/renamed.wav");
+    // The same audio, moved and renamed: the hash is the identity, within
+    // its album.
+    let moved = h.tmp.path().join("elsewhere/A/renamed.wav");
     std::fs::create_dir_all(moved.parent().unwrap()).unwrap();
     std::fs::copy(h.music().join("A/01 - One.wav"), &moved).unwrap();
     let report = h.run(&[h.music(), moved.clone()], one_retry()).unwrap();
@@ -688,6 +727,7 @@ fn staging_is_gone_when_the_device_will_not_open() {
             staging_base: &h.cache(),
             encode: &fake_encode,
             progress: &mut |_| {},
+            stop: Stop::new(),
         },
     )
     .unwrap_err();
@@ -749,6 +789,7 @@ fn a_run_reports_each_attempt_as_it_happens() {
             staging_base: &h.cache(),
             encode: &fake_encode,
             progress: &mut |p| events.push(p),
+            stop: Stop::new(),
         },
     )
     .unwrap();
@@ -784,12 +825,20 @@ fn a_run_reports_each_attempt_as_it_happens() {
         .any(|p| matches!(p, Progress::AttemptFailed { retrying: true, .. })));
     let done = kinds.iter().filter(|k| *k == "done").count();
     assert_eq!(done, 2, "one Done per planned file");
-    assert_eq!(kinds.last().map(String::as_str), Some("done"));
+    assert_eq!(kinds.last().map(String::as_str), Some("finished"));
 
     // Serialized, an outcome reads the way a UI would switch on it.
-    let last = serde_json::to_value(events.last().unwrap()).unwrap();
+    let n = events.len();
+    let last = serde_json::to_value(&events[n - 2]).unwrap();
+    assert_eq!(last["index"], 0);
     assert_eq!(last["outcome"]["kind"], "verified");
     assert_eq!(last["outcome"]["remote"], "pl00002-One.mp3");
+    assert_eq!(last["outcome"]["sha256"].as_str().unwrap().len(), 64);
+    let fin = serde_json::to_value(&events[n - 1]).unwrap();
+    assert_eq!(
+        fin,
+        serde_json::json!({"kind": "finished", "verified": 1, "skipped": 1, "failed": 0, "stopped": false})
+    );
     let first = serde_json::to_value(&events[0]).unwrap();
     assert_eq!(first["outcome"]["kind"], "skipped");
     assert!(first["outcome"]["duplicate_of"]
@@ -809,6 +858,7 @@ fn preview_decides_what_the_run_would_do() {
     let mut l = Ledger::open(&h.data(), SERIAL).unwrap();
     let mut e = pelican_core::ledger::Event::new(Kind::Verified, 9, "pl00009-One.mp3");
     e.source_sha256 = pelican_core::hash::file(&one).unwrap();
+    e.album = Some("A".into());
     l.append(e).unwrap();
 
     let kinds = |v: Vec<Verdict>| -> Vec<String> {
@@ -840,4 +890,275 @@ fn preview_decides_what_the_run_would_do() {
     }
     assert_eq!(h.dev.calls(), [], "a preview touches no device");
     assert!(!h.cache().exists(), "a preview transcodes nothing");
+}
+
+fn plan_of(paths: &[PathBuf]) -> Vec<transfer::PlanEntry> {
+    transfer::plan(source::expand(paths).unwrap(), &Overrides::default())
+}
+
+fn stopped(r: &Report) -> Vec<usize> {
+    r.files
+        .iter()
+        .filter(|f| f.outcome == Outcome::Skipped(Skip::Stopped {}))
+        .map(|f| f.index)
+        .collect()
+}
+
+/// A stop lands between files: the file in flight is proven, the rest are
+/// never reserved, and the tally says the run was stopped.
+#[test]
+fn a_stop_ends_the_run_between_files() {
+    let h = Harness::new();
+    for n in 1..=3 {
+        h.source(&format!("A/0{n} - T{n}.wav"), None);
+    }
+    let stop = Stop::new();
+    let pull = stop.clone();
+    let mut fin = None;
+    let report = h
+        .run_entries(
+            plan_of(&[h.music()]),
+            one_retry(),
+            &fake_encode,
+            &stop,
+            &mut |p| match p {
+                // Asked mid-upload: the upload and its read-back still finish.
+                Progress::Uploading { index: 0, .. } => pull.request(),
+                Progress::Finished(t) => fin = Some(*t),
+                _ => {}
+            },
+        )
+        .unwrap();
+
+    assert_eq!(verified(&report), ["pl00001-T1.mp3"]);
+    assert_eq!(stopped(&report), [1, 2]);
+    let t = report.tally();
+    assert_eq!(
+        (t.verified, t.skipped, t.failed, t.stopped),
+        (1, 2, 0, true)
+    );
+    assert_eq!(fin, Some(t));
+    assert_eq!(
+        report.files[1].outcome.reason().as_deref(),
+        Some("stopped before it was sent")
+    );
+    // Every reserve has its outcome; the stopped files have no line at all.
+    assert_eq!(
+        h.ledger_kinds(),
+        [
+            (Kind::Reserve, "pl00001-T1.mp3".into()),
+            (Kind::Verified, "pl00001-T1.mp3".into()),
+        ]
+    );
+    assert_eq!(
+        Ledger::read(&h.data(), SERIAL).unwrap().totals().unresolved,
+        0
+    );
+    assert_eq!(h.uploads(), ["pl00001-T1.mp3"]);
+
+    // The stopped files go next time, under the next names.
+    let report = h.run(&[h.music()], one_retry()).unwrap();
+    assert_eq!(verified(&report), ["pl00002-T2.mp3", "pl00003-T3.mp3"]);
+}
+
+/// A stop during the transcodes never opens the watch.
+#[test]
+fn a_stop_before_the_session_opens_nothing() {
+    let h = Harness::new();
+    h.source("A/01 - One.wav", None);
+    h.source("A/02 - Two.wav", None);
+    let stop = Stop::new();
+    let pull = stop.clone();
+    let report = h
+        .run_entries(
+            plan_of(&[h.music()]),
+            one_retry(),
+            &fake_encode,
+            &stop,
+            &mut |p| {
+                if matches!(p, Progress::Transcoding { n: 1, .. }) {
+                    pull.request();
+                }
+            },
+        )
+        .unwrap();
+    assert_eq!(stopped(&report), [0, 1]);
+    assert!(report.tally().stopped);
+    assert_eq!(h.opens.get(), 0);
+    assert!(h.ledger_kinds().is_empty());
+}
+
+/// A retry belongs to the file in flight, so a stop does not cut it off.
+#[test]
+fn a_stop_lets_the_current_files_retry_finish() {
+    let h = Harness::new();
+    h.source("A/01 - One.wav", None);
+    h.source("A/02 - Two.wav", None);
+    h.dev.set_faults(Faults {
+        corrupt_uploads: 1,
+        ..Default::default()
+    });
+    let stop = Stop::new();
+    let pull = stop.clone();
+    let report = h
+        .run_entries(
+            plan_of(&[h.music()]),
+            one_retry(),
+            &fake_encode,
+            &stop,
+            &mut |p| {
+                if matches!(p, Progress::AttemptFailed { .. }) {
+                    pull.request();
+                }
+            },
+        )
+        .unwrap();
+    assert_eq!(verified(&report), ["pl00002-One.mp3"]);
+    assert_eq!(stopped(&report), [1]);
+    let totals = Ledger::read(&h.data(), SERIAL).unwrap().totals();
+    assert_eq!((totals.reserved, totals.unresolved), (2, 0));
+}
+
+/// A mix goes in the order given, as one album of other artists.
+#[test]
+fn a_mix_is_sent_in_order_as_one_album() {
+    let h = Harness::new();
+    let c = h.source("Windrose/Wintersaga/03 - Mylir.flac", None);
+    let a = h.source("Sea of Thieves/01 - Grogmire.wav", None);
+    let b = h.source("Master and Commander/05 - Folly.flac", None);
+    let seen = std::sync::Mutex::new(Vec::new());
+    let record = |src: &Path, dst: &Path, tags: &Resolved| {
+        seen.lock().unwrap().push(tags.clone());
+        fake_encode(src, dst, tags)
+    };
+    let ov = Overrides {
+        genre: Some("Running".into()),
+        ..Overrides::default()
+    };
+    let report = h
+        .run_mix(&[c, a, b], "Long Run", &ov, one_retry(), &record)
+        .unwrap();
+
+    assert_eq!(
+        verified(&report),
+        [
+            "pl00001-Mylir.mp3",
+            "pl00002-Grogmire.mp3",
+            "pl00003-Folly.mp3"
+        ]
+    );
+    let seen = seen.into_inner().unwrap();
+    let got: Vec<_> = seen
+        .iter()
+        .map(|t| {
+            (
+                t.title.as_str(),
+                t.artist.as_deref(),
+                t.album.as_deref(),
+                t.album_artist.as_deref(),
+                t.track.as_deref(),
+                t.genre.as_deref(),
+                t.date.as_deref(),
+            )
+        })
+        .collect();
+    let mix = Some("Long Run");
+    let va = Some("Various Artists");
+    let g = Some("Running");
+    assert_eq!(
+        got,
+        [
+            ("Mylir", Some("Wintersaga"), mix, va, Some("1"), g, None),
+            (
+                "Grogmire",
+                Some("Sea of Thieves"),
+                mix,
+                va,
+                Some("2"),
+                g,
+                None
+            ),
+            (
+                "Folly",
+                Some("Master and Commander"),
+                mix,
+                va,
+                Some("3"),
+                g,
+                None
+            ),
+        ]
+    );
+    // The ledger records the mix as the album, which is what the skip keys on.
+    let l = Ledger::read(&h.data(), SERIAL).unwrap();
+    assert!(l
+        .events()
+        .iter()
+        .all(|e| e.album.as_deref() == Some("Long Run")));
+}
+
+/// "Already on the watch" means this audio in this album: a song sent with
+/// its own album still goes inside a mix, and the other way round.
+#[test]
+fn the_skip_keys_on_the_audio_and_the_album() {
+    let h = Harness::new();
+    let one = h.source("A/01 - One.wav", None);
+    let two = h.source("B/01 - Two.wav", None);
+
+    // One on its album.
+    assert_eq!(
+        verified(&h.run(std::slice::from_ref(&one), one_retry()).unwrap()),
+        ["pl00001-One.mp3"]
+    );
+    // In a mix it is a different library entry, so it is sent.
+    let mix = |h: &Harness, opts| {
+        h.run_mix(
+            &[two.clone(), one.clone()],
+            "Mix",
+            &Overrides::default(),
+            opts,
+            &fake_encode,
+        )
+        .unwrap()
+    };
+    let r = mix(&h, one_retry());
+    assert_eq!(verified(&r), ["pl00002-Two.mp3", "pl00003-One.mp3"]);
+    // The same mix again: all there.
+    let r = mix(&h, one_retry());
+    assert_eq!(r.tally().skipped, 2);
+    assert_eq!(
+        r.files[1].outcome,
+        Outcome::Skipped(Skip::AlreadyOnWatch {
+            remote: "pl00003-One.mp3".into()
+        })
+    );
+    // Two on its own album was never sent that way.
+    let r = h.run(std::slice::from_ref(&two), one_retry()).unwrap();
+    assert_eq!(verified(&r), ["pl00004-Two.mp3"]);
+    // One on its album is still skipped, under its first name.
+    let r = h.run(std::slice::from_ref(&one), one_retry()).unwrap();
+    assert_eq!(
+        r.files[0].outcome,
+        Outcome::Skipped(Skip::AlreadyOnWatch {
+            remote: "pl00001-One.mp3".into()
+        })
+    );
+    // `--resend` is unchanged: sent again under new names.
+    let r = mix(
+        &h,
+        Options {
+            resend: true,
+            ..one_retry()
+        },
+    );
+    assert_eq!(verified(&r), ["pl00005-Two.mp3", "pl00006-One.mp3"]);
+}
+
+#[test]
+fn a_mix_with_a_blank_name_is_refused_before_anything() {
+    let h = Harness::new();
+    let one = h.source("A/01 - One.wav", None);
+    let sources = source::expand(&[one]).unwrap();
+    let mix = Mix { name: "  ".into() };
+    assert!(transfer::plan_with(sources, &Overrides::default(), Some(&mix)).is_err());
 }

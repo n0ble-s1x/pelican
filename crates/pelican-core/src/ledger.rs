@@ -92,7 +92,7 @@ impl Event {
 }
 
 /// Event counts, for `pelican status`.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Totals {
     pub reserved: usize,
     pub verified: usize,
@@ -263,6 +263,20 @@ impl Ledger {
             .iter()
             .rev()
             .find(|e| e.event == Kind::Verified && e.source_sha256 == source_sha256)
+    }
+
+    /// The newest `verified` event for this audio *in this album*.
+    ///
+    /// The same song on its own album and inside a mix are two different
+    /// library entries on the watch, so "already there" has to mean the
+    /// pair: a song sent with its album is still sent inside a mix, and
+    /// the other way round.
+    pub fn verified_in(&self, source_sha256: &str, album: Option<&str>) -> Option<&Event> {
+        self.events.iter().rev().find(|e| {
+            e.event == Kind::Verified
+                && e.source_sha256 == source_sha256
+                && e.album.as_deref() == album
+        })
     }
 
     /// Names, folded, whose last event is `failed` or a bare `reserve`:

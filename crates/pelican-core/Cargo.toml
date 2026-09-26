@@ -1,6 +1,6 @@
 [package]
 name = "pelican-core"
-description = "Pelican's engine — Garmin USB/MTP transport, transcode pipeline, and transfer planner. No UI."
+description = "Pelican's engine — Garmin USB/MTP transport and the transcode pipeline. No UI."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,13 +14,8 @@ exclude = ["/examples"]
 
 [dependencies]
 anyhow.workspace = true
-crossbeam-channel.workspace = true
-id3.workspace = true
 lofty.workspace = true
-mp4ameta.workspace = true
 nusb.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 tracing.workspace = true
 
 # POSIX geteuid() for the Linux GVFS-contention detector.
@@ -53,3 +48,17 @@ mtp-backend = ["dep:mtp", "dep:tokio", "dep:futures", "dep:bytes"]
 
 [lints]
 workspace = true
+
+# These talk to mtp-rs directly rather than through `Backend`, so they only
+# exist in a build that has it.
+[[example]]
+name = "diagnose"
+required-features = ["mtp-backend"]
+
+[[example]]
+name = "dump_file"
+required-features = ["mtp-backend"]
+
+[[example]]
+name = "probe_objprops"
+required-features = ["mtp-backend"]

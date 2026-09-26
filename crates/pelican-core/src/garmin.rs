@@ -22,13 +22,21 @@ impl Device {
     /// this string is printed to the terminal and rendered in the GUI, so
     /// control bytes are stripped at the source rather than at each call site.
     pub fn label(&self) -> String {
-        let name =
-            crate::playlist::strip_control(self.product.as_deref().unwrap_or("Garmin device"));
+        let name = strip_control(self.product.as_deref().unwrap_or("Garmin device"));
         match &self.serial {
-            Some(s) => format!("{name} ({})", crate::playlist::strip_control(s)),
+            Some(s) => format!("{name} ({})", strip_control(s)),
             None => name,
         }
     }
+}
+
+/// Drop control characters from device-controlled text before it is printed.
+///
+/// USB descriptor strings, MTP model names and object filenames all come off
+/// the watch, and a terminal will act on an escape sequence hidden in any of
+/// them. Everything the device says passes through here on its way out.
+pub fn strip_control(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
 }
 
 pub fn list_devices() -> Result<Vec<Device>> {
@@ -72,4 +80,22 @@ pub fn pick_device(serial: Option<&str>) -> Result<Device> {
         msg.push_str(&format!("  - {}\n", d.label()));
     }
     Err(anyhow!(msg))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn label_strips_escape_sequences_from_descriptor_strings() {
+        let d = Device {
+            vendor_id: GARMIN_VENDOR_ID,
+            product_id: 0x5151,
+            serial: Some("12\u{1b}[2J34".into()),
+            product: Some("Fore\u{7}runner".into()),
+        };
+        let label = d.label();
+        assert!(!label.chars().any(char::is_control), "{label:?}");
+        assert_eq!(label, "Forerunner (12[2J34)");
+    }
 }

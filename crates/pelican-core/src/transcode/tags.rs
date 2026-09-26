@@ -4,44 +4,34 @@
 //! non-standard frames — custom Vorbis fields like `QBZ:TID`, `DISCTOTAL`,
 //! the `℗` glyph inside `COPYRIGHT`, embedded cover art. So we never carry a
 //! source tag across; we read what we want, drop everything else, and write
-//! a fresh tag from a six-field allowlist.
+//! a fresh tag from a seven-field allowlist.
 //!
 //! Reading used to mean spawning `ffprobe` and parsing its JSON, which made
 //! tag support hostage to an external binary and needed a hand-rolled guard
 //! against a tag value forging extra output lines. `lofty` reads ID3v2,
 //! Vorbis comments, MP4 atoms and APE tags in-process, on every platform,
-//! for every format we accept.
+//! for every format it knows. For the ones it does not (WMA among them) a
+//! read failure is not a refusal: the file still has a path, and the path
+//! is enough to name it — see [`Resolved`].
 
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
+use lofty::config::ParseOptions;
 use lofty::file::TaggedFileExt;
 use lofty::prelude::{Accessor, ItemKey};
 use lofty::probe::Probe;
 
 use super::sanitize_tag_value;
 
-/// The fields we read from a source file.
-///
-/// Six of them are the allowlist that reaches the device — title, artist,
-/// album, track, date, genre — and `album_artist` is written as well as
-/// `artist` from the same resolved value; see [`Tags::read`] for why they are
-/// deliberately the same string.
-///
-/// `disc` is the exception and is **deliberately not in the allowlist**. It is
-/// read so a local album view can order a multi-disc set correctly, and it is
-/// never written to the watch: Garmin's indexer rejects files whose tag
-/// carries frames outside the set it expects, and widening that set to fix a
-/// sorting problem on *this* side would risk the file landing invisible on
-/// the other. Nothing in `as_ffmpeg_args`, `write_id3v23` or `write_mp4`
-/// touches it, and that is the point.
+/// The allowlisted fields as the source file carries them. Every one is
+/// optional; [`Resolved`] is what fills the gaps.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Tags {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
     pub track: Option<String>,
-    pub disc: Option<String>,
     pub date: Option<String>,
     pub genre: Option<String>,
 }
@@ -53,19 +43,18 @@ impl Tags {
     /// tracks by ARTIST+ALBUM, so per-track composer credits ("Iva Davies"
     /// vs "Richard Tognetti") fragment one soundtrack into several albums.
     /// The album-wide credit is the right grouping key.
+    ///
+    /// Cover art is not parsed: it is never written, and on a FLAC carrying a
+    /// 1 MB JPEG it is almost the whole cost of the read.
     pub fn read(src: &Path) -> Result<Self> {
         let tagged = Probe::open(src)
             .with_context(|| format!("opening {} for tag read", src.display()))?
+            .options(ParseOptions::new().read_cover_art(false))
             .read()
             .with_context(|| format!("parsing tags in {}", src.display()))?;
         Ok(Self::from_tagged(&tagged))
     }
 
-    /// Pull the allowlist out of an already-parsed file.
-    ///
-    /// Split out of [`Tags::read`] so [`read_fast`] can reuse the exact same
-    /// resolution rules — album-artist preference, multi-tag fallthrough,
-    /// year handling — rather than growing a second copy that drifts.
     fn from_tagged(tagged: &lofty::file::TaggedFile) -> Self {
         // Primary tag first, then any other tag the file carries — an MP3
         // can hold both ID3v2 and APE, and a FLAC both Vorbis comments and
@@ -86,25 +75,19 @@ impl Tags {
         // that carries the key *at all*, so a tag holding "   " — or a bare
         // ℗ that `sanitize_tag_value` strips to nothing — won the search and
         // was then discarded, and the tag holding the real value was never
-        // read. A genuinely tagged file read back completely bare, and the
-        // UI told its owner the file had no title. A blank value is not a
-        // value; keep looking.
+        // read. A blank value is not a value; keep looking.
         let first = |f: &dyn Fn(&lofty::tag::Tag) -> Option<String>| -> Option<String> {
             tags.iter().find_map(|t| f(t).and_then(clean))
         };
 
         let album_artist = first(&|t| t.get_string(ItemKey::AlbumArtist).map(str::to_owned));
         let artist = first(&|t| t.artist().map(|s| s.into_owned()));
-        let resolved_artist = album_artist.or(artist);
 
         Self {
             title: first(&|t| t.title().map(|s| s.into_owned())),
-            artist: resolved_artist,
+            artist: album_artist.or(artist),
             album: first(&|t| t.album().map(|s| s.into_owned())),
             track: first(&|t| t.track().map(|n| n.to_string())),
-            // Local ordering only — never written to the device. One more
-            // read of tags already in memory, no extra file I/O.
-            disc: first(&|t| t.get_string(ItemKey::DiscNumber).map(str::to_owned)),
             // Garmin only ever shows a year. Prefer whatever literal string
             // the file carries, so "1979" from a Vorbis DATE survives intact,
             // and fall back to the parsed timestamp's year component.
@@ -116,104 +99,173 @@ impl Tags {
             genre: first(&|t| t.genre().map(|s| s.into_owned())),
         }
     }
+}
 
-    /// True when the watch's music app will be able to show this file.
-    /// Untagged files land on disk but stay invisible in the library.
-    pub fn playable_in_library(&self) -> bool {
-        self.title.is_some() && self.artist.is_some()
+/// Values the user gave for the whole run (`--artist`, `--album`,
+/// `--genre`, `--year`). They beat anything the file or its path says.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Overrides {
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub genre: Option<String>,
+    pub year: Option<String>,
+}
+
+/// The tag that will be written, every field decided.
+///
+/// A file that reaches the watch without a title or artist is on the
+/// storage and absent from the music app — the WAV in
+/// `garmin-library-persistence.md` § Results is exactly that. So nothing is
+/// left to chance: each field resolves **override → source tag → path**,
+/// and a file whose title still comes out empty is refused rather than sent
+/// to be invisible.
+///
+/// The path fallbacks, for `…/Artist/Album/02 - Title.wav`:
+/// - title: the filename stem, minus a leading track number (`02 - `,
+///   `02_`, `02.`, `2 `);
+/// - track: that leading number;
+/// - album: the parent directory's name;
+/// - artist: the grandparent's name — **only** when the file was found by
+///   walking a directory named on the command line and the grandparent lies
+///   strictly inside it. Otherwise the grandparent is whatever happened to
+///   hold the album (a NAS share, `~/Downloads`), which says nothing about
+///   who made it, and the album name is the honest fallback: it keeps the
+///   album grouped on the watch and claims nothing false.
+/// - date, genre: no fallback; omitted unless tagged or overridden.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Resolved {
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    /// Just the number, without a `/total` — the watch sorts by it.
+    pub track: Option<String>,
+    pub date: Option<String>,
+    pub genre: Option<String>,
+}
+
+impl Resolved {
+    /// Read `src` and resolve. `root` is the directory named on the command
+    /// line that `src` was found under, or `None` when `src` itself was
+    /// named.
+    ///
+    /// A file lofty cannot parse is not refused here: ffmpeg reads formats
+    /// lofty does not, and the path still resolves a title. Whether the
+    /// file is audio at all is ffmpeg's call to make.
+    pub fn for_file(src: &Path, root: Option<&Path>, ov: &Overrides) -> Result<Self> {
+        let tags = Tags::read(src).unwrap_or_else(|e| {
+            tracing::warn!(
+                file = %src.display(),
+                error = %format!("{e:#}"),
+                "could not read tags; naming from the path"
+            );
+            Tags::default()
+        });
+        Self::resolve(src, root, &tags, ov)
     }
 
-    /// `-metadata k=v` arguments for the ffmpeg pipeline.
+    /// The pure half of [`Resolved::for_file`], split out so every fallback
+    /// can be tested without writing tagged audio.
+    pub fn resolve(src: &Path, root: Option<&Path>, tags: &Tags, ov: &Overrides) -> Result<Self> {
+        let stem = src
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let (leading, rest) = split_track_prefix(&stem);
+        let dir_name = |p: Option<&Path>| {
+            p.and_then(Path::file_name)
+                .map(|n| n.to_string_lossy().into_owned())
+                .and_then(clean)
+        };
+        let parent = src.parent();
+        let grandparent = parent.and_then(Path::parent);
+
+        let title = tags
+            .title
+            .clone()
+            .or_else(|| clean(rest.to_string()))
+            .ok_or_else(|| anyhow!("{}: no title in its tags or its filename", src.display()))?;
+        let album = pick(&ov.album, &tags.album).or_else(|| dir_name(parent));
+        let walked_artist = match (root, grandparent) {
+            (Some(root), Some(gp)) if gp != root && gp.starts_with(root) => dir_name(Some(gp)),
+            _ => None,
+        };
+        let artist = pick(&ov.artist, &tags.artist)
+            .or(walked_artist)
+            .or_else(|| album.clone());
+        let track = tags
+            .track
+            .as_deref()
+            .and_then(track_number)
+            .or_else(|| leading.map(|n| n.to_string()));
+
+        Ok(Self {
+            title,
+            artist,
+            album,
+            track,
+            date: pick(&ov.year, &tags.date),
+            genre: pick(&ov.genre, &tags.genre),
+        })
+    }
+
+    /// `(key, value)` pairs for ffmpeg's `-metadata`, in a fixed order.
+    ///
+    /// `album_artist` is written from the resolved artist, not read
+    /// separately: Garmin groups by it, and a soundtrack whose per-track
+    /// artists differ from its album artist fragments into several albums.
+    /// Absent fields are left out, never written empty.
     pub fn as_ffmpeg_args(&self) -> Vec<(&'static str, String)> {
-        let mut out = Vec::new();
-        for (k, v) in [
-            ("title", &self.title),
+        let title = Some(self.title.clone());
+        [
+            ("title", &title),
             ("artist", &self.artist),
-            // Also written as TPE2 for players that read it.
             ("album_artist", &self.artist),
             ("album", &self.album),
             ("track", &self.track),
             ("date", &self.date),
             ("genre", &self.genre),
-        ] {
-            if let Some(v) = v {
-                out.push((k, v.clone()));
-            }
-        }
-        out
+        ]
+        .into_iter()
+        .filter_map(|(k, v)| v.clone().map(|v| (k, v)))
+        .collect()
     }
+}
 
-    /// Replace whatever tag `path` carries with exactly this one, as
-    /// ID3v2.3. Any existing ID3v1, ID3v2 or APE tag is removed first —
-    /// leaving one behind is how a rejected non-standard frame survives.
-    pub fn write_id3v23(&self, path: &Path) -> Result<()> {
-        use id3::TagLike;
+/// Override if given (and non-blank after sanitizing), else the tag.
+fn pick(ov: &Option<String>, tag: &Option<String>) -> Option<String> {
+    ov.clone().and_then(clean).or_else(|| tag.clone())
+}
 
-        // Remove first, then write fresh: `write_to_path` replaces the v2
-        // tag but would leave a trailing ID3v1 block and its own idea of
-        // the genre behind.
-        let _ = id3::Tag::remove_from_path(path);
-
-        let mut tag = id3::Tag::new();
-        if let Some(v) = &self.title {
-            tag.set_title(v);
-        }
-        if let Some(v) = &self.artist {
-            tag.set_artist(v);
-            tag.set_album_artist(v);
-        }
-        if let Some(v) = &self.album {
-            tag.set_album(v);
-        }
-        if let Some(v) = &self.track {
-            if let Ok(n) = v.split('/').next().unwrap_or(v).trim().parse::<u32>() {
-                tag.set_track(n);
-            }
-        }
-        if let Some(v) = &self.date {
-            if let Ok(y) = v.chars().take(4).collect::<String>().parse::<i32>() {
-                tag.set_year(y);
-            }
-        }
-        if let Some(v) = &self.genre {
-            tag.set_genre(v);
-        }
-        tag.write_to_path(path, id3::Version::Id3v23)
-            .with_context(|| format!("writing ID3v2.3 tag to {}", path.display()))?;
-        Ok(())
+/// Split a leading track number off a filename stem.
+///
+/// Recognises one to three digits followed by a separator — `01 - `, `01_`,
+/// `01.`, `1 ` — and returns the number and what follows. Capped at three
+/// digits so a title that *starts* with a year, like `2001 A Space Odyssey`,
+/// keeps it. Without a separator (`1999`) there is no prefix. If stripping
+/// would leave nothing, there is no prefix either — the digits are the name.
+fn split_track_prefix(stem: &str) -> (Option<u32>, &str) {
+    let digits = stem.bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 || digits > 3 {
+        return (None, stem);
     }
-
-    /// Replace whatever tag an MP4-family file carries with exactly this
-    /// one. Artwork is dropped — an oversized cover is one of the ways a
-    /// file gets silently refused.
-    pub fn write_mp4(&self, path: &Path) -> Result<()> {
-        let mut tag = mp4ameta::Tag::default();
-        if let Some(v) = &self.title {
-            tag.set_title(v);
-        }
-        if let Some(v) = &self.artist {
-            tag.set_artist(v);
-            tag.set_album_artist(v);
-        }
-        if let Some(v) = &self.album {
-            tag.set_album(v);
-        }
-        if let Some(v) = &self.track {
-            if let Ok(n) = v.split('/').next().unwrap_or(v).trim().parse::<u16>() {
-                tag.set_track_number(n);
-            }
-        }
-        if let Some(v) = &self.date {
-            tag.set_year(v);
-        }
-        if let Some(v) = &self.genre {
-            tag.set_genre(v);
-        }
-        tag.remove_artworks();
-        tag.write_to_path(path)
-            .with_context(|| format!("writing MP4 tag to {}", path.display()))?;
-        Ok(())
+    let after = &stem[digits..];
+    let rest = after.trim_start_matches([' ', '-', '_', '.']);
+    if rest.len() == after.len() || rest.trim().is_empty() {
+        return (None, stem);
     }
+    (stem[..digits].parse().ok(), rest)
+}
+
+/// `"2/12"` → `"2"`, `" 07 "` → `"7"`. Anything unparsable is dropped
+/// rather than written as a track number the watch cannot sort by.
+fn track_number(v: &str) -> Option<String> {
+    v.split('/')
+        .next()?
+        .trim()
+        .parse::<u32>()
+        .ok()
+        .filter(|n| *n > 0)
+        .map(|n| n.to_string())
 }
 
 /// Sanitize, then drop the value entirely if nothing survived.
@@ -222,147 +274,256 @@ fn clean(v: String) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
-/// Everything a browsing UI needs to know about a source file, in one parse.
-///
-/// The transfer pipeline only ever wants [`Tags`]. A library view wants more:
-/// a duration for the track row and the seek bar, and the sample rate / bit
-/// depth behind a "FLAC 24/96" label. Those are properties, not tags, so they
-/// are not something [`Tags`] should grow — but re-opening the file to get
-/// them would double the parse cost on a folder scan.
-#[derive(Debug, Clone)]
-pub struct SourceInfo {
-    pub tags: Tags,
-    /// Whole seconds. `0` when the decoder could not determine a duration.
-    pub duration_secs: u64,
-    pub sample_rate: Option<u32>,
-    pub bit_depth: Option<u8>,
-    pub channels: Option<u8>,
-    /// Audio bitrate in kbps where the format reports one.
-    pub bitrate_kbps: Option<u32>,
-}
-
-/// Read tags *and* audio properties without decoding embedded cover art.
-///
-/// Cover art is the expensive part of a tag read — a FLAC carrying a 1 MB
-/// JPEG spends almost all of its parse time on a picture this function then
-/// throws away. Scanning a library is the one place that cost is paid per
-/// file and the art is never used, so the scan path asks for it to be
-/// skipped; [`Tags::read`] is left alone, because the transfer path parses
-/// one file at a time and its callers are unchanged.
-pub fn read_fast(src: &Path) -> Result<SourceInfo> {
-    use lofty::config::ParseOptions;
-    use lofty::file::AudioFile;
-
-    let tagged = Probe::open(src)
-        .with_context(|| format!("opening {} for tag read", src.display()))?
-        .options(ParseOptions::new().read_cover_art(false))
-        .read()
-        .with_context(|| format!("parsing tags in {}", src.display()))?;
-
-    let props = tagged.properties();
-    Ok(SourceInfo {
-        duration_secs: props.duration().as_secs(),
-        sample_rate: props.sample_rate(),
-        bit_depth: props.bit_depth(),
-        channels: props.channels(),
-        bitrate_kbps: props.audio_bitrate(),
-        tags: Tags::from_tagged(&tagged),
-    })
-}
-
-/// Read the first embedded picture, on demand.
-///
-/// Deliberately separate from [`read_fast`], which asks for
-/// `read_cover_art(false)` and is right to: a FLAC carrying a 1 MB JPEG spends
-/// almost all of its parse time on a picture a library scan then throws away,
-/// and the scan pays that per file. This is the other case — one file, at the
-/// moment its art is actually wanted — so it opens with default
-/// `ParseOptions` and takes the first picture any tag on the file carries.
-///
-/// `Ok(None)` means the file has no embedded art. That is a fact, not a
-/// failure, and callers must render it as absence rather than substituting
-/// something.
-pub fn read_cover(src: &Path) -> Result<Option<(String, Vec<u8>)>> {
-    let tagged = Probe::open(src)
-        .with_context(|| format!("opening {} for cover art", src.display()))?
-        .read()
-        .with_context(|| format!("parsing {} for cover art", src.display()))?;
-
-    let pic = tagged
-        .primary_tag()
-        .into_iter()
-        .chain(tagged.tags().iter())
-        .find_map(|t| t.pictures().first());
-    Ok(pic.map(|p| {
-        let mime = p
-            .mime_type()
-            .map(|m| m.to_string())
-            .unwrap_or_else(|| "image/jpeg".to_string());
-        (mime, p.data().to_vec())
-    }))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+
+    fn untagged(path: &str, root: Option<&str>) -> Resolved {
+        Resolved::resolve(
+            Path::new(path),
+            root.map(Path::new),
+            &Tags::default(),
+            &Overrides::default(),
+        )
+        .unwrap()
+    }
+
+    /// The proof case from the rebuild plan: an untagged WAV pushed by
+    /// naming it directly. The NAS share above the album says nothing
+    /// about the artist, so the album name stands in.
+    #[test]
+    fn sea_of_thieves_resolves_from_its_path() {
+        let r = untagged("/mnt/nas/music/Sea of Thieves/02 - Maiden Voyage.wav", None);
+        assert_eq!(r.title, "Maiden Voyage");
+        assert_eq!(r.track.as_deref(), Some("2"));
+        assert_eq!(r.album.as_deref(), Some("Sea of Thieves"));
+        assert_eq!(r.artist.as_deref(), Some("Sea of Thieves"));
+        assert_eq!(r.date, None);
+        assert_eq!(r.genre, None);
+    }
+
+    /// Same file, found by walking the album directory itself: the
+    /// grandparent is outside the root, so it still is not the artist.
+    #[test]
+    fn sea_of_thieves_walked_from_the_album_dir() {
+        let r = untagged(
+            "/mnt/nas/music/Sea of Thieves/02 - Maiden Voyage.wav",
+            Some("/mnt/nas/music/Sea of Thieves"),
+        );
+        assert_eq!(r.artist.as_deref(), Some("Sea of Thieves"));
+    }
+
+    #[test]
+    fn grandparent_inside_the_walked_root_is_the_artist() {
+        let r = untagged("/lib/Windrose/Wintersaga/03_Mylir.flac", Some("/lib"));
+        assert_eq!(r.title, "Mylir");
+        assert_eq!(r.track.as_deref(), Some("3"));
+        assert_eq!(r.album.as_deref(), Some("Wintersaga"));
+        assert_eq!(r.artist.as_deref(), Some("Windrose"));
+    }
+
+    /// The root itself is not "inside" the root: walking `~/Music` that
+    /// holds `Album/01.wav` directly must not credit the artist "Music".
+    #[test]
+    fn the_walked_root_itself_is_never_the_artist() {
+        let r = untagged(
+            "/home/u/Music/Wintersaga/01. Mylir.flac",
+            Some("/home/u/Music"),
+        );
+        assert_eq!(r.artist.as_deref(), Some("Wintersaga"));
+    }
+
+    #[test]
+    fn title_prefix_forms_are_all_stripped() {
+        for (stem, title, track) in [
+            ("01 - Maiden Voyage", "Maiden Voyage", "1"),
+            ("01_Maiden Voyage", "Maiden Voyage", "1"),
+            ("01.Maiden Voyage", "Maiden Voyage", "1"),
+            ("01. Maiden Voyage", "Maiden Voyage", "1"),
+            ("1 Maiden Voyage", "Maiden Voyage", "1"),
+            ("12-Maiden Voyage", "Maiden Voyage", "12"),
+        ] {
+            let r = untagged(&format!("/a/b/{stem}.wav"), None);
+            assert_eq!(r.title, title, "from {stem:?}");
+            assert_eq!(r.track.as_deref(), Some(track), "from {stem:?}");
+        }
+    }
+
+    #[test]
+    fn numbers_that_are_the_title_are_kept() {
+        for stem in ["2001 A Space Odyssey", "1999", "42"] {
+            let r = untagged(&format!("/a/b/{stem}.wav"), None);
+            assert_eq!(r.title, stem);
+            assert_eq!(r.track, None, "{stem:?} has no track prefix");
+        }
+    }
+
+    #[test]
+    fn tags_beat_the_path() {
+        let tags = Tags {
+            title: Some("Real Title".into()),
+            artist: Some("Real Artist".into()),
+            album: Some("Real Album".into()),
+            track: Some("7/12".into()),
+            date: Some("1979".into()),
+            genre: Some("Folk".into()),
+        };
+        let r = Resolved::resolve(
+            Path::new("/lib/X/Y/02 - Wrong.wav"),
+            Some(Path::new("/lib")),
+            &tags,
+            &Overrides::default(),
+        )
+        .unwrap();
+        assert_eq!(r.title, "Real Title");
+        assert_eq!(r.artist.as_deref(), Some("Real Artist"));
+        assert_eq!(r.album.as_deref(), Some("Real Album"));
+        assert_eq!(r.track.as_deref(), Some("7"));
+        assert_eq!(r.date.as_deref(), Some("1979"));
+        assert_eq!(r.genre.as_deref(), Some("Folk"));
+    }
+
+    #[test]
+    fn overrides_beat_tags() {
+        let tags = Tags {
+            title: Some("T".into()),
+            artist: Some("Tag Artist".into()),
+            album: Some("Tag Album".into()),
+            genre: Some("Tag Genre".into()),
+            date: Some("1999".into()),
+            ..Default::default()
+        };
+        let ov = Overrides {
+            artist: Some("Cli Artist".into()),
+            album: Some("Cli Album".into()),
+            genre: Some("Cli Genre".into()),
+            year: Some("2026".into()),
+        };
+        let r = Resolved::resolve(Path::new("/a/b/c.flac"), None, &tags, &ov).unwrap();
+        assert_eq!(r.title, "T", "there is no title override");
+        assert_eq!(r.artist.as_deref(), Some("Cli Artist"));
+        assert_eq!(r.album.as_deref(), Some("Cli Album"));
+        assert_eq!(r.genre.as_deref(), Some("Cli Genre"));
+        assert_eq!(r.date.as_deref(), Some("2026"));
+    }
+
+    /// An album override also feeds the artist fallback, so a run pushed
+    /// with `--album` alone still groups under one artist on the watch.
+    #[test]
+    fn album_override_feeds_the_artist_fallback() {
+        let ov = Overrides {
+            album: Some("Mixtape".into()),
+            ..Default::default()
+        };
+        let r =
+            Resolved::resolve(Path::new("/x/y/01 - a.wav"), None, &Tags::default(), &ov).unwrap();
+        assert_eq!(r.artist.as_deref(), Some("Mixtape"));
+    }
+
+    #[test]
+    fn a_blank_override_does_not_blank_the_field() {
+        let tags = Tags {
+            title: Some("T".into()),
+            artist: Some("Tag Artist".into()),
+            ..Default::default()
+        };
+        let ov = Overrides {
+            artist: Some("  \u{2117} ".into()),
+            ..Default::default()
+        };
+        let r = Resolved::resolve(Path::new("/a/b/c.flac"), None, &tags, &ov).unwrap();
+        assert_eq!(r.artist.as_deref(), Some("Tag Artist"));
+    }
+
+    #[test]
+    fn path_derived_values_are_sanitized() {
+        let r = untagged(
+            "/lib/Art\u{7}ist/Al\u{2117}bum/01 - Ti\u{1b}tle.wav",
+            Some("/lib"),
+        );
+        assert_eq!(r.title, "Title");
+        assert_eq!(r.album.as_deref(), Some("Album"));
+        assert_eq!(r.artist.as_deref(), Some("Artist"));
+    }
+
+    #[test]
+    fn an_empty_title_is_refused() {
+        let err = Resolved::resolve(
+            Path::new("/a/b/\u{2117}.wav"),
+            None,
+            &Tags::default(),
+            &Overrides::default(),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("no title"), "{err}");
+    }
+
+    #[test]
+    fn a_file_at_the_filesystem_root_still_resolves() {
+        let r = untagged("/01 - Lone.wav", None);
+        assert_eq!(r.title, "Lone");
+        assert_eq!(r.album, None);
+        assert_eq!(r.artist, None);
+    }
+
+    #[test]
+    fn unparsable_track_tags_fall_back_to_the_filename() {
+        let tags = Tags {
+            track: Some("side A".into()),
+            ..Default::default()
+        };
+        let r = Resolved::resolve(
+            Path::new("/a/b/04 - x.wav"),
+            None,
+            &tags,
+            &Overrides::default(),
+        )
+        .unwrap();
+        assert_eq!(r.track.as_deref(), Some("4"));
+    }
 
     #[test]
     fn ffmpeg_args_write_album_artist_from_the_resolved_artist() {
-        let t = Tags {
-            artist: Some("Iva Davies, Christopher Gordon".into()),
-            title: Some("Ghost of Time".into()),
-            ..Default::default()
+        let r = untagged("/lib/Windrose/Wintersaga/03 - Mylir.flac", Some("/lib"));
+        let args = r.as_ffmpeg_args();
+        let get = |k| {
+            args.iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| v.clone())
         };
-        let args = t.as_ffmpeg_args();
-        let artist = args.iter().find(|(k, _)| *k == "artist").unwrap();
-        let album_artist = args.iter().find(|(k, _)| *k == "album_artist").unwrap();
+        assert_eq!(get("artist"), get("album_artist"));
+        let keys: Vec<_> = args.iter().map(|(k, _)| *k).collect();
         assert_eq!(
-            artist.1, album_artist.1,
-            "a soundtrack fragments into several albums if these diverge"
+            keys,
+            ["title", "artist", "album_artist", "album", "track"],
+            "absent fields must be left out, present ones in order"
         );
     }
 
-    /// `disc` is read for local ordering and must never reach the watch.
-    /// Garmin's indexer refuses files carrying frames outside the set it
-    /// expects, so widening the allowlist to fix a sorting problem on this
-    /// side would risk the file landing invisible on the other.
     #[test]
-    fn disc_is_read_but_never_written_to_the_device() {
-        let t = Tags {
-            title: Some("t".into()),
+    fn ffmpeg_args_carry_all_seven_fields_when_known() {
+        let r = Resolved {
+            title: "t".into(),
             artist: Some("a".into()),
-            disc: Some("2".into()),
-            ..Default::default()
+            album: Some("b".into()),
+            track: Some("1".into()),
+            date: Some("2026".into()),
+            genre: Some("g".into()),
         };
-        let keys: Vec<&str> = t.as_ffmpeg_args().iter().map(|(k, _)| *k).collect();
-        assert!(!keys.iter().any(|k| k.contains("disc")), "{keys:?}");
-        assert_eq!(keys, vec!["title", "artist", "album_artist"]);
-    }
-
-    #[test]
-    fn ffmpeg_args_omit_absent_fields_entirely() {
-        let t = Tags {
-            title: Some("Only a title".into()),
-            ..Default::default()
-        };
-        let args = t.as_ffmpeg_args();
-        assert_eq!(args.len(), 1, "empty fields must not become empty tags");
-        assert_eq!(args[0].0, "title");
-    }
-
-    #[test]
-    fn playable_needs_both_title_and_artist() {
-        let title_only = Tags {
-            title: Some("t".into()),
-            ..Default::default()
-        };
-        assert!(!title_only.playable_in_library());
-        let both = Tags {
-            title: Some("t".into()),
-            artist: Some("a".into()),
-            ..Default::default()
-        };
-        assert!(both.playable_in_library());
+        let keys: Vec<_> = r.as_ffmpeg_args().iter().map(|(k, _)| *k).collect();
+        assert_eq!(
+            keys,
+            [
+                "title",
+                "artist",
+                "album_artist",
+                "album",
+                "track",
+                "date",
+                "genre"
+            ]
+        );
     }
 
     #[test]
@@ -370,5 +531,17 @@ mod tests {
         assert_eq!(clean("\u{2117}".into()), None);
         assert_eq!(clean("   ".into()), None);
         assert_eq!(clean("Café".into()), Some("Café".to_string()));
+    }
+
+    #[test]
+    fn unreadable_source_resolves_from_the_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let album = dir.path().join("Sea of Thieves");
+        std::fs::create_dir(&album).unwrap();
+        let f: PathBuf = album.join("02 - Maiden Voyage.wma");
+        std::fs::write(&f, b"not really wma").unwrap();
+        let r = Resolved::for_file(&f, None, &Overrides::default()).unwrap();
+        assert_eq!(r.title, "Maiden Voyage");
+        assert_eq!(r.album.as_deref(), Some("Sea of Thieves"));
     }
 }

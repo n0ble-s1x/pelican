@@ -1,21 +1,21 @@
 //! Pelican's engine — everything that knows about Garmin watches, and
 //! nothing that knows about drawing.
 //!
-//! The split exists so a second front-end (a native macOS app) can sit on
-//! the same transport, transcode pipeline and job planner as the CLI and
-//! the egui GUI, rather than reimplementing them. Anything in here must
-//! build and pass tests on every platform Pelican targets; anything that
-//! needs a window belongs in a front-end crate.
+//! The promise, proven on hardware (`docs/garmin-library-persistence.md`
+//! § Results): transcode to one known-good profile, push under a name that
+//! has never been used, and prove each file landed intact. There is no
+//! delete anywhere in here — once a track is on the watch it stays in the
+//! watch's library until a factory reset, so the only safe write is a new
+//! one.
 //!
-//! Front-ends talk to the engine through two things: [`transfer::run`],
-//! which drains a plan and emits [`transfer::Event`]s, and [`mtp::Backend`],
-//! which is the whole device API in eight methods.
+//! A front-end talks to the device only through [`mtp::Backend`], and to the
+//! filesystem through [`source`] (what to send), [`transcode`] (what it
+//! becomes) and [`staging`] (where it waits).
 
 pub mod garmin;
-pub mod history;
 pub mod mtp;
 pub mod paths;
 pub mod platform;
-pub mod playlist;
+pub mod source;
+pub mod staging;
 pub mod transcode;
-pub mod transfer;

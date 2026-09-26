@@ -1,61 +1,23 @@
-//! Staging a source file into something the watch will accept.
+//! Turning a source file into the one thing the watch is sent.
 //!
-//! Garmin firmware plays MP3, M4A/M4B, AAC and WAV. Those are copied
-//! verbatim; anything else (FLAC, OGG, Opus, WMA, APE, AIFF) has to be
-//! converted first. [`encoder`] decides which, and does the work.
+//! [`encoder`] runs ffmpeg with the single proven profile; [`tags`] decides
+//! what the fresh tag says. Tags are never carried across — Garmin's
+//! indexer silently rejects files whose tag holds non-standard frames — so
+//! the output carries exactly the seven allowlisted fields and no art.
 //!
-//! Tags are never carried across. Garmin's indexer silently rejects files
-//! whose tag holds non-standard frames, so [`tags`] reads the source with
-//! `lofty` and writes back a fresh tag containing six fields and no cover
-//! art — see [`tags::Tags`].
+//! Where the output goes is [`crate::staging`]'s business, not this
+//! module's.
 
 pub mod encoder;
 pub mod tags;
 
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
-
-/// Where transcoded audio lives during its brief life. Per-user cache dir
-/// (see [`crate::paths`]) — a startup sweep can reliably find leftovers from
-/// a prior crash without touching unrelated content, and it is per-user (not
-/// `/tmp`) so a hostile local user on a shared box can't pre-create the dir
-/// as a symlink to redirect our writes.
-pub fn cache_dir() -> Option<PathBuf> {
-    crate::paths::cache_dir()
-}
-
-/// Remove transcode artifacts older than `max_age` from the cache dir.
-/// Called once at app startup to clean up after a crashed previous session.
-pub fn sweep(max_age: Duration) {
-    let Some(dir) = cache_dir() else {
-        return;
-    };
-    let Ok(rd) = std::fs::read_dir(&dir) else {
-        return;
-    };
-    let now = SystemTime::now();
-    for ent in rd.flatten() {
-        let Ok(meta) = ent.metadata() else { continue };
-        let Ok(mtime) = meta.modified() else { continue };
-        if now
-            .duration_since(mtime)
-            .map(|d| d > max_age)
-            .unwrap_or(false)
-        {
-            let _ = std::fs::remove_file(ent.path());
-        }
-    }
-}
-
-/// Audio extensions Pelican will accept. Everything here gets a tag rebuilt
-/// from a strict six-field allowlist before upload — Garmin firmware rejects
-/// files carrying non-standard frames. How each one is converted (or simply
-/// copied) is [`encoder::plan`]'s decision.
+/// Extensions Pelican will pick up when walking a directory. Everything here
+/// is re-encoded by ffmpeg; nothing is sent as-is.
 pub const AUDIO_EXTS: &[&str] = &[
     "mp3", "m4a", "m4b", "aac", "wav", "flac", "ogg", "oga", "opus", "wma", "ape", "aiff", "aif",
-    "wv", "alac",
+    "aifc", "wv", "alac",
 ];
 
 pub fn is_audio(p: &Path) -> bool {
@@ -63,29 +25,6 @@ pub fn is_audio(p: &Path) -> bool {
         .and_then(|e| e.to_str())
         .map(|e| AUDIO_EXTS.iter().any(|s| s.eq_ignore_ascii_case(e)))
         .unwrap_or(false)
-}
-
-pub fn is_mp3(p: &Path) -> bool {
-    p.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("mp3"))
-        .unwrap_or(false)
-}
-
-/// A file staged in the cache dir, ready to upload. Cleans itself up on
-/// drop, including when the transfer fails partway.
-#[derive(Debug)]
-pub struct Transcoded {
-    pub path: PathBuf,
-    /// Filename to write on the device. Carries the encoder's container
-    /// extension, which is not always `.mp3` — see [`encoder::Encoder::output_ext`].
-    pub remote_name: String,
-}
-
-impl Drop for Transcoded {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
-    }
 }
 
 /// Truncate + sanitize a filename stem for Garmin's `/Music` folder.
@@ -146,125 +85,9 @@ pub fn sanitize_tag_value(v: &str) -> String {
         .to_string()
 }
 
-/// A staging filename no other in-flight conversion can collide with.
-///
-/// The pid alone is not enough: threads in one process share it, and two
-/// `normalize` calls starting in the same clock tick would otherwise pick
-/// the same path — one deleting the other's audio mid-upload. The counter
-/// makes collision impossible within a process, the pid across processes.
-/// Caught by the pipeline tests, which run in parallel and went
-/// intermittently red on exactly this.
-fn staging_name(ext: &str) -> String {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static SEQ: AtomicU64 = AtomicU64::new(0);
-
-    let pid = std::process::id();
-    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("pelican-{pid}-{nanos}-{seq}.{ext}")
-}
-
-/// Stage `src` in the cache directory as something the watch will accept.
-///
-/// The pipeline is chosen per file by [`encoder::plan`]: an already-playable
-/// container is copied and re-tagged in process, anything else goes through
-/// ffmpeg (to MP3) or afconvert (to M4A/AAC). In every case the tag is
-/// rebuilt from the six-field allowlist rather than carried across, because
-/// Garmin's indexer silently rejects non-standard frames.
-///
-/// The result auto-deletes on `Transcoded::Drop`.
-///
-/// `planned_stem` is the collision-free stem chosen at plan time by
-/// `transfer::dedupe_remote_names`. Deriving the name from `src` here instead
-/// would reintroduce the collision the planner just resolved.
-pub fn normalize(src: &Path, planned_stem: Option<&str>) -> Result<Transcoded> {
-    let raw_stem = planned_stem.map(str::to_string).unwrap_or_else(|| {
-        src.file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "audio".into())
-    });
-    // Garmin firmware silently rejects writes whose filename is too long or
-    // contains exotic characters — observed cap on FR165 is around 60 chars
-    // including the extension. We truncate to 56 stem chars and replace
-    // FAT-hostile punctuation; the tags carry the real title.
-    let stem = sanitize_filename_stem(&raw_stem);
-
-    // Plan before reading tags. Both can fail, but only one of them can say
-    // something useful: for a format nothing installed here can convert,
-    // "install ffmpeg" beats a tag-parser error against a container we were
-    // never going to be able to open in the first place.
-    let pipeline = encoder::plan(src)?;
-    let tags = tags::Tags::read(src)?;
-
-    let out_ext = match pipeline {
-        encoder::Pipeline::Passthrough => src
-            .extension()
-            .map(|e| e.to_string_lossy().to_ascii_lowercase())
-            .unwrap_or_else(|| "mp3".into()),
-        encoder::Pipeline::Encode(e) => e.output_ext().to_string(),
-    };
-    let remote_name = format!("{stem}.{out_ext}");
-
-    let mut tmp = cache_dir()
-        .ok_or_else(|| anyhow!("no per-user cache dir (neither XDG_CACHE_HOME nor HOME is set)"))?;
-    tmp.push(staging_name(&out_ext));
-
-    // Bind the temp path to a guard before doing any work, so an error on
-    // the next line still removes the partial file.
-    let staged = Transcoded {
-        path: tmp,
-        remote_name,
-    };
-
-    match pipeline {
-        encoder::Pipeline::Passthrough => {
-            std::fs::copy(src, &staged.path)
-                .with_context(|| format!("staging {}", src.display()))?;
-            retag_in_place(&staged.path, &out_ext, &tags)?;
-        }
-        encoder::Pipeline::Encode(e) => e.encode(src, &staged.path, &tags)?,
-    }
-    Ok(staged)
-}
-
-/// Rewrite the tag of an already-playable file that we copied verbatim.
-///
-/// WAV is deliberately left alone: it has no tag format Garmin reads, and
-/// the firmware treats WAV tags as optional in practice.
-fn retag_in_place(path: &Path, ext: &str, tags: &tags::Tags) -> Result<()> {
-    match ext {
-        "mp3" => tags.write_id3v23(path),
-        "m4a" | "m4b" | "aac" => tags.write_mp4(path),
-        _ => Ok(()),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn staging_names_are_unique_under_concurrency() {
-        // The bug this guards: two threads in one process picking the same
-        // staging path, so one deletes the other's audio mid-transfer.
-        let names: std::collections::HashSet<String> = std::thread::scope(|s| {
-            let handles: Vec<_> = (0..16)
-                .map(|_| {
-                    s.spawn(|| {
-                        (0..64)
-                            .map(|_| super::staging_name("mp3"))
-                            .collect::<Vec<_>>()
-                    })
-                })
-                .collect();
-            handles
-                .into_iter()
-                .flat_map(|h| h.join().unwrap())
-                .collect()
-        });
-        assert_eq!(names.len(), 16 * 64, "staging names collided");
-    }
+    use super::*;
 
     #[test]
     fn filename_stem_has_no_trailing_punctuation_after_truncation() {
@@ -277,8 +100,6 @@ mod tests {
             "stem {out:?} ends in punctuation Garmin rejects"
         );
     }
-
-    use super::*;
 
     #[test]
     fn filename_stem_caps_at_56() {

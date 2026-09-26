@@ -5,54 +5,9 @@
 # advisories as failures, which is the posture SECURITY.md promises, so each
 # exception has to be argued rather than waved through.
 #
-# Two groups, and the difference matters:
-#
-#   A. Not compiled on the target we ship. `cargo audit` walks Cargo.lock,
-#      which lists every optional and per-platform dependency regardless of
-#      whether it is built. Verified per crate with
-#      `cargo tree -e normal -i <crate>` → "nothing to print".
-#
-#   B. Compiled, unmaintained, and accepted with a reason.
-#
 ignore = [
-    # ── B: compiled ─────────────────────────────────────────────────────
-    # paste — unmaintained. eframe → wgpu → metal → paste. A macro that
-    # pastes identifiers; no runtime surface, no exploit path.
-    # Revisit when wgpu drops it.
+    # paste — unmaintained. lofty → paste, as a proc-macro: it pastes
+    # identifiers at compile time and is not linked into the binary. No
+    # runtime surface, no exploit path. Revisit when lofty drops it.
     "RUSTSEC-2024-0436",
-
-    # unic-* — unmaintained. tauri → tauri-utils → urlpattern → unic-*.
-    # Unicode character-property tables used by urlpattern to match the
-    # capability globs in `capabilities/main.json`. They are lookup tables
-    # over a spec that changes once a year; "unmaintained" here means
-    # "finished", and the data they encode is not attacker-controlled — the
-    # patterns come from a file we compile in, not from input.
-    # Revisit if Tauri moves off urlpattern.
-    "RUSTSEC-2025-0075", # unic-char-range
-    "RUSTSEC-2025-0080", # unic-common
-    "RUSTSEC-2025-0081", # unic-char-property
-    "RUSTSEC-2025-0098", # unic-ucd-version
-    "RUSTSEC-2025-0100", # unic-ucd-ident
-
-    # ── A: in the lockfile, never built ─────────────────────────────────
-    # The gtk-rs GTK3 bindings, pulled in by tauri under
-    # `cfg(target_os = "linux")`. `crates/pelican-shell` is the macOS shell;
-    # the Linux front-end is `crates/pelican`, which is egui and touches
-    # none of this. Confirmed not in the compiled graph.
-    #
-    # RUSTSEC-2024-0429 (glib) is the one *unsound* entry and the only one
-    # that would need a real answer rather than a note: if pelican-shell is
-    # ever built for Linux, this list must be re-examined, not extended.
-    "RUSTSEC-2024-0411", # gdkwayland-sys
-    "RUSTSEC-2024-0412", # gdk
-    "RUSTSEC-2024-0413", # atk
-    "RUSTSEC-2024-0415", # gtk
-    "RUSTSEC-2024-0416", # atk-sys
-    "RUSTSEC-2024-0418", # gdk-sys
-    "RUSTSEC-2024-0419", # gtk3-macros
-    "RUSTSEC-2024-0420", # gtk-sys
-    "RUSTSEC-2024-0429", # glib — unsound VariantStrIter; Linux-only
-    # proc-macro-error — unmaintained; a build-time-only dependency of the
-    # same GTK3 tree. Not linked into any binary on any target.
-    "RUSTSEC-2024-0370",
 ]

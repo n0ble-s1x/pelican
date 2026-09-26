@@ -17,24 +17,7 @@ yanked = "deny"
 # Keep the two in step. If you add an ID here without an entry there, you
 # have silenced something without saying why.
 ignore = [
-    # Compiled, and accepted with a reason:
     "RUSTSEC-2024-0436", # paste
-    "RUSTSEC-2025-0075", # unic-char-range
-    "RUSTSEC-2025-0080", # unic-common
-    "RUSTSEC-2025-0081", # unic-char-property
-    "RUSTSEC-2025-0098", # unic-ucd-version
-    "RUSTSEC-2025-0100", # unic-ucd-ident
-    # In the lockfile, never built — Tauri's Linux-only GTK3 tree:
-    "RUSTSEC-2024-0370", # proc-macro-error
-    "RUSTSEC-2024-0411", # gdkwayland-sys
-    "RUSTSEC-2024-0412", # gdk
-    "RUSTSEC-2024-0413", # atk
-    "RUSTSEC-2024-0415", # gtk
-    "RUSTSEC-2024-0416", # atk-sys
-    "RUSTSEC-2024-0418", # gdk-sys
-    "RUSTSEC-2024-0419", # gtk3-macros
-    "RUSTSEC-2024-0420", # gtk-sys
-    "RUSTSEC-2024-0429", # glib — unsound; revisit if pelican-shell targets Linux
 ]
 
 [licenses]
@@ -45,34 +28,8 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
-    "ISC",
     "Unicode-3.0",
     "Zlib",
-    "BSL-1.0",
-    # Font licenses required by epaint_default_fonts (default eframe fonts).
-    # Both are permissive free font licenses; OFL-1.1 is OSI-approved.
-    # Ubuntu-font-1.0 is the SPDX id added in 0.34 (was LicenseRef-UFL-1.0
-    # in older epaint_default_fonts).
-    "OFL-1.1",
-    "Ubuntu-font-1.0",
-    # MPL-2.0 — arrives with Tauri, and accepted deliberately.
-    #
-    #   cssparser, cssparser-macros, selectors, dtoa-short
-    #       Servo's CSS parser, via dom_query, via tauri-utils. This is what
-    #       parses and rewrites the CSP that `tauri.conf.json` declares —
-    #       ironically, the machinery enforcing the no-network guarantee.
-    #   option-ext
-    #       via dirs-sys.
-    #
-    # MPL-2.0 is file-level copyleft, not viral: it obliges publishing
-    # modifications *to those files*, and explicitly permits combining them
-    # into a larger work under a different licence. Pelican ships them
-    # unmodified as ordinary crates.io dependencies, so the obligation is
-    # already satisfied by upstream. It is OSI-approved and FSF-free.
-    #
-    # This stops being true the moment anyone vendors and patches one of
-    # them — at which point the patch has to be published under MPL-2.0.
-    "MPL-2.0",
 ]
 
 [bans]

@@ -1,10 +1,8 @@
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 
-use pelican_core::transcode;
+use pelican_core::staging;
 
-mod app;
 mod cli;
-mod theme;
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -14,19 +12,11 @@ fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    // Sweep transcode cache leftovers from any previous crashed session.
-    transcode::sweep(std::time::Duration::from_secs(60 * 60));
+    // Before anything else: a run killed by Ctrl-C left its staging dir
+    // behind, and this is the one place that can clear it.
+    staging::sweep();
 
-    let args = cli::Cli::parse();
-
-    let headless = args.headless
-        || !args.copy.is_empty()
-        || !args.delete.is_empty()
-        || args.list_playlists
-        || args.create_playlist.is_some();
-    if headless {
-        cli::run_headless(args)
-    } else {
-        app::run()
-    }
+    let _args = cli::Cli::parse();
+    cli::Cli::command().print_help()?;
+    Ok(())
 }

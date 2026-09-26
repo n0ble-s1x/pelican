@@ -1,4 +1,5 @@
-//! Repro for the "Add tags" notice claiming a tagged file has no title.
+//! Regression: a blank frame in one tag must not hide a real value in
+//! another. Found as a UI notice claiming a tagged file had no title.
 
 use std::path::Path;
 
@@ -40,9 +41,8 @@ fn write_tone_wav(path: &Path) {
 /// leaves behind. The file IS tagged; every field the watch needs is present.
 #[test]
 fn a_blank_primary_frame_must_not_shadow_a_real_value_in_another_tag() {
-    let dir = std::env::temp_dir().join(format!("pelican-tagrepro-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let p = dir.join("blank-primary.wav");
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("blank-primary.wav");
     write_tone_wav(&p);
 
     let mut f = Probe::open(&p).unwrap().read().unwrap();
@@ -59,16 +59,13 @@ fn a_blank_primary_frame_must_not_shadow_a_real_value_in_another_tag() {
 
     f.save_to_path(&p, WriteOptions::default()).unwrap();
 
-    let got = tags::read_fast(&p).unwrap().tags;
-    let _ = std::fs::remove_dir_all(&dir);
-    // Today all three fail: `from_tagged`'s `first` closure runs
-    // `find_map` over the tags and only then `clean`s, so the blank ID3v2
-    // frame wins the search and is thrown away, and the RIFF INFO tag
-    // holding the real values is never consulted.
+    let got = tags::Tags::read(&p).unwrap();
+    // This used to fail: `from_tagged`'s `first` closure ran `find_map`
+    // over the tags and only then `clean`ed, so the blank ID3v2 frame won
+    // the search and was thrown away, and the RIFF INFO tag holding the
+    // real values was never consulted. The path fallback would now paper
+    // over it with the filename — which is exactly why the tag read has to
+    // be right on its own.
     assert_eq!(got.title.as_deref(), Some("Drunken Sailor"));
     assert_eq!(got.artist.as_deref(), Some("Windrose"));
-    assert!(
-        got.playable_in_library(),
-        "the UI tells the owner this file has no title or artist"
-    );
 }

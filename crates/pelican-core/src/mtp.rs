@@ -1,15 +1,21 @@
 //! MTP backend abstraction.
 //!
-//! Implementations sit behind a trait so we can swap mtp-rs for libmtp-rs
-//! (or a hand-rolled PTP path) on any device that needs it. The trait is
-//! deliberately small — copy a local file to a folder on the device — and
-//! we resist generalizing further until a second backend lands.
+//! Implementations sit behind a trait so the transfer loop can be tested
+//! against [`fake::FakeDevice`] without a watch on the desk. The trait is the
+//! whole device API, and what it leaves out is deliberate: there is **no
+//! delete and no raw write**. Delete cannot take a track out of the watch's
+//! music library (`docs/garmin-library-persistence.md`), a delete-then-write
+//! is how a name gets reused, and a playlist write is a second way to put a
+//! name on the device that the ledger does not own. A capability that does
+//! not exist in the type cannot be called by mistake.
 
 use std::path::Path;
 
 use anyhow::Result;
 
 use crate::garmin::Device;
+
+pub mod fake;
 
 #[derive(Debug, Clone)]
 pub struct RemoteEntry {
@@ -19,9 +25,26 @@ pub struct RemoteEntry {
     pub is_folder: bool,
     /// True if `GetObjectInfo` failed for this handle — we know the handle
     /// exists on the device but can't read its metadata. Almost always a
-    /// broken stub from a previous partial / rejected upload. Caller should
-    /// render it differently and offer delete-only operations.
+    /// broken stub from a previous partial / rejected / colliding upload.
+    /// Its `name` is synthetic (`‹unreadable #N›`) because the real one is
+    /// unknowable, which is why the naming rules treat every stub as
+    /// occupying a name we cannot see rather than trying to match it.
     pub is_broken: bool,
+    /// The MTP object handle. Stable for the life of the object; the only
+    /// identifier a stub has.
+    pub handle: u32,
+}
+
+/// What a completed upload left on the device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Uploaded {
+    /// Handle of the object this upload created. The backend also remembers
+    /// it under the uploaded path, so a `download_file` of that path reads
+    /// back *this* object and not some older one the listing might offer.
+    pub handle: u32,
+    /// Bytes streamed. Equal to the local file's length, or the upload
+    /// would have returned an error.
+    pub bytes: u64,
 }
 
 /// How far an upload got before it failed, attached to the error as typed
@@ -58,20 +81,26 @@ impl std::fmt::Display for UploadPhase {
     }
 }
 
-/// Do these two names refer to the same object on the watch?
+/// The one case fold used for every name comparison in Pelican.
 ///
 /// `/Music` is FAT-derived and case-insensitive: `Track.mp3` and `track.mp3`
-/// are one file to the firmware and two different strings to Rust. A
-/// byte-equal comparison here under-reports — as the post-write probe it
-/// silently reported "landed" for a file it had failed to find.
+/// are one file to the firmware and two different strings to Rust. Every
+/// comparison — folder resolution, the handle cache, taken-name checks,
+/// the ledger — goes through this function, so no two call sites can
+/// disagree about what "the same name" means. They used to: folders were
+/// matched byte-exact while files were folded, and file keys were folded
+/// with `to_ascii_lowercase` in one place and `to_lowercase` in another.
 ///
-/// Full `to_lowercase`, not `eq_ignore_ascii_case`: our side is ASCII by
+/// Full `to_lowercase`, not the ASCII fold: our names are ASCII by
 /// construction (`transcode::sanitize_filename_stem`) but the device side is
-/// whatever Garmin Express wrote, which is not.
-///
-/// Extracted as a free function so it can be tested without a watch.
-pub(crate) fn same_file(a: &str, b: &str) -> bool {
-    a.to_lowercase() == b.to_lowercase()
+/// whatever Garmin Express or another tool wrote, which is not.
+pub fn fold_name(name: &str) -> String {
+    name.to_lowercase()
+}
+
+/// Do these two names refer to the same object on the watch?
+pub fn same_file(a: &str, b: &str) -> bool {
+    fold_name(a) == fold_name(b)
 }
 
 pub trait Backend: Send {
@@ -88,53 +117,29 @@ pub trait Backend: Send {
         None
     }
     fn ensure_folder(&mut self, path: &str) -> Result<()>;
-    /// Upload a local file to a remote folder. `on_progress(bytes_transferred, total_bytes)`
-    /// is called as data flows; pass `&mut |_, _| {}` if you don't care.
+    /// Upload a local file into a remote folder as a new object.
+    ///
+    /// MTP has no overwrite: sending a name that already exists does not
+    /// replace anything, it leaves two objects the firmware turns into
+    /// stubs (libmtp #307). Choosing a name that has never been used is the
+    /// caller's job, and the backend does not second-guess it.
+    ///
+    /// `on_progress(bytes_transferred, total_bytes)` is called as data
+    /// flows; pass `&mut |_, _| {}` if you don't care.
     fn upload(
         &mut self,
         local: &Path,
         remote_dir: &str,
         remote_name: &str,
         on_progress: &mut (dyn FnMut(u64, u64) + Send),
-    ) -> Result<u64>;
-    fn remote_size(&mut self, remote_dir: &str, remote_name: &str) -> Result<Option<u64>>;
+    ) -> Result<Uploaded>;
     fn list_dir(&mut self, path: &str) -> Result<Vec<RemoteEntry>>;
-    /// Remove an object.
-    ///
-    /// **Scope.** This removes the object from the storage MTP exposes, and
-    /// that is all it does. `docs/garmin-mtp.md` §8 records a run where all
-    /// 22 deletes returned `Ok`, `/Music` fell to one entry and free space
-    /// rose 78.5 MB, while the watch's own music app went on listing every
-    /// deleted track. Whether the watch keeps a second copy or holds a
-    /// dangling index entry is **not established**. Nothing in this crate
-    /// reaches the watch's music library, so no caller may word this
-    /// operation as taking a track off the watch.
-    ///
-    /// **Not a building block for an overwrite.** Delete-then-write is the
-    /// tempting answer to a name collision and it is the one that can
-    /// re-create the failure the guard in `transfer::run` exists to prevent:
-    /// `docs/garmin-mtp.md` §6 records that every `DeleteObject` issued
-    /// against a broken stub has returned `Protocol GeneralError`, and delete
-    /// can fail for a readable file too. A delete-then-write that falls
-    /// through to the write on a failed delete lands the collision anyway.
-    ///
-    /// `Ok(())` is also not proof the name is gone: it invalidates the handle
-    /// cache but nothing re-reads the folder. So Pelican deliberately ships
-    /// Skip and opt-in Rename only — neither can destroy anything. If a
-    /// Replace option is ever added it must (1) not upload when delete
-    /// returns `Err`, and say the existing file was not touched, (2) re-run
-    /// the pre-write listing after an `Ok` and treat a still-present name as
-    /// a refusal rather than a race to retry, and (3) never be offered
-    /// against an `is_broken` entry, whose handle has never accepted a delete
-    /// and whose real name is unknown.
-    fn delete(&mut self, path: &str) -> Result<()>;
+    /// `(free, capacity)` in bytes for the storage we write to, re-read
+    /// from the device so it reflects writes made in this session.
     fn free_space(&mut self) -> Result<(u64, u64)>;
-    /// Download a small remote file to a Vec. Used for playlists (.m3u8).
+    /// Read a remote file back in full. This is the proof step: the bytes
+    /// that come back are hashed against the local transcode.
     fn download_file(&mut self, path: &str) -> Result<Vec<u8>>;
-    /// Write raw bytes as a new file in `remote_dir` — no transcode, no
-    /// path manipulation. Caller controls the exact filename. Used for
-    /// playlist files.
-    fn write_raw(&mut self, remote_dir: &str, remote_name: &str, bytes: &[u8]) -> Result<()>;
 }
 
 #[cfg(feature = "mtp-backend")]
@@ -178,16 +183,18 @@ mod mtp_rs_impl {
     use mtp::{MtpDevice, NewObjectInfo, ObjectHandle, Storage};
     use tokio::runtime::Runtime;
 
-    use super::{same_file, Backend, RemoteEntry};
+    use super::{fold_name, Backend, RemoteEntry, Uploaded};
     use crate::garmin::Device;
 
     pub struct MtpRsBackend {
         rt: Runtime,
         device: MtpDevice,
         storage: Storage,
-        // path → folder handle (None = root)
+        // Both caches are keyed by `key(path)` — trimmed and case-folded — so
+        // `Music` and `music` resolve to the one folder the firmware sees.
+        // folded path → folder handle (None = root)
         folder_cache: HashMap<String, Option<ObjectHandle>>,
-        // path → file handle (for delete & resize)
+        // folded path → file handle, for `download_file`
         file_cache: HashMap<String, ObjectHandle>,
     }
 
@@ -250,31 +257,37 @@ mod mtp_rs_impl {
             path: &str,
             create: bool,
         ) -> Result<Option<Option<ObjectHandle>>> {
-            let key = normalize(path);
-            if let Some(h) = self.folder_cache.get(&key) {
+            let trimmed = trim(path);
+            if let Some(h) = self.folder_cache.get(&key(trimmed)) {
                 return Ok(Some(*h));
             }
             let mut parent: Option<ObjectHandle> = None;
             let mut acc = String::new();
-            for component in key.split('/').filter(|s| !s.is_empty()) {
+            for component in trimmed.split('/').filter(|s| !s.is_empty()) {
                 if !acc.is_empty() {
                     acc.push('/');
                 }
                 acc.push_str(component);
-                if let Some(h) = self.folder_cache.get(&acc) {
+                let acc_key = key(&acc);
+                if let Some(h) = self.folder_cache.get(&acc_key) {
                     parent = *h;
                     continue;
                 }
                 let storage = &self.storage;
+                let want = fold_name(component);
                 // Stream so a single broken-stub GetObjectInfo doesn't kill
                 // our walk before we even reach the folder we want.
+                //
+                // Folded, like every other name comparison: a byte-exact
+                // match here missed a `music` folder and created a second
+                // `Music` beside it on a filesystem that cannot hold both.
                 let found = self
                     .rt
                     .block_on(async {
                         let mut stream = storage.list_objects_stream(parent).await?;
                         while let Some(r) = stream.next().await {
                             if let Ok(info) = r {
-                                if info.is_folder() && info.filename == component {
+                                if info.is_folder() && fold_name(&info.filename) == want {
                                     return Ok::<_, mtp::Error>(Some(info.handle));
                                 }
                             }
@@ -293,35 +306,18 @@ mod mtp_rs_impl {
                             .with_context(|| format!("creating folder {acc}"))?
                     }
                 };
-                self.folder_cache.insert(acc.clone(), Some(handle));
+                self.folder_cache.insert(acc_key, Some(handle));
                 parent = Some(handle);
             }
             Ok(Some(parent))
-        }
-
-        fn invalidate_path(&mut self, path: &str) {
-            let key = normalize(path);
-            self.file_cache.remove(&key);
-            // Folder caches below this path are invalid too.
-            let prefix = if key.is_empty() {
-                String::new()
-            } else {
-                format!("{key}/")
-            };
-            self.folder_cache
-                .retain(|k, _| !(k == &key || k.starts_with(&prefix)));
-            self.file_cache
-                .retain(|k, _| !(k == &key || k.starts_with(&prefix)));
-            // Re-seed root.
-            self.folder_cache.entry(String::new()).or_insert(None);
         }
     }
 
     impl Backend for MtpRsBackend {
         fn model(&self) -> Option<String> {
-            // Device-controlled text on its way to a webview, so it gets the
+            // Device-controlled text on its way to a terminal, so it gets the
             // same treatment `Device::label` gives the USB strings.
-            let model = crate::playlist::strip_control(&self.device.device_info().model);
+            let model = crate::garmin::strip_control(&self.device.device_info().model);
             let model = model.trim().to_string();
             (!model.is_empty()).then_some(model)
         }
@@ -336,7 +332,7 @@ mod mtp_rs_impl {
             remote_dir: &str,
             remote_name: &str,
             on_progress: &mut (dyn FnMut(u64, u64) + Send),
-        ) -> Result<u64> {
+        ) -> Result<Uploaded> {
             const CHUNK: usize = 256 * 1024;
             let parent = self.resolve_folder(remote_dir)?;
             let mut file = std::fs::File::open(local)
@@ -397,54 +393,28 @@ mod mtp_rs_impl {
                 sent: streamed,
                 len,
             })?;
-            let sent = streamed;
-            if sent != len {
-                // The object already exists on the device — mtp-rs returned Ok
-                // and the data phase is closed. Leaving it would be exactly the
-                // broken stub this codebase exists to avoid, and MTP has no
-                // overwrite, so a retry would land a second object beside it.
-                // Best-effort removal, and say which way it went so the user
-                // knows whether retrying is safe.
-                // Delete by the handle this upload just produced, never by
-                // name: MTP has no overwrite, so a same-named object from an
-                // earlier sync may sit beside it and a name lookup could remove
-                // that one instead.
-                let storage = &self.storage;
-                let cleanup = self.rt.block_on(storage.delete(new_handle));
-                self.invalidate_path(&normalize(&format!("{remote_dir}/{remote_name}")));
-                let cleanup_note = match cleanup {
-                    Ok(()) => "the partial object was removed from the watch",
-                    Err(_) => "the partial object could NOT be removed — delete it before retrying",
-                };
+            if streamed != len {
+                // The object exists on the device — mtp-rs returned Ok and the
+                // data phase is closed — but it is not the file. It stays: the
+                // name is burned either way, and the read-back hash is what
+                // records the failure. Nothing here tries to remove it.
                 anyhow::bail!(
                     "{} changed while uploading: declared {len} bytes to the device \
-                     but streamed {sent}. The object on the watch is not intact; \
-                     {cleanup_note}.",
+                     but streamed {streamed}. The object on the watch is not intact, \
+                     and its name will not be used again.",
                     local.display()
                 );
             }
-            on_progress(sent, len);
-            Ok(sent)
-        }
-
-        fn remote_size(&mut self, remote_dir: &str, remote_name: &str) -> Result<Option<u64>> {
-            let Some(parent) = self.resolve_folder_existing(remote_dir)? else {
-                return Ok(None);
-            };
-            let storage = &self.storage;
-            self.rt
-                .block_on(async {
-                    let mut stream = storage.list_objects_stream(parent).await?;
-                    while let Some(r) = stream.next().await {
-                        if let Ok(info) = r {
-                            if !info.is_folder() && same_file(&info.filename, remote_name) {
-                                return Ok::<_, mtp::Error>(Some(info.size));
-                            }
-                        }
-                    }
-                    Ok(None)
-                })
-                .context("listing for size check")
+            // Remember the new object under its path, so the read-back that
+            // follows downloads exactly this handle without re-listing a
+            // folder that may hold hundreds of objects.
+            let path = format!("{}/{remote_name}", trim(remote_dir));
+            self.file_cache.insert(key(&path), new_handle);
+            on_progress(streamed, len);
+            Ok(Uploaded {
+                handle: new_handle.0,
+                bytes: streamed,
+            })
         }
 
         fn list_dir(&mut self, path: &str) -> Result<Vec<RemoteEntry>> {
@@ -459,15 +429,9 @@ mod mtp_rs_impl {
             // 2. GetObjectInfo per handle → real entry on success, synthetic
             //    "unreadable" entry on failure.
             //
-            // The synthetic entry still carries the handle so delete() can be
-            // *attempted* against it — not because that attempt works. Every
-            // DeleteObject we have issued against a broken-stub handle on
-            // FR165 FW 2506 has come back Protocol GeneralError; see
-            // docs/garmin-mtp.md §6 and examples/wipe_stubs.rs, which counts
-            // those refusals because refusal is what it expects. Surfacing
-            // the handle is what lets the UI name the file and report the
-            // firmware's answer verbatim; it is not a claim that the file can
-            // be removed. Cleanup is watch-side and asynchronous.
+            // A stub still occupies a name on the device — just one we cannot
+            // read — so it has to be surfaced for the naming rules to account
+            // for, and for `ls` to show.
             let (handles, infos): (Vec<_>, Vec<_>) = self
                 .rt
                 .block_on(async {
@@ -480,7 +444,14 @@ mod mtp_rs_impl {
                 })
                 .with_context(|| format!("listing {path}"))?;
 
-            let key = normalize(path);
+            let dir = trim(path);
+            let child = |name: &str| {
+                if dir.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{dir}/{name}")
+                }
+            };
             let mut out = Vec::with_capacity(handles.len());
             let mut broken_count = 0usize;
             for (handle, info_result) in handles.into_iter().zip(infos) {
@@ -491,15 +462,11 @@ mod mtp_rs_impl {
                         // backfills. Use the loop variable `handle` for caching
                         // and downstream operations, not `info.handle`.
                         let is_folder = info.is_folder();
-                        let child_path = if key.is_empty() {
-                            info.filename.clone()
-                        } else {
-                            format!("{key}/{}", info.filename)
-                        };
+                        let child_path = child(&info.filename);
                         if is_folder {
-                            self.folder_cache.insert(child_path.clone(), Some(handle));
+                            self.folder_cache.insert(key(&child_path), Some(handle));
                         } else {
-                            self.file_cache.insert(child_path.clone(), handle);
+                            self.file_cache.insert(key(&child_path), handle);
                         }
                         out.push(RemoteEntry {
                             name: info.filename,
@@ -507,23 +474,19 @@ mod mtp_rs_impl {
                             size: info.size,
                             is_folder,
                             is_broken: false,
+                            handle: handle.0,
                         });
                     }
                     Err(_) => {
                         broken_count += 1;
                         let synth_name = format!("‹unreadable #{}›", handle.0);
-                        let child_path = if key.is_empty() {
-                            synth_name.clone()
-                        } else {
-                            format!("{key}/{synth_name}")
-                        };
-                        self.file_cache.insert(child_path.clone(), handle);
                         out.push(RemoteEntry {
+                            path: child(&synth_name),
                             name: synth_name,
-                            path: child_path,
                             size: 0,
                             is_folder: false,
                             is_broken: true,
+                            handle: handle.0,
                         });
                     }
                 }
@@ -539,89 +502,30 @@ mod mtp_rs_impl {
             out.sort_by(|a, b| match (a.is_folder, b.is_folder) {
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,
-                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                _ => fold_name(&a.name).cmp(&fold_name(&b.name)),
             });
             Ok(out)
         }
 
-        fn delete(&mut self, path: &str) -> Result<()> {
-            let key = normalize(path);
-            let handle = if let Some(h) = self.file_cache.get(&key).copied() {
-                h
-            } else if let Some(Some(h)) = self.folder_cache.get(&key).copied() {
-                h
-            } else {
-                // Force a parent listing to populate caches.
-                let (parent_path, _) = key
-                    .rsplit_once('/')
-                    .map(|(p, n)| (p.to_string(), n.to_string()))
-                    .unwrap_or_else(|| (String::new(), key.clone()));
-                self.list_dir(&parent_path)?;
-                if let Some(h) = self.file_cache.get(&key).copied() {
-                    h
-                } else if let Some(Some(h)) = self.folder_cache.get(&key).copied() {
-                    h
-                } else {
-                    anyhow::bail!("not found on watch: {path}");
-                }
-            };
-            let storage = &self.storage;
-            self.rt
-                .block_on(storage.delete(handle))
-                .with_context(|| format!("deleting {path}"))?;
-            self.invalidate_path(&key);
-            Ok(())
-        }
-
         fn download_file(&mut self, path: &str) -> Result<Vec<u8>> {
-            let key = normalize(path);
-            // Reuse cached handle if we listed the parent already.
-            let handle = if let Some(h) = self.file_cache.get(&key).copied() {
-                h
-            } else {
-                let (parent_path, _) = key
-                    .rsplit_once('/')
-                    .map(|(p, n)| (p.to_string(), n.to_string()))
-                    .unwrap_or_else(|| (String::new(), key.clone()));
-                self.list_dir(&parent_path)?;
-                self.file_cache
-                    .get(&key)
-                    .copied()
-                    .ok_or_else(|| anyhow!("not found on watch: {path}"))?
+            let k = key(path);
+            // A path this session uploaded or listed is answered from the
+            // cache; anything else costs one listing of its parent.
+            let handle = match self.file_cache.get(&k).copied() {
+                Some(h) => h,
+                None => {
+                    let parent = trim(path).rsplit_once('/').map_or("", |(p, _)| p);
+                    self.list_dir(parent)?;
+                    self.file_cache
+                        .get(&k)
+                        .copied()
+                        .ok_or_else(|| anyhow!("not found on watch: {path}"))?
+                }
             };
             let storage = &self.storage;
             self.rt
                 .block_on(storage.download(handle))
                 .with_context(|| format!("downloading {path}"))
-        }
-
-        fn write_raw(&mut self, remote_dir: &str, remote_name: &str, bytes: &[u8]) -> Result<()> {
-            use mtp::ObjectFormatCode;
-            let parent = self.resolve_folder(remote_dir)?;
-            let len = bytes.len() as u64;
-            // M3U/M3U8 → MTP_FORMAT_ABSTRACT_AV_PLAYLIST (0xBA05). Verified
-            // working path per `better-sync` (Schachte) on FR family + Venu;
-            // Garmin firmware silently rejects playlist writes with any
-            // other format code. See docs/playlists.md.
-            let lower = remote_name.to_ascii_lowercase();
-            let format = if lower.ends_with(".m3u8") || lower.ends_with(".m3u") {
-                ObjectFormatCode::Unknown(0xBA05)
-            } else {
-                ObjectFormatCode::Undefined
-            };
-            let info = mtp::NewObjectInfo::with_format(remote_name, len, format);
-            let chunks: Vec<_> = bytes
-                .chunks(256 * 1024)
-                .map(|c| Ok::<_, std::io::Error>(Bytes::copy_from_slice(c)))
-                .collect();
-            let stream = futures::stream::iter(chunks);
-            let storage = &self.storage;
-            self.rt
-                .block_on(storage.upload(parent, info, Box::pin(stream)))
-                .with_context(|| format!("writing {remote_dir}/{remote_name}"))?;
-            self.invalidate_path(remote_dir);
-            self.folder_cache.entry(String::new()).or_insert(None);
-            Ok(())
         }
 
         fn free_space(&mut self) -> Result<(u64, u64)> {
@@ -640,17 +544,19 @@ mod mtp_rs_impl {
         }
     }
 
-    fn normalize(path: &str) -> String {
-        path.trim_matches('/').to_string()
+    fn trim(path: &str) -> &str {
+        path.trim_matches('/')
     }
 
-    #[allow(dead_code)]
-    fn _device_marker(_d: &Device) {}
+    /// Cache key for a path: trimmed and folded, so one object has one key.
+    fn key(path: &str) -> String {
+        fold_name(trim(path))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::same_file;
+    use super::{fold_name, same_file};
 
     /// `/Music` is FAT-derived. Two spellings, one file — and the byte-equal
     /// comparison this replaced reported "not found" for a file that was
@@ -674,5 +580,14 @@ mod tests {
     #[test]
     fn case_folding_is_not_ascii_only() {
         assert!(same_file("CAFÉ.mp3", "café.mp3"));
+    }
+
+    /// Folder names go through the same fold as file names. Byte-exact
+    /// folder matching is how a `music` folder got a `Music` sibling.
+    #[test]
+    fn folders_and_files_share_one_fold() {
+        assert_eq!(fold_name("Music"), fold_name("MUSIC"));
+        assert_eq!(fold_name("Music"), fold_name("music"));
+        assert_eq!(fold_name("ÅLBUM"), "ålbum");
     }
 }

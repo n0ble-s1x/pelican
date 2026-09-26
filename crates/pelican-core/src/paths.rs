@@ -4,8 +4,8 @@
 //! determined they return `None` rather than falling back to a world-
 //! writable directory. On a shared host `/tmp` is writable by every local
 //! user and `/tmp/.local` does not normally exist, so any local user could
-//! pre-create the chain and own our store — and `history::load` feeds
-//! `LocalPlaylist.tracks` straight back into the uploader. Losing
+//! pre-create the chain and own our store — the ledger that decides which
+//! names are free, or the staging dir whose files get uploaded. Losing
 //! persistence is the strictly better failure.
 
 use std::path::PathBuf;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 /// bundle identifier for a packaged app.
 pub const BUNDLE_ID: &str = "com.krypteia.pelican";
 
-/// Directory for short-lived transcode artifacts.
+/// Directory for short-lived transcode artifacts (see [`crate::staging`]).
 ///
 /// Linux: `$XDG_CACHE_HOME/pelican`, falling back to `$HOME/.cache/pelican`.
 /// macOS: `$HOME/Library/Caches/com.krypteia.pelican`.
@@ -22,7 +22,7 @@ pub fn cache_dir() -> Option<PathBuf> {
     ensure(cache_dir_unchecked()?)
 }
 
-/// Directory for the per-device upload journal and local playlists.
+/// Directory for the per-device ledger of every name ever written.
 ///
 /// Linux: `$XDG_DATA_HOME/pelican`, falling back to `$HOME/.local/share/pelican`.
 /// macOS: `$HOME/Library/Application Support/com.krypteia.pelican`.
@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn cache_and_data_are_distinct() {
         if let (Some(c), Some(d)) = (cache_dir_unchecked(), data_dir_unchecked()) {
-            assert_ne!(c, d, "a sweep of the cache would eat the upload journal");
+            assert_ne!(c, d, "a sweep of the cache would eat the ledger");
         }
     }
 }

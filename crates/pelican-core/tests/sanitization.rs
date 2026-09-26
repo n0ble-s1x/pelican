@@ -8,11 +8,11 @@
 //! because `pelican` was a binary crate and an integration test could not
 //! see into it. That made them documentation that could not fail. Now that
 //! the engine is a library they bind to the real implementation, so drift
-//! in `transcode`/`transfer` breaks the build instead of passing quietly.
+//! in `transcode` breaks the build instead of passing quietly.
 
 use std::path::Path;
 
-use pelican_core::{transcode, transfer};
+use pelican_core::transcode;
 
 /// Longest stem the sanitizer will emit, and the value the firmware limit
 /// is reasoned against.
@@ -44,47 +44,24 @@ fn filename_cap_holds_against_the_firmware_limit() {
 }
 
 #[test]
-fn supported_formats_match_firmware() {
-    // Playable formats per Garmin's official audio FAQ:
-    // https://support.garmin.com/en-US/?faq=JyNEOTsZaR3KMXqej3oQp5
-    // Anything here MUST upload through `--no-transcode` without going
-    // near an encoder.
-    let claimed = ["mp3", "m4a", "m4b", "aac", "wav"];
-    assert_eq!(
-        transfer::SUPPORTED_EXTS,
-        &claimed,
-        "Garmin's native format list changed — update SUPPORTED_EXTS and this test together"
-    );
-    for ext in claimed {
+fn every_format_we_claim_is_picked_up_as_audio() {
+    // Everything goes through ffmpeg, so "accepted" means one thing: a
+    // directory walk picks it up. FLAC is the load-bearing one (Qobuz /
+    // Bandcamp downloads); MP3 and WAV are re-encoded too, never passed
+    // through.
+    for ext in [
+        "mp3", "m4a", "m4b", "aac", "wav", "flac", "ogg", "oga", "opus", "wma", "ape", "aiff",
+        "aif", "aifc", "wv", "alac",
+    ] {
         assert!(
-            transfer::ext_supported(Path::new(&format!("track.{ext}"))),
-            "{ext} must be recognised as natively playable"
+            transcode::is_audio(Path::new(&format!("track.{ext}"))),
+            "{ext} must be seen as audio or it is silently skipped"
         );
         // Case must not matter: a file off a FAT volume can arrive shouting.
-        assert!(transfer::ext_supported(Path::new(&format!(
+        assert!(transcode::is_audio(Path::new(&format!(
             "track.{}",
             ext.to_uppercase()
         ))));
-    }
-}
-
-#[test]
-fn transcodable_formats_are_recognised_as_audio() {
-    // Formats we route through an encoder because Garmin won't play them.
-    // flac is the load-bearing one (Qobuz / Bandcamp downloads).
-    let need_transcode = [
-        "flac", "ogg", "oga", "opus", "wma", "ape", "aiff", "aif", "wv", "alac",
-    ];
-    for ext in need_transcode {
-        let p = format!("track.{ext}");
-        assert!(
-            transcode::is_audio(Path::new(&p)),
-            "{ext} must be seen as audio or it is silently skipped"
-        );
-        assert!(
-            !transfer::ext_supported(Path::new(&p)),
-            "{ext} must NOT be treated as natively playable"
-        );
     }
     // Non-audio must stay out of the plan entirely.
     for ext in ["jpg", "cue", "txt", "log", "pdf"] {
@@ -109,45 +86,4 @@ fn tag_values_are_stripped_of_what_the_indexer_rejects() {
         transcode::sanitize_tag_value("  Café Tacvba  "),
         "Café Tacvba"
     );
-}
-
-#[test]
-fn sanitized_names_never_collide_within_one_plan() {
-    // MTP has no overwrite semantics: two jobs resolving to the same remote
-    // name means the watch either clobbers one or shows two files the user
-    // cannot tell apart. The 56-char truncation makes this easy to trigger.
-    let long = "A".repeat(80);
-    let inputs: Vec<std::path::PathBuf> = (0..5)
-        .map(|i| std::path::PathBuf::from(format!("/src/disc{i}/{long}.mp3")))
-        .collect();
-
-    let dir = tempfile::tempdir().unwrap();
-    let mut real = Vec::new();
-    for p in &inputs {
-        let sub = dir.path().join(p.parent().unwrap().file_name().unwrap());
-        std::fs::create_dir_all(&sub).unwrap();
-        let f = sub.join(p.file_name().unwrap());
-        std::fs::write(&f, b"x").unwrap();
-        real.push(f);
-    }
-
-    let jobs = transfer::expand_inputs_with(&real, "Music", true, true).unwrap();
-    let mut seen = std::collections::HashSet::new();
-    for j in &jobs {
-        let stem = Path::new(&j.remote_name)
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let final_name = transcode::sanitize_filename_stem(&stem);
-        assert!(
-            final_name.chars().count() <= STEM_CAP,
-            "{final_name} exceeds the cap after dedupe"
-        );
-        assert!(
-            seen.insert((j.remote_dir.clone(), final_name.to_lowercase())),
-            "two jobs resolve to the same remote name: {:?}",
-            j.remote_name
-        );
-    }
-    assert_eq!(jobs.len(), 5, "every input must still be planned");
 }

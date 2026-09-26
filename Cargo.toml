@@ -1,13 +1,15 @@
 [workspace]
 resolver = "2"
-members = ["crates/pelican-core", "crates/pelican", "crates/pelican-shell"]
+members = ["crates/pelican-core", "crates/pelican"]
 
 # Shared package metadata. Both crates ship as one product, so version,
 # licence and provenance live here rather than being kept in sync by hand.
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+# 1.89 for `std::fs::File::lock`, which the per-device ledger holds for the
+# length of a run so two runs cannot hand out the same counter.
+rust-version = "1.89"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/n0ble-s1x/pelican"
 homepage = "https://github.com/n0ble-s1x/pelican"
@@ -18,29 +20,11 @@ authors = ["n0ble-s1x <krypteia.annex447@8alias.com>"]
 anyhow = "1"
 bytes = "1"
 clap = { version = "4.5", features = ["derive"] }
-crossbeam-channel = "0.5"
-eframe = { version = "0.34", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
-egui = "0.34"
 futures = "0.3"
-id3 = "1.14"
 libc = "0.2"
 lofty = "0.25"
-mp4ameta = "0.13"
 mtp = { package = "mtp-rs", version = "0.13" }
 nusb = "0.2"
-percent-encoding = "2"
-# Native folder picker for the macOS shell. `default-features = false` keeps
-# it to the AppKit path: measured against Tauri's own tree it adds exactly two
-# crates (`rfd`, `log`) — everything else it wants is already in wry.
-rfd = { version = "0.16", default-features = false }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-# `default-features = false` is mandatory, not tidiness: Tauri's default
-# `compression` (brotli) feature is not vendored here and breaks an offline
-# build. The offline build is the reason on its own; that ui/ is a
-# three-file, ~155 KB payload read off local disk is why nothing is lost.
-tauri = { version = "2.11", default-features = false, features = ["wry", "common-controls-v6", "protocol-asset"] }
-tauri-build = { version = "2.6", default-features = false }
 tempfile = "3"
 tokio = { version = "1", features = ["rt", "macros", "time"] }
 tracing = "0.1"

@@ -61,13 +61,11 @@ modules:
       env:
         CARGO_HOME: /run/build/pelican/cargo
     build-commands:
-      # -p pelican, not the workspace: the workspace also holds
-      # pelican-shell, and this runtime carries no webkit2gtk extension, so
-      # building it here cannot link. --all-features is what widened the
-      # graph and serves nothing.
       - cargo build --release -p pelican --offline
       - install -Dm755 target/release/pelican /app/bin/pelican
-      - install -Dm644 packaging/desktop/pelican.desktop /app/share/applications/com.krypteia.Pelican.desktop
+      # No desktop entry: pelican is CLI-only until the UI is rebuilt, and a
+      # launcher with no terminal would run it with no subcommand and show
+      # nothing. packaging/desktop/pelican.desktop comes back with the UI.
       - install -Dm644 packaging/flatpak/com.krypteia.Pelican.metainfo.xml /app/share/metainfo/com.krypteia.Pelican.metainfo.xml
       # No icon install line. packaging/flatpak/com.krypteia.Pelican.svg does
       # not exist yet (see packaging/flatpak/README.md), and `install -Dm644`

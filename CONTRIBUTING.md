@@ -5,22 +5,15 @@ area is well-defined; getting a PR through review is usually quick.
 
 ## Quickstart
 
-Three crates, no `default-members` — a bare `cargo build --release` at the
-root builds both front ends, which on Linux drags in the whole
-Tauri/webkit2gtk chain. Name the package you are working on.
+Two crates: `pelican-core` (the library) and `pelican` (the CLI). The UI is
+being rebuilt against the core and is not in the tree yet.
 
 ```sh
 git clone https://github.com/n0ble-s1x/pelican
 cd pelican
 
-# macOS — Rust 1.85+ and the Xcode command-line tools. No ffmpeg unless you
-# need OGG/Opus/WMA/APE/WV. No udev equivalent, no sudo step.
-cargo build --release -p pelican-shell
-
-# Linux — Rust 1.85+ and libudev. ffmpeg only for the formats above.
+# Linux — Rust 1.89+, libudev, and ffmpeg (every file is transcoded).
 cargo build --release -p pelican
-# Building -p pelican-shell on Linux additionally needs webkit2gtk-4.1
-# and libsoup3 development packages.
 
 # Run the full local QA gate (same checks the maintainer runs before merge):
 ./scripts/check.sh --full

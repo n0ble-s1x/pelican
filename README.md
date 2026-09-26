@@ -110,10 +110,9 @@ has no afconvert and so still needs ffmpeg for this row.
 
 ### Watch interaction
 
-- **macOS shell** (`crates/pelican-shell`) — Tauri 2 over the `ui/` frontend: watch wall, capacity gauge, select-and-delete behind a confirmation, live transfer report
-- **Three-pane GUI** (egui/eframe) — LOCAL · ACTIONS · WATCH, drag-drop both intra-app and from your file manager. The Linux build
-- Headless **CLI** for scripting and CI
-- **Per-handle delete** — removes the object from `/Music`, and that is the whole of it. A delete has been observed to succeed, free the space, and leave the watch's own music app still listing the tracks; the mechanism is not established (see [`docs/garmin-mtp.md`](docs/garmin-mtp.md) §8). Broken stubs can be *asked* about, but every `DeleteObject` against one has been refused (§6)
+- **CLI only, for now** — `pelican push / status / ls / ledger`. The UI is being rebuilt against the new core
+- **Never removes anything from the watch.** A track that reaches the watch's music library stays there until a factory reset, whatever any tool does (see [`docs/garmin-library-persistence.md`](docs/garmin-library-persistence.md)); Pelican has no command that pretends otherwise
+- **Proof by read-back** — every upload is downloaded again and its SHA-256 compared with the file that was sent
 - **Collision guard** — Pelican checks every name the watch can report before it writes, at plan time and again in the open session immediately before the upload. MTP has no overwrite, and a same-name write destroys *both* copies (see [`docs/garmin-mtp.md`](docs/garmin-mtp.md) §7)
 - **GVFS-mount detection** on Linux — warns if a GVFS MTP mount is holding the device, and names the `gio mount -u` fix
 - **Per-device upload journal** — `$XDG_DATA_HOME/pelican/` on Linux, `~/Library/Application Support/com.krypteia.pelican/` on macOS
@@ -236,28 +235,30 @@ Plug your watch in. Put it in MTP USB mode.
 to double-click yet — see [Install](#install). Choose a folder, play what
 you're unsure about, tick what you want, send it.
 
-**Linux.** Run `pelican`, then drag a folder of music onto the **WATCH** pane.
-
-### Headless / CLI
+**Linux.** `pelican` is a command-line tool:
 
 ```sh
-# Upload an album (transcodes anything Garmin doesn't natively play)
-pelican --copy ~/Music/Album
+# See what would be sent and with which tags. Touches no device.
+pelican push --dry-run ~/Music/Album
 
-# Upload without transcoding (sources must already be MP3/M4A/AAC/WAV)
-pelican --no-transcode --copy ~/Music/already-mp3
+# Transcode to MP3 192k, send each file under a never-used name, read it
+# back and prove it. Tags missing from the source come from the path.
+pelican push ~/Music/Album
 
-# Refuse to upload files missing ID3 title+artist (default: warn + upload)
-pelican --require-tags --copy ~/Music/Album
+# Override tags for the whole run
+pelican push --artist "Sea of Thieves" --year 2018 ~/Music/Album
 
-# Delete files by remote path
-pelican --delete "Music/foo.mp3" --delete "Music/bar.mp3"
+# Model, free space, /Music object count, ledger totals
+pelican status
 
-# List existing playlists in /Music
-pelican --list-playlists
+# What is in /Music, each entry marked ledger / foreign / stub
+pelican ls
 
-# Pick a specific watch when multiple are attached
-pelican --serial 0000a1b2c3d4 --copy ~/Music/Album
+# Every name this machine has sent to the watch
+pelican ledger
+
+# Pick a specific watch when more than one is attached
+pelican status --serial 0000a1b2c3d4
 ```
 
 ---

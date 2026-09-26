@@ -32,11 +32,12 @@ cargo deb --release -p pelican          # → target/debian/pelican_0.X.Y_amd64.
 
 # Stripped + tarball'd binary for direct download
 strip target/release/pelican
+# Each -C is relative to the one before it. No desktop entry while pelican
+# is CLI-only.
 tar -czf pelican-0.X.Y-linux-x86_64.tar.gz \
   -C target/release pelican \
   -C ../../udev 70-garmin-mtp.rules \
-  -C ../../packaging/desktop pelican.desktop \
-  -C ../.. README.md LICENSE-MIT LICENSE-APACHE
+  -C .. README.md LICENSE-MIT LICENSE-APACHE
 
 # GitHub release page
 gh release create v0.X.Y \

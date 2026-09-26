@@ -4,7 +4,7 @@
   GNOME Software, KDE Discover, and other software-center apps read to render
   the listing page. Validate with `appstreamcli validate <file>`.
 -->
-<component type="desktop-application">
+<component type="console-application">
   <id>com.krypteia.Pelican</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT OR Apache-2.0</project_license>
@@ -15,14 +15,10 @@
   <description>
     <p>
       Pelican moves your own music files onto a Garmin watch over a USB
-      cable. Drop a folder of MP3s or FLACs and it tags, converts what needs
-      converting, and uploads — without going through Garmin Express, iTunes,
-      or any cloud service, and without a vendor account.
-    </p>
-    <p>
-      This package is the Linux build. Pelican also ships a macOS build, which
-      adds a local library browser and in-app playback so you can hear a track
-      before spending part of the watch's roughly 3.7 GB on it.
+      cable. Point it at a folder of music and it tags, converts every file to
+      one known-good MP3 profile, uploads, and reads each file back to prove it
+      landed intact — without going through Garmin Express, iTunes, or any
+      cloud service, and without a vendor account.
     </p>
     <p>
       Privacy-first by design. The binary makes zero network connections.
@@ -35,18 +31,13 @@
     </p>
     <p>Features:</p>
     <ul>
-      <li>Drag-and-drop sync from your file manager</li>
-      <li>MP3, M4A, M4B, AAC and WAV are copied byte-for-byte — only the tag is rebuilt, with no external tool</li>
-      <li>FLAC, OGG, Opus, WMA, AIFF, ALAC, APE and WavPack convert to Garmin-compatible MP3 via ffmpeg</li>
-      <li>Refuses to write a name the watch already holds — a same-name write destroys both copies</li>
-      <li>Local playlists (named track groups you can mass-upload)</li>
-      <li>Right-click delete on watch entries, including the broken stubs a failed upload leaves</li>
-      <li>Per-device upload journal (persists across runs)</li>
-      <li>This build is a single static binary with no webview, no daemon and no telemetry</li>
+      <li>FLAC, WAV, ALAC/AAC, MP3, OGG, Opus, AIFF, WMA and more are all converted to one profile: MP3, 192 kbps CBR, 44.1 kHz stereo, ID3v2.3</li>
+      <li>Tags missing from a file are filled from its folder and file name</li>
+      <li>Every file is sent under a name never used on that watch before, then read back and hashed</li>
+      <li>Per-device ledger of every name sent (persists across runs)</li>
+      <li>A single command-line binary with no daemon and no telemetry</li>
     </ul>
   </description>
-
-  <launchable type="desktop-id">com.krypteia.Pelican.desktop</launchable>
 
   <url type="homepage">https://github.com/n0ble-s1x/pelican</url>
   <url type="bugtracker">https://github.com/n0ble-s1x/pelican/issues</url>
@@ -82,10 +73,9 @@
       <description>
         <p>Initial release.</p>
         <ul>
-          <li>Drag-and-drop GUI (egui)</li>
-          <li>Headless CLI with --copy / --delete / --create-playlist</li>
+          <li>Command-line tool: push, status, ls, ledger</li>
           <li>ffmpeg-based audio normalization to Garmin-compatible MP3</li>
-          <li>Local upload journal + local playlists</li>
+          <li>Per-device ledger of every name sent</li>
           <li>Verified on Forerunner 165 Music (firmware 2506)</li>
         </ul>
       </description>

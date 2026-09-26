@@ -263,3 +263,50 @@ fn ffmpeg_failure_is_an_error_naming_the_file() {
     let err = encoder::encode(&bogus, &staging.file(1), &tags).unwrap_err();
     assert!(err.to_string().contains("not audio.flac"), "{err}");
 }
+
+/// The whole run with the real encoder, into the fake watch: what lands is
+/// the proven profile, proven by read-back, and nothing is left staged.
+#[test]
+fn a_push_sends_the_profile_and_proves_it() {
+    use pelican_core::ledger::Ledger;
+    use pelican_core::mtp::fake::FakeDevice;
+    use pelican_core::transfer::{self, Env, Options};
+
+    if !ffmpeg_or_skip("a_push_sends_the_profile_and_proves_it") {
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let album = tmp.path().join("Sea of Thieves");
+    std::fs::create_dir(&album).unwrap();
+    write_tone_wav(&album.join("02 - Maiden Voyage.wav"), 48_000, 1);
+    let entries = transfer::plan(
+        source::expand(std::slice::from_ref(&album)).unwrap(),
+        &Overrides::default(),
+    );
+    let dev = FakeDevice::new();
+    let mut ledger = Ledger::open(&tmp.path().join("data"), "1").unwrap();
+    let cache = tmp.path().join("cache");
+    let report = transfer::push(
+        entries,
+        &mut ledger,
+        || Ok(dev.backend()),
+        Options::default(),
+        Env {
+            staging_base: &cache,
+            encode: &encoder::encode,
+            progress: &mut |_| {},
+        },
+    )
+    .unwrap();
+    assert_eq!(report.tally().verified, 1);
+
+    let files = dev.files("Music");
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].0, "pl00001-Maiden Voyage.mp3");
+    assert_profile(&files[0].1);
+    let staged: Vec<PathBuf> = std::fs::read_dir(cache.join("staging"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert!(staged.is_empty(), "{staged:?}");
+}

@@ -8,7 +8,7 @@
 //! watch's library until a factory reset, so the only safe write is a new
 //! one.
 //!
-//! A front-end drives a run through `transfer`, which talks to the device
+//! A front-end drives a run through [`transfer`], which talks to the device
 //! only through [`mtp::Backend`] and to the filesystem through [`source`]
 //! (what to send), [`transcode`] (what it becomes) and [`staging`] (where it
 //! waits). [`ledger`] is the per-device record of every name ever written,
@@ -24,3 +24,4 @@ pub mod platform;
 pub mod source;
 pub mod staging;
 pub mod transcode;
+pub mod transfer;

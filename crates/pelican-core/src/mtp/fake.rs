@@ -12,8 +12,8 @@
 //!   sees exactly the wreckage the hardware would leave.
 //! - **Stubs are listed with a synthetic name and cannot be read.**
 //! - **Faults on demand**: an upload that errors, one that lands corrupted
-//!   (so the read-back hash disagrees), a download that errors, a listing
-//!   that errors.
+//!   (so the read-back hash disagrees), a download that errors or comes
+//!   back altered, a listing that errors.
 //!
 //! There is no delete here either, for the same reason there is none on
 //! the trait.
@@ -65,6 +65,10 @@ pub struct Faults {
     pub corrupt_uploads: usize,
     /// Downloads that return an error.
     pub fail_downloads: usize,
+    /// Downloads that return `Ok` with one byte flipped: the object on the
+    /// watch is fine, the read-back is not. The loop cannot tell the two
+    /// apart and must not try — either way the file is unproven.
+    pub corrupt_downloads: usize,
     /// Every `list_dir` errors while this is set.
     pub fail_listing: bool,
 }
@@ -387,7 +391,15 @@ impl Backend for FakeBackend {
         if o.broken {
             bail!("GetObjectInfo failed for {path}: the object is a stub");
         }
-        Ok(o.data.clone())
+        let mut data = o.data.clone();
+        if s.faults.corrupt_downloads > 0 {
+            s.faults.corrupt_downloads -= 1;
+            match data.first_mut() {
+                Some(b) => *b ^= 0xFF,
+                None => data.push(0),
+            }
+        }
+        Ok(data)
     }
 }
 

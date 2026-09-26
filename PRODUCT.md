@@ -1,5 +1,12 @@
 # Product
 
+> **History.** This is the design brief for the GUI that the `rebuild`
+> branch removed (`docs/rebuild-plan.md`). Pelican is now the `pelican`
+> command-line tool: `push`, `status`, `ls` and `ledger`. The brief is kept
+> for its reasoning; where it describes the interface, playback, playlists
+> or removing files, it describes something Pelican no longer has.
+> "Works today" and the session constraint below are current.
+
 <!-- impeccable:product-schema 1 -->
 
 ## Platform
@@ -79,26 +86,23 @@ deciding what comes *off* matters as much as what goes on.
 
 ## Capabilities and Constraints
 
-**Works today (verified on Forerunner 165 Music, firmware 2506):**
+**Works today (the rebuilt CLI; the hardware acceptance run is pending):**
 
-- Upload MP3, M4A, M4B, AAC, WAV directly; convert FLAC, ALAC, AIFF and more.
-- On macOS, conversion needs no installed software (`afconvert`); MP3 and WAV
-  need no conversion at all.
-- Delete a file from `/Music`, which frees the space. It has **not** been
-  shown to remove the track from the watch's own music app — one delete of
-  22 files succeeded at every handle and the app still listed all 22, and
-  the mechanism is not established (`docs/garmin-mtp.md` §8).
-- List the broken stubs that failed uploads leave behind, and ask the watch
-  to remove them. The watch has refused every such request so far (§6); it
-  clears them itself, on its own schedule.
+- Take MP3, M4A, AAC, WAV, FLAC, ALAC, AIFF and more; every file is
+  transcoded by ffmpeg to one MP3 profile before the watch is opened.
+- Send each file under a name never used on that watch, read it back, and
+  compare it byte for byte before calling it done.
 - Report free space and device identity.
-- Per-device upload journal, so the app can show what it put there.
+- A per-device ledger of every name used and what became of it.
 
 **Constraints the design must respect:**
 
 - **One MTP session at a time.** Any concurrent operation fails.
-- **A fresh session per file** is required or the firmware silently rejects
-  uploads after the first one or two.
+- **One session per run.** The rebuild lists `/Music`, checks capacity and
+  sends every file in a single session, proving each by read-back
+  (`docs/rebuild-plan.md` R6). The old GUI opened a fresh session per file;
+  the rebuild does not, and the hardware acceptance run is what will
+  confirm the watch accepts it.
 - **Filenames are capped at 56 characters** and FAT-hostile punctuation is
   stripped; the tag carries the real title.
 - **Files without title+artist tags are invisible** on the watch even though

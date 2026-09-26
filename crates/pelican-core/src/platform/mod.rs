@@ -27,7 +27,7 @@ pub struct Contention {
 }
 
 impl Contention {
-    /// One-paragraph warning, printed by every device-touching command.
+    /// One-paragraph warning, for every device-touching command to show.
     pub fn message(&self) -> String {
         format!(
             "{} is holding your Garmin device ({}). This blocks direct USB access.\n\
@@ -64,12 +64,4 @@ pub fn explain_exclusive_access() -> String {
         out.push_str(&format!("\n  2. {} holds it: {}", c.holder, c.remedy));
     }
     out
-}
-
-/// Print the warning to stderr if the device is held. Used by the CLI
-/// before it opens a session.
-pub fn warn_if_holding_garmin() {
-    if let Some(c) = detect() {
-        eprintln!("warning: {}", c.message());
-    }
 }

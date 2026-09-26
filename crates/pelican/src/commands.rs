@@ -2,20 +2,20 @@
 //! progress and warnings go to stderr, so `pelican ls > list.txt` holds
 //! only the listing.
 
-use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 
 use pelican_core::garmin::{self, strip_control, Device, MUSIC_FOLDER};
 use pelican_core::ledger::{Kind, Ledger};
-use pelican_core::mtp::{self, RemoteEntry};
+use pelican_core::mtp;
 use pelican_core::transcode::encoder;
 use pelican_core::transcode::tags::{Overrides, Resolved};
-use pelican_core::transfer::{self, Env, Options, Outcome, PlanEntry, Progress, Skip};
-use pelican_core::{hash, paths, platform, source};
+use pelican_core::transfer::{self, Env, Options, Outcome, PlanEntry, Progress, Skip, Verdict};
+use pelican_core::watch::{self, Origin, Row};
+use pelican_core::{paths, platform, source};
 
 use crate::cli::{Command, DeviceArgs, PushArgs};
 
@@ -67,7 +67,7 @@ fn push(a: PushArgs) -> Result<ExitCode> {
     // Everything that can refuse the run without the watch goes first:
     // no ffmpeg, no serial, a ledger another run holds or cannot parse.
     encoder::require()?;
-    platform::warn_if_holding_garmin();
+    warn_if_held();
     let device = garmin::pick_device(a.serial.as_deref())?;
     let serial = serial_of(&device)?;
     let mut ledger = Ledger::open(&data_dir()?, &serial)?;
@@ -99,54 +99,35 @@ fn push(a: PushArgs) -> Result<ExitCode> {
 
 /// Print the plan. Returns false if any file would be refused.
 ///
-/// Skips are decided the way [`transfer::push`] decides them — the ledger
-/// first unless `resend`, then a repeat of audio earlier in the plan — so
-/// the plan printed is the run that would happen.
+/// The verdicts are [`transfer::preview`]'s — the same call the run makes
+/// before it transcodes — so the plan printed is the run that would happen.
 fn dry_run(
     entries: &[PlanEntry],
     ledger: Option<&Ledger>,
     resend: bool,
     out: &mut impl Write,
 ) -> Result<bool> {
-    let mut refused = 0;
-    let mut on_watch = 0;
-    let mut repeats = 0;
-    let mut seen: HashMap<String, &Path> = HashMap::new();
-    for e in entries {
-        let path = &e.source.path;
-        writeln!(out, "{}", show(path))?;
-        let t = match &e.tags {
-            Ok(t) => t,
-            Err(reason) => {
-                refused += 1;
-                writeln!(out, "    refused: {}", strip_control(reason))?;
-                continue;
+    let (mut refused, mut on_watch, mut repeats) = (0, 0, 0);
+    let verdicts = transfer::preview(entries, ledger, resend);
+    for (e, verdict) in entries.iter().zip(verdicts) {
+        writeln!(out, "{}", show(&e.source.path))?;
+        if let Ok(t) = &e.tags {
+            writeln!(out, "    {}", tag_line(t))?;
+        }
+        match verdict {
+            Verdict::Send { .. } => writeln!(out, "    → (remote name assigned at run time)")?,
+            Verdict::Skip(Skip::AlreadyOnWatch { remote }) => {
+                on_watch += 1;
+                writeln!(out, "    → already on watch as {remote} (skipped)")?;
             }
-        };
-        writeln!(out, "    {}", tag_line(t))?;
-        // The run hashes every source too, and a file it cannot read fails
-        // there; saying so now is the honest plan.
-        let sha = match hash::file(path) {
-            Ok(sha) => sha,
-            Err(err) => {
-                refused += 1;
-                writeln!(out, "    refused: {}", strip_control(&format!("{err:#}")))?;
-                continue;
+            Verdict::Skip(Skip::DuplicateOf(first)) => {
+                repeats += 1;
+                writeln!(out, "    → same audio as {} (skipped)", show(&first))?;
             }
-        };
-        let verified = ledger
-            .filter(|_| !resend)
-            .and_then(|l| l.verified(&sha).map(|v| v.remote.clone()));
-        let first = seen.get(&sha).copied();
-        seen.entry(sha).or_insert(path);
-        if let Some(remote) = verified {
-            on_watch += 1;
-            writeln!(out, "    → already on watch as {remote} (skipped)")?;
-        } else if let Some(first) = first {
-            repeats += 1;
-            writeln!(out, "    → same audio as {} (skipped)", show(first))?;
-        } else {
-            writeln!(out, "    → (remote name assigned at run time)")?;
+            Verdict::Refused { reason } => {
+                refused += 1;
+                writeln!(out, "    refused: {}", strip_control(&reason))?;
+            }
         }
     }
     writeln!(
@@ -174,10 +155,10 @@ fn tag_line(t: &Resolved) -> String {
     parts.join(" · ")
 }
 
-fn print_progress(p: Progress<'_>) {
+fn print_progress(p: Progress) {
     match p {
         Progress::Transcoding { n, of, source } => {
-            eprintln!("transcoding {n}/{of}  {}", show(source));
+            eprintln!("transcoding {n}/{of}  {}", show(&source));
         }
         Progress::Connecting { files, bytes } => {
             eprintln!(
@@ -198,9 +179,11 @@ fn print_progress(p: Progress<'_>) {
             };
             println!(
                 "  attempt failed  {remote}: {}{next}",
-                strip_control(reason)
+                strip_control(&reason)
             );
         }
+        // One line per file is the CLI's contract; these are for a UI.
+        Progress::Sending { .. } | Progress::Uploading { .. } => {}
         Progress::Done(r) => {
             let src = show(&r.source);
             match &r.outcome {
@@ -220,30 +203,16 @@ fn print_progress(p: Progress<'_>) {
 }
 
 fn status(a: DeviceArgs) -> Result<ExitCode> {
-    platform::warn_if_holding_garmin();
+    warn_if_held();
     let device = garmin::pick_device(a.serial.as_deref())?;
-    let mut dev = mtp::open(&device)?;
-    let model = dev.model().unwrap_or_else(|| device.label());
-    let (free, capacity) = dev.free_space().context("reading free space")?;
-    let listing = dev
-        .list_dir(MUSIC_FOLDER)
-        .with_context(|| format!("listing /{MUSIC_FOLDER}"))?;
-    drop(dev);
-
-    let stubs = listing.iter().filter(|e| e.is_broken).count();
-    let objects = transfer::audio_objects(&listing);
-    println!("model    {model}");
+    let snap = watch::read(mtp::open(&device)?.as_mut(), &device)?;
+    let c = snap.counts();
+    println!("model    {}", snap.model);
+    println!("serial   {}", snap.serial.as_deref().unwrap_or("(none)"));
+    println!("free     {} of {}", size(snap.free), size(snap.capacity));
     println!(
-        "serial   {}",
-        device
-            .serial
-            .as_deref()
-            .map_or("(none)".into(), strip_control)
-    );
-    println!("free     {} of {}", size(free), size(capacity));
-    println!(
-        "/{MUSIC_FOLDER}   {objects} of {} objects ({stubs} unreadable)",
-        transfer::MAX_OBJECTS
+        "/{MUSIC_FOLDER}   {} of {} objects ({} unreadable)",
+        c.audio_objects, c.max_objects, c.stubs
     );
     match device.serial.as_deref() {
         Some(s) => {
@@ -264,46 +233,31 @@ fn status(a: DeviceArgs) -> Result<ExitCode> {
 }
 
 fn ls(a: DeviceArgs) -> Result<ExitCode> {
-    platform::warn_if_holding_garmin();
+    warn_if_held();
     let device = garmin::pick_device(a.serial.as_deref())?;
     let ledger = match device.serial.as_deref() {
         Some(s) => Some(Ledger::read(&data_dir()?, s)?),
         None => None,
     };
-    let mut dev = mtp::open(&device)?;
-    let listing = dev
-        .list_dir(MUSIC_FOLDER)
-        .with_context(|| format!("listing /{MUSIC_FOLDER}"))?;
-    drop(dev);
+    let snap = watch::read(mtp::open(&device)?.as_mut(), &device)?;
     let mut out = std::io::stdout().lock();
-    for row in ls_rows(&listing, ledger.as_ref()) {
-        writeln!(out, "{row}")?;
+    for row in snap.rows(ledger.as_ref()) {
+        writeln!(out, "{}", ls_line(&row))?;
     }
     Ok(ExitCode::SUCCESS)
 }
 
-/// One row per entry: `ledger` (Pelican wrote it, per this machine's
-/// ledger), `foreign` (something else did), or `stub` (unreadable).
-fn ls_rows(listing: &[RemoteEntry], ledger: Option<&Ledger>) -> Vec<String> {
-    listing
-        .iter()
-        .map(|e| {
-            let mark = if e.is_broken {
-                "stub"
-            } else if ledger.is_some_and(|l| l.has_name(&e.name)) {
-                "ledger"
-            } else {
-                "foreign"
-            };
-            let size = if e.is_broken || e.is_folder {
-                "-".to_string()
-            } else {
-                size(e.size)
-            };
-            let slash = if e.is_folder { "/" } else { "" };
-            format!("{mark:<8} {size:>10}  {}{slash}", strip_control(&e.name))
-        })
-        .collect()
+/// `ledger` (Pelican wrote it, per this machine's ledger), `foreign`
+/// (something else did), or `stub` (unreadable), then size and name.
+fn ls_line(r: &Row) -> String {
+    let mark = match r.origin {
+        Origin::Ledger => "ledger",
+        Origin::Foreign => "foreign",
+        Origin::Stub => "stub",
+    };
+    let size = r.size.map_or("-".to_string(), size);
+    let slash = if r.is_folder { "/" } else { "" };
+    format!("{mark:<8} {size:>10}  {}{slash}", r.name)
 }
 
 fn ledger(a: DeviceArgs) -> Result<ExitCode> {
@@ -350,6 +304,14 @@ fn ledger(a: DeviceArgs) -> Result<ExitCode> {
         l.path().display()
     )?;
     Ok(ExitCode::SUCCESS)
+}
+
+/// A warning, not a refusal: gvfs may let go by the time the session
+/// opens, and if it does not, the open fails with its own explanation.
+fn warn_if_held() {
+    if let Some(c) = platform::detect() {
+        eprintln!("warning: {}", c.message());
+    }
 }
 
 fn serial_of(device: &Device) -> Result<String> {
@@ -399,8 +361,8 @@ fn size(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pelican_core::hash;
     use pelican_core::ledger::Event;
-    use pelican_core::mtp::fake::FakeDevice;
 
     #[test]
     fn dry_run_prints_the_plan_and_writes_nothing() {
@@ -484,24 +446,26 @@ mod tests {
     }
 
     #[test]
-    fn ls_marks_ledger_foreign_and_stub() {
-        let tmp = tempfile::tempdir().unwrap();
-        let dev = FakeDevice::new();
-        dev.add_file("Music", "PL00001-One.mp3", &[0; 2048]);
-        dev.add_file("Music", "Garmin Express.m4a", b"x");
-        dev.add_file("Music", "evil\u{1b}[2J.mp3", b"x");
-        dev.add_stub("Music");
-        let mut l = Ledger::open(tmp.path(), "1").unwrap();
-        l.append(Event::new(Kind::Reserve, 1, "pl00001-one.mp3"))
-            .unwrap();
-        let listing = dev.backend().list_dir("Music").unwrap();
-        let rows = ls_rows(&listing, Some(&l));
-        let find = |needle: &str| rows.iter().find(|r| r.contains(needle)).unwrap().clone();
-        assert!(find("PL00001-One.mp3").starts_with("ledger"));
-        assert!(find("2.0 KiB").contains("PL00001"));
-        assert!(find("Garmin Express.m4a").starts_with("foreign"));
-        assert!(find("‹unreadable").starts_with("stub"));
-        assert!(rows.iter().all(|r| !r.contains('\u{1b}')), "{rows:?}");
+    fn ls_lines_read_like_the_listing() {
+        let row = |name: &str, size, is_folder, origin| Row {
+            name: name.into(),
+            size,
+            is_folder,
+            origin,
+            handle: 1,
+        };
+        assert_eq!(
+            ls_line(&row("PL00001-One.mp3", Some(2048), false, Origin::Ledger)),
+            "ledger      2.0 KiB  PL00001-One.mp3"
+        );
+        assert_eq!(
+            ls_line(&row("‹unreadable #7›", None, false, Origin::Stub)),
+            "stub              -  ‹unreadable #7›"
+        );
+        assert_eq!(
+            ls_line(&row("Podcasts", None, true, Origin::Foreign)),
+            "foreign           -  Podcasts/"
+        );
     }
 
     #[test]

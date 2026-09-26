@@ -3,10 +3,11 @@
 //!
 //! The order is the design:
 //!
-//! 1. **Plan** ([`plan`]) — resolve every file's tags. Reads only; this is
-//!    all `--dry-run` does.
-//! 2. **Hash and skip** — a source whose hash the ledger has as `verified`
-//!    is already on the watch (R5), unless `--resend`.
+//! 1. **Plan** ([`plan`]) — resolve every file's tags. Reads only.
+//! 2. **Hash and skip** ([`preview`]) — a source whose hash the ledger has
+//!    as `verified` is already on the watch (R5), unless `--resend`. Steps 1
+//!    and 2 are all `--dry-run` does, and they are the same code the run
+//!    uses, so the plan it prints is the run that would happen.
 //! 3. **Transcode all** into this run's staging dir (R8). The device is
 //!    not open yet, and afterwards the exact bytes to send are on disk.
 //! 4. **One session** (R6): list `/Music` once, refuse the run if it cannot
@@ -14,6 +15,10 @@
 //!    upload, read the object back, compare SHA-256. A mismatch or error is
 //!    recorded as `failed` and retried under a *new* name; the old one stays
 //!    burned.
+//!
+//! A front-end calls [`push`] and hears about the run through
+//! [`Env::progress`], one owned, serializable [`Progress`] at a time, so the
+//! events can be forwarded across a thread or to a webview as they are.
 //!
 //! Nothing here deletes, and nothing writes a name twice. A failed write
 //! leaves an object on the watch that Pelican cannot remove — the music
@@ -24,34 +29,20 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
+use serde::Serialize;
 
 use crate::garmin::MUSIC_FOLDER;
 use crate::hash;
 use crate::ledger::{Event, Kind, Ledger};
-use crate::mtp::{Backend, RemoteEntry};
+use crate::mtp::Backend;
 use crate::naming::Names;
 use crate::source::Source;
 use crate::staging::StagingDir;
 use crate::transcode::tags::{Overrides, Resolved};
+use crate::watch::{audio_objects, MAX_OBJECTS};
 
 /// Headroom kept free on the watch beyond the planned bytes.
 pub const FREE_MARGIN: u64 = 2 << 20;
-
-/// Garmin's documented ceiling on audio files in the music library.
-pub const MAX_OBJECTS: usize = 500;
-
-/// How many of `listing`'s entries count toward [`MAX_OBJECTS`].
-///
-/// The limit is on audio, so a readable `.m3u8` or `.txt` does not count.
-/// A stub does: it is an object the library still holds, and whether it is
-/// audio cannot be told from a name nobody can read. `pelican status` and
-/// the run's own check both use this, so the two numbers agree.
-pub fn audio_objects(listing: &[RemoteEntry]) -> usize {
-    listing
-        .iter()
-        .filter(|e| !e.is_folder && (e.is_broken || crate::transcode::is_audio(Path::new(&e.name))))
-        .count()
-}
 
 /// One source and what its tag will say — or why it cannot be sent.
 #[derive(Debug, Clone)]
@@ -92,8 +83,69 @@ impl Default for Options {
     }
 }
 
+/// What the run will do with one planned file, decided before anything is
+/// transcoded.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Verdict {
+    /// Transcode and send it.
+    Send {
+        source_sha256: String,
+    },
+    Skip(Skip),
+    /// It fails without reaching the watch: an empty title, or a source
+    /// that cannot be read.
+    Refused {
+        reason: String,
+    },
+}
+
+/// Steps 1–2 of a run, for every entry in plan order: hash each source and
+/// decide. Reads the sources and `ledger`; writes nothing.
+///
+/// `ledger` is `None` when there is none to ask (a dry run that has not
+/// been told which watch), and then nothing is "already on the watch".
+pub fn preview(entries: &[PlanEntry], ledger: Option<&Ledger>, resend: bool) -> Vec<Verdict> {
+    // Hashing reads each source once in full; it is the only identity that
+    // survives a rename or a re-rip to the same bytes.
+    let mut seen: HashMap<String, &Path> = HashMap::new();
+    entries
+        .iter()
+        .map(|e| {
+            if let Err(reason) = &e.tags {
+                return Verdict::Refused {
+                    reason: reason.clone(),
+                };
+            }
+            let path = e.source.path.as_path();
+            let sha = match hash::file(path) {
+                Ok(s) => s,
+                Err(err) => {
+                    return Verdict::Refused {
+                        reason: format!("{err:#}"),
+                    }
+                }
+            };
+            // "Already on the watch" is the more useful thing to say about
+            // a copy, so the ledger is asked first.
+            let on_watch = ledger
+                .filter(|_| !resend)
+                .and_then(|l| l.verified(&sha))
+                .map(|v| v.remote.clone());
+            let first = seen.get(&sha).map(|p| p.to_path_buf());
+            seen.entry(sha.clone()).or_insert(path);
+            match (on_watch, first) {
+                (Some(remote), _) => Verdict::Skip(Skip::AlreadyOnWatch { remote }),
+                (None, Some(first)) => Verdict::Skip(Skip::DuplicateOf(first)),
+                (None, None) => Verdict::Send { source_sha256: sha },
+            }
+        })
+        .collect()
+}
+
 /// How one file ended.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Outcome {
     /// Uploaded and read back byte-identical.
     Verified { remote: String, bytes: u64 },
@@ -106,7 +158,8 @@ pub enum Outcome {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Skip {
     /// The ledger has this audio as verified under `remote`.
     AlreadyOnWatch { remote: String },
@@ -114,19 +167,19 @@ pub enum Skip {
     DuplicateOf(PathBuf),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FileReport {
     pub source: PathBuf,
     pub outcome: Outcome,
 }
 
 /// What a run did, one entry per planned file, in plan order.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct Report {
     pub files: Vec<FileReport>,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Tally {
     pub verified: usize,
     pub skipped: usize,
@@ -147,25 +200,44 @@ impl Report {
     }
 }
 
-/// What the run is doing, as it happens — for the CLI to print.
-#[derive(Debug)]
-pub enum Progress<'a> {
+/// What the run is doing, as it happens.
+///
+/// Owned, so a front-end can send it to another thread or serialize it as
+/// is. Every planned file ends in exactly one [`Progress::Done`]; the rest
+/// are for showing work in flight.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Progress {
     Transcoding {
         n: usize,
         of: usize,
-        source: &'a Path,
+        source: PathBuf,
     },
     /// Every file is transcoded; the session is about to open.
     Connecting { files: usize, bytes: u64 },
+    /// An attempt is starting — `attempt` counts from 1. `remote` is
+    /// already burned in the ledger.
+    Sending {
+        source: PathBuf,
+        remote: String,
+        attempt: u32,
+    },
+    /// Bytes of the current attempt's upload that have crossed the wire.
+    /// Read-back follows; nothing is proven until [`Progress::Done`].
+    Uploading {
+        remote: String,
+        sent: u64,
+        total: u64,
+    },
     /// One attempt failed. `retrying` says whether another name is next.
     AttemptFailed {
-        source: &'a Path,
-        remote: &'a str,
-        reason: &'a str,
+        source: PathBuf,
+        remote: String,
+        reason: String,
         retrying: bool,
     },
     /// A file is finished, whichever way.
-    Done(&'a FileReport),
+    Done(FileReport),
 }
 
 /// Transcodes `src` to `dst` writing `tags`. [`crate::transcode::encoder::encode`]
@@ -177,7 +249,9 @@ pub struct Env<'a> {
     /// Cache dir the run's [`StagingDir`] is created under.
     pub staging_base: &'a Path,
     pub encode: Encode<'a>,
-    pub progress: &'a mut dyn FnMut(Progress<'_>),
+    /// `Send` because upload progress is reported from inside the
+    /// backend's upload, which requires it.
+    pub progress: &'a mut (dyn FnMut(Progress) + Send),
 }
 
 /// A file that made it to step 4.
@@ -193,7 +267,7 @@ struct Ready {
 
 /// Collects outcomes in plan order and tells the CLI as each one lands.
 struct Out<'a> {
-    progress: &'a mut dyn FnMut(Progress<'_>),
+    progress: &'a mut (dyn FnMut(Progress) + Send),
     reports: Vec<Option<FileReport>>,
 }
 
@@ -203,7 +277,7 @@ impl Out<'_> {
             source: source.to_path_buf(),
             outcome,
         };
-        (self.progress)(Progress::Done(&report));
+        (self.progress)(Progress::Done(report.clone()));
         self.reports[idx] = Some(report);
     }
 
@@ -238,42 +312,19 @@ pub fn push(
         reports: vec![None; entries.len()],
     };
 
-    // Step 2: hash, refuse, skip. Hashing reads each source once in full;
-    // it is the only identity that survives a rename or a re-rip to the
-    // same bytes.
+    // Step 2: hash, refuse, skip.
+    let verdicts = preview(&entries, Some(ledger), opts.resend);
     let mut todo = Vec::new();
-    let mut seen: HashMap<String, PathBuf> = HashMap::new();
-    for (idx, e) in entries.into_iter().enumerate() {
+    for (idx, (e, verdict)) in entries.into_iter().zip(verdicts).enumerate() {
         let path = e.source.path;
-        let tags = match e.tags {
-            Ok(t) => t,
-            Err(reason) => {
-                out.failed(idx, &path, reason);
-                continue;
+        match (verdict, e.tags) {
+            (Verdict::Send { source_sha256 }, Ok(tags)) => {
+                todo.push((idx, path, source_sha256, tags))
             }
-        };
-        let sha = match hash::file(&path) {
-            Ok(s) => s,
-            Err(err) => {
-                out.failed(idx, &path, format!("{err:#}"));
-                continue;
-            }
-        };
-        // "Already on the watch" is the more useful thing to say about a
-        // copy, so the ledger is asked first.
-        let skip = match (opts.resend, ledger.verified(&sha), seen.get(&sha)) {
-            (false, Some(v), _) => Some(Skip::AlreadyOnWatch {
-                remote: v.remote.clone(),
-            }),
-            (_, _, Some(first)) => Some(Skip::DuplicateOf(first.clone())),
-            _ => None,
-        };
-        seen.entry(sha.clone()).or_insert_with(|| path.clone());
-        if let Some(skip) = skip {
-            out.done(idx, &path, Outcome::Skipped(skip));
-            continue;
+            (Verdict::Skip(skip), _) => out.done(idx, &path, Outcome::Skipped(skip)),
+            (Verdict::Refused { reason }, _) => out.failed(idx, &path, reason),
+            (Verdict::Send { .. }, Err(_)) => unreachable!("preview refuses a file without tags"),
         }
-        todo.push((idx, path, sha, tags));
     }
 
     // Step 3: transcode everything before the device is touched. The
@@ -286,7 +337,7 @@ pub fn push(
         (out.progress)(Progress::Transcoding {
             n: n + 1,
             of,
-            source: &source,
+            source: source.clone(),
         });
         let staged = staging.file(n);
         let done = (env.encode)(&source, &staged, &tags).and_then(|()| {
@@ -404,7 +455,12 @@ fn send_all(
             ledger.append(event(Kind::Reserve, counter, &remote, &r, None))?;
             remotes.push(remote.clone());
             objects += 1;
-            match send_one(dev, &r, &remote) {
+            (out.progress)(Progress::Sending {
+                source: r.source.clone(),
+                remote: remote.clone(),
+                attempt: attempt + 1,
+            });
+            match send_one(dev, &r, &remote, out.progress) {
                 Ok(()) => {
                     ledger.append(event(Kind::Verified, counter, &remote, &r, None))?;
                     break Outcome::Verified {
@@ -424,9 +480,9 @@ fn send_all(
                         }
                     }
                     (out.progress)(Progress::AttemptFailed {
-                        source: &r.source,
-                        remote: &remote,
-                        reason: &reason,
+                        source: r.source.clone(),
+                        remote: remote.clone(),
+                        reason: reason.clone(),
                         retrying,
                     });
                     if !retrying {
@@ -448,8 +504,20 @@ fn send_all(
 ///
 /// The error is the ledger's `reason`, so it states what happened and
 /// nothing more.
-fn send_one(dev: &mut dyn Backend, r: &Ready, remote: &str) -> std::result::Result<(), String> {
-    dev.upload(&r.staged, MUSIC_FOLDER, remote, &mut |_, _| {})
+fn send_one(
+    dev: &mut dyn Backend,
+    r: &Ready,
+    remote: &str,
+    progress: &mut (dyn FnMut(Progress) + Send),
+) -> std::result::Result<(), String> {
+    let mut on_bytes = |sent, total| {
+        progress(Progress::Uploading {
+            remote: remote.to_string(),
+            sent,
+            total,
+        })
+    };
+    dev.upload(&r.staged, MUSIC_FOLDER, remote, &mut on_bytes)
         .map_err(|e| format!("upload failed: {e:#}"))?;
     let back = dev
         .download_file(&format!("{MUSIC_FOLDER}/{remote}"))

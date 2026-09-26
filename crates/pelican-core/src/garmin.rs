@@ -7,7 +7,6 @@ pub const GARMIN_VENDOR_ID: u16 = 0x091E;
 pub const MUSIC_FOLDER: &str = "Music";
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // vendor_id/product_id surfaced for future "known model" warnings
 pub struct Device {
     pub vendor_id: u16,
     pub product_id: u16,

@@ -20,7 +20,7 @@ use pelican_core::mtp::fake::{Call, FakeDevice, Faults};
 use pelican_core::mtp::Backend;
 use pelican_core::source;
 use pelican_core::transcode::tags::{Overrides, Resolved};
-use pelican_core::transfer::{self, Env, Options, Outcome, Report, Skip};
+use pelican_core::transfer::{self, Env, Options, Outcome, Progress, Report, Skip, Verdict};
 
 const SERIAL: &str = "3456789012";
 
@@ -533,7 +533,7 @@ fn readable_non_audio_does_not_count_toward_the_object_limit() {
         h.dev.add_file("Music", &format!("other{i}.{ext}"), b"x");
     }
     let listing = h.dev.backend().list_dir("Music").unwrap();
-    assert_eq!(pelican_core::transfer::audio_objects(&listing), 480);
+    assert_eq!(pelican_core::watch::audio_objects(&listing), 480);
     for n in 1..=5 {
         h.source(&format!("A/0{n} - Song.wav"), None);
     }
@@ -596,7 +596,7 @@ fn a_retry_does_not_spend_a_later_files_slot() {
     let t = report.tally();
     assert_eq!((t.verified, t.failed), (4, 1));
     let listing = h.dev.backend().list_dir("Music").unwrap();
-    assert_eq!(pelican_core::transfer::audio_objects(&listing), 500);
+    assert_eq!(pelican_core::watch::audio_objects(&listing), 500);
 }
 
 /// With room to spare the same failure is retried as usual: the check
@@ -617,7 +617,7 @@ fn a_retry_with_room_for_everything_still_happens() {
     let report = h.run(&[h.music()], one_retry()).unwrap();
     assert_eq!(report.tally().verified, 5);
     let listing = h.dev.backend().list_dir("Music").unwrap();
-    assert_eq!(pelican_core::transfer::audio_objects(&listing), 500);
+    assert_eq!(pelican_core::watch::audio_objects(&listing), 500);
 }
 
 /// Bytes the same way: room for both files plus the margin and nothing
@@ -722,4 +722,122 @@ fn refused_and_unencodable_files_fail_without_touching_the_watch() {
     let report = h.run(&[bad, good], one_retry()).unwrap();
     let t = report.tally();
     assert_eq!((t.verified, t.failed), (1, 1));
+}
+
+/// The event stream a front-end sees for one file that fails once and then
+/// verifies: every attempt announced with its burned name, upload bytes in
+/// between, and exactly one `Done` per planned file — the last event.
+#[test]
+fn a_run_reports_each_attempt_as_it_happens() {
+    let h = Harness::new();
+    h.source("A/01 - One.wav", None);
+    h.source("A/02 - One.wav", Some("A/01 - One.wav"));
+    h.dev.set_faults(Faults {
+        corrupt_uploads: 1,
+        ..Default::default()
+    });
+    let entries = transfer::plan(source::expand(&[h.music()]).unwrap(), &Overrides::default());
+    let mut ledger = Ledger::open(&h.data(), SERIAL).unwrap();
+    let mut events = Vec::new();
+    let dev = h.dev.clone();
+    transfer::push(
+        entries,
+        &mut ledger,
+        || Ok(dev.backend()),
+        one_retry(),
+        Env {
+            staging_base: &h.cache(),
+            encode: &fake_encode,
+            progress: &mut |p| events.push(p),
+        },
+    )
+    .unwrap();
+
+    let kinds: Vec<String> = events
+        .iter()
+        .map(|p| {
+            serde_json::to_value(p).unwrap()["kind"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    // The copy is decided before anything is transcoded, so its `Done`
+    // comes first.
+    assert_eq!(kinds.first().map(String::as_str), Some("done"));
+    let sending: Vec<_> = events
+        .iter()
+        .filter_map(|p| match p {
+            Progress::Sending {
+                remote, attempt, ..
+            } => Some((remote.as_str(), *attempt)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(sending, [("pl00001-One.mp3", 1), ("pl00002-One.mp3", 2)]);
+    assert!(events.iter().any(|p| matches!(
+        p,
+        Progress::Uploading { sent, total, .. } if sent == total && *total > 0
+    )));
+    assert!(events
+        .iter()
+        .any(|p| matches!(p, Progress::AttemptFailed { retrying: true, .. })));
+    let done = kinds.iter().filter(|k| *k == "done").count();
+    assert_eq!(done, 2, "one Done per planned file");
+    assert_eq!(kinds.last().map(String::as_str), Some("done"));
+
+    // Serialized, an outcome reads the way a UI would switch on it.
+    let last = serde_json::to_value(events.last().unwrap()).unwrap();
+    assert_eq!(last["outcome"]["kind"], "verified");
+    assert_eq!(last["outcome"]["remote"], "pl00002-One.mp3");
+    let first = serde_json::to_value(&events[0]).unwrap();
+    assert_eq!(first["outcome"]["kind"], "skipped");
+    assert!(first["outcome"]["duplicate_of"]
+        .as_str()
+        .unwrap()
+        .ends_with("01 - One.wav"));
+}
+
+/// `preview` is steps 1–2 of the run, and touches nothing.
+#[test]
+fn preview_decides_what_the_run_would_do() {
+    let h = Harness::new();
+    let one = h.source("A/01 - One.wav", None);
+    h.source("A/02 - Again.wav", Some("A/01 - One.wav"));
+    h.source("A/\u{2117}.wav", None);
+    let entries = transfer::plan(source::expand(&[h.music()]).unwrap(), &Overrides::default());
+    let mut l = Ledger::open(&h.data(), SERIAL).unwrap();
+    let mut e = pelican_core::ledger::Event::new(Kind::Verified, 9, "pl00009-One.mp3");
+    e.source_sha256 = pelican_core::hash::file(&one).unwrap();
+    l.append(e).unwrap();
+
+    let kinds = |v: Vec<Verdict>| -> Vec<String> {
+        v.iter()
+            .map(|v| {
+                serde_json::to_value(v).unwrap()["kind"]
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect()
+    };
+    // Plan order: 01, 02, ℗ (sorted by name).
+    assert_eq!(
+        kinds(transfer::preview(&entries, Some(&l), false)),
+        ["skip", "skip", "refused"]
+    );
+    assert!(matches!(
+        &transfer::preview(&entries, Some(&l), false)[0],
+        Verdict::Skip(Skip::AlreadyOnWatch { remote }) if remote == "pl00009-One.mp3"
+    ));
+    // `--resend`, or no ledger to ask: the first copy goes, the second is a repeat.
+    for v in [
+        transfer::preview(&entries, Some(&l), true),
+        transfer::preview(&entries, None, false),
+    ] {
+        assert!(matches!(v[0], Verdict::Send { .. }), "{v:?}");
+        assert!(matches!(v[1], Verdict::Skip(Skip::DuplicateOf(_))), "{v:?}");
+    }
+    assert_eq!(h.dev.calls(), [], "a preview touches no device");
+    assert!(!h.cache().exists(), "a preview transcodes nothing");
 }

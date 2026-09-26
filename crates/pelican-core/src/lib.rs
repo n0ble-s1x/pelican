@@ -12,7 +12,8 @@
 //! only through [`mtp::Backend`] and to the filesystem through [`source`]
 //! (what to send), [`transcode`] (what it becomes) and [`staging`] (where it
 //! waits). [`ledger`] is the per-device record of every name ever written,
-//! and [`naming`] turns it into names that have never been used.
+//! and [`naming`] turns it into names that have never been used. [`watch`]
+//! is the read-only side: what is on the device now, and whose it is.
 
 pub mod garmin;
 pub mod hash;
@@ -25,3 +26,4 @@ pub mod source;
 pub mod staging;
 pub mod transcode;
 pub mod transfer;
+pub mod watch;

@@ -6,6 +6,79 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+The rebuild (`docs/rebuild-plan.md`, R1–R12): Pelican is now a core library
+and a CLI, and it does one thing — transcode to one known-good profile, push
+under a name that has never been used, and prove each file landed intact.
+**Not yet run against a watch**; everything below is proven against the fake
+MTP backend and a real ffmpeg. `docs/status.md` has what it does and does not
+do.
+
+### Added
+- **The ledger** — `$XDG_DATA_HOME/pelican/ledger-<serial>.jsonl`, append-only
+  JSON Lines of every name ever used on a watch (`reserve`, `verified`,
+  `failed`). The reserve line is fsync'd before the upload starts, the file is
+  locked for the run, and an unparsable line is a hard error (R4).
+- **Names that are never reused** — `pl{counter:05}-{slug}.mp3`, the counter
+  above every name in the ledger, on the device, and past every unreadable
+  stub. No overwrite and no rename-on-collision branch (R3).
+- **Read-back proof** — every upload is downloaded and its SHA-256 compared
+  with the local transcode. A mismatch or error is recorded as `failed`, the
+  name stays burned, and the file is retried once under a fresh name (R6).
+- **Skip what is already there** — a source the ledger has as `verified` is
+  skipped unless `--resend`; a repeat within one run is sent once (R5).
+- **Capacity check before any write** — free space with a 2 MiB margin, and
+  Garmin's 500-audio-object limit, for the run and again for each retry (R7).
+- **Tags that are always there** — title, artist, album_artist, album, track,
+  date, genre, each resolved override → source tag → path; an empty title is
+  refused (R2).
+- **CLI**: `pelican push`, `status`, `ls`, `ledger` (R9). `push --dry-run`
+  goes through the same decision code as a real run.
+- **API for the coming UI** — `transfer::preview` (per-file verdict, no
+  device, no transcode), `transfer::push` with owned, `Serialize` `Progress`
+  events including per-attempt `sending` and byte-level `uploading`, and
+  `watch::read` / `Snapshot::{counts, rows}` for status and listing.
+- `udev/70-garmin-mtp.rules` (R10).
+
+### Changed
+- **One output profile**: every source is re-encoded by ffmpeg to CBR 192 kbps
+  44.1 kHz stereo MP3, ID3v2.3, no art (R1).
+- **Transcode everything, then one MTP session per run** (R6, R8), instead of
+  a session per file. Staging lives in `$XDG_CACHE_HOME/pelican/staging/` and
+  is removed however the run ends; a Ctrl-C leftover is swept at next start.
+- One case fold (`mtp::fold_name`) for every name comparison (R11.2, R11.3).
+- An empty or relative `XDG_DATA_HOME`, `XDG_CACHE_HOME` or `HOME` is treated
+  as unset, so the ledger's location never depends on the current directory.
+- MSRV 1.89 (`std::fs::File::lock`).
+
+### Removed
+- **Delete, in every form.** The `Backend` trait has no delete method. Deleting
+  an object does not take a track out of the watch's library, and a
+  delete-then-write is how a name gets reused (R6, R9).
+- Playlist writes and local playlists (`playlist.rs`, `history.rs`).
+- The egui GUI, the macOS Tauri shell (`crates/pelican-shell`) and `ui/`. The
+  UI is rebuilt later against the core. The desktop launcher is no longer
+  packaged.
+- The afconvert encoder and native-format passthrough.
+- `udev/99-garmin-music.rules` — at 99 its `uaccess` tag arrives after systemd
+  has decided the ACL, so it never worked.
+- Hardware examples that write or delete (`wipe_music`, `wipe_stubs`,
+  `test_delete`, `probe_vendor_ops`, `usb_reset`, …). The five read-only ones
+  stay.
+
+### Fixed
+- `platform::gvfs::tests::shell_quote_neutralises_embedded_quotes` asserted
+  the wrong thing (R11.1).
+- Folder lookups compared names byte-exact while files compared
+  case-insensitively (R11.2).
+- Size-only verification, where zero counted as success, is replaced by the
+  read-back hash (R11.4).
+- No message tells the user to delete anything (R11.5).
+
+## Pre-rebuild work (never released)
+
+Kept as history. Most of it — the GUI, the macOS shell, delete, playlists,
+afconvert — was removed or superseded by the rebuild above.
+
 ### Added
 - **macOS support, verified on hardware.** Forerunner 165 Music · FW 2506 on
   macOS 26.6.2 (Apple silicon): session open, `/Music` listing, upload and

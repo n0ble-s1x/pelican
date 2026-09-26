@@ -79,12 +79,42 @@ pub fn detect() -> Option<Contention> {
 mod tests {
     use super::*;
 
+    /// The host string comes off USB descriptors the device controls.
+    ///
+    /// This test used to assert the output did not *contain* `'; rm`, and
+    /// failed against correct code: the standard `'\''` idiom closes the
+    /// quote, emits an escaped quote and reopens, so the characters `'; rm`
+    /// do appear — inside a quoted word, where they are inert. The code was
+    /// right and the substring check was wrong. What matters is what a shell
+    /// makes of the result, so that is what is asserted now.
     #[test]
     fn shell_quote_neutralises_embedded_quotes() {
-        // The host string comes off USB descriptors the device controls.
-        let got = shell_quote("a'; rm -rf ~; echo '");
-        assert!(got.starts_with('\'') && got.ends_with('\''));
-        assert!(!got.contains("'; rm"), "quote escape failed: {got}");
+        let hostile = "a'; rm -rf ~; echo '";
+        assert_eq!(shell_quote(hostile), r"'a'\''; rm -rf ~; echo '\'''");
+    }
+
+    /// Round-trip through a real `sh`: one argument in, the same bytes out,
+    /// nothing executed.
+    #[test]
+    fn shell_quote_survives_a_real_shell() {
+        for hostile in [
+            "a'; rm -rf ~; echo '",
+            "$(touch /nonexistent/pwned)",
+            "`id`",
+            r#"a"b\c"#,
+            "091E_4CA1_'\n'x",
+        ] {
+            let script = format!("printf %s {}", shell_quote(hostile));
+            let Ok(out) = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(&script)
+                .output()
+            else {
+                return; // no sh here; the exact-string test above still holds
+            };
+            assert!(out.status.success(), "{script}");
+            assert_eq!(String::from_utf8_lossy(&out.stdout), hostile, "{script}");
+        }
     }
 
     #[test]

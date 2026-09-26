@@ -34,7 +34,7 @@ cargo deb --release -p pelican          # → target/debian/pelican_0.X.Y_amd64.
 strip target/release/pelican
 tar -czf pelican-0.X.Y-linux-x86_64.tar.gz \
   -C target/release pelican \
-  -C ../../udev 99-garmin-music.rules \
+  -C ../../udev 70-garmin-mtp.rules \
   -C ../../packaging/desktop pelican.desktop \
   -C ../.. README.md LICENSE-MIT LICENSE-APACHE
 

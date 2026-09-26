@@ -8,7 +8,6 @@ url="https://github.com/n0ble-s1x/pelican"
 license=('MIT' 'Apache')
 depends=('ffmpeg' 'libudev.so')
 makedepends=('cargo')
-optdepends=('garmin-music: udev rule installs to /etc/udev/rules.d/')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/n0ble-s1x/pelican/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
@@ -21,9 +20,6 @@ build() {
     cd "pelican-$pkgver"
     export RUSTUP_TOOLCHAIN=stable
     export CARGO_TARGET_DIR=target
-    # -p pelican, not the whole workspace: the workspace also holds
-    # pelican-shell, whose Tauri/wry/webkit2gtk chain this package neither
-    # depends on nor needs. --all-features is dropped for the same reason.
     cargo build --frozen --release -p pelican
 }
 
@@ -36,7 +32,7 @@ check() {
 package() {
     cd "pelican-$pkgver"
     install -Dm755 "target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
-    install -Dm644 udev/99-garmin-music.rules "$pkgdir/usr/lib/udev/rules.d/99-garmin-music.rules"
+    install -Dm644 udev/70-garmin-mtp.rules "$pkgdir/usr/lib/udev/rules.d/70-garmin-mtp.rules"
     install -Dm644 packaging/desktop/pelican.desktop "$pkgdir/usr/share/applications/pelican.desktop"
     install -Dm644 LICENSE-MIT "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
     install -Dm644 LICENSE-APACHE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"

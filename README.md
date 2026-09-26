@@ -196,7 +196,7 @@ cd pelican
 cargo build --release -p pelican
 
 # Install the udev rule so you don't need root to talk to the watch
-sudo install -m 644 udev/99-garmin-music.rules /etc/udev/rules.d/
+sudo install -m 644 udev/70-garmin-mtp.rules /etc/udev/rules.d/
 sudo udevadm control --reload && sudo udevadm trigger
 ```
 

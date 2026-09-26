@@ -46,7 +46,7 @@ section = "sound"
 priority = "optional"
 assets = [
     ["../../target/release/pelican", "usr/bin/", "755"],
-    ["../../udev/99-garmin-music.rules", "usr/lib/udev/rules.d/", "644"],
+    ["../../udev/70-garmin-mtp.rules", "usr/lib/udev/rules.d/", "644"],
     ["../../packaging/desktop/pelican.desktop", "usr/share/applications/", "644"],
     ["../../README.md", "usr/share/doc/pelican/README.md", "644"],
     ["../../LICENSE-MIT", "usr/share/doc/pelican/LICENSE-MIT", "644"],

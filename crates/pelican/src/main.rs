@@ -1,11 +1,15 @@
-use clap::{CommandFactory, Parser};
+use std::process::ExitCode;
+
+use clap::Parser;
 
 use pelican_core::staging;
 
 mod cli;
+mod commands;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> ExitCode {
     tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("pelican=info,warn")),
@@ -16,7 +20,12 @@ fn main() -> anyhow::Result<()> {
     // behind, and this is the one place that can clear it.
     staging::sweep();
 
-    let _args = cli::Cli::parse();
-    cli::Cli::command().print_help()?;
-    Ok(())
+    let cli = cli::Cli::parse();
+    match commands::run(cli.command) {
+        Ok(code) => code,
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            ExitCode::FAILURE
+        }
+    }
 }

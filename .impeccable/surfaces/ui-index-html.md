@@ -7,72 +7,76 @@ related_targets: []
 
 ## Scope
 
-The Pelican desktop main window — the only surface. A local music player that
-also syncs to a Garmin watch over USB.
+The Pelican desktop window (Tauri 2, Linux-first) — the only surface. Replaces
+the removed Fjord UI entirely. Views: the guided flow (Watch → Choose →
+Review → Send), a Library way into Choose (browse a music root such as the
+NAS), and two quiet secondary views: On the watch (read-only `/Music`
+listing: ledger / foreign / stub) and Ledger.
 
 ## Visitor mode
 
-Operate. The visitor is completing a task: find music, audition it, and get a
-chosen set onto a watch that holds ~3.7 GB.
+Operate. The owner is completing a task: get chosen music onto the watch,
+proven, in one short sitting.
 
 ## Audience and job
 
-Public open-source product; the design target is a stranger on first run, not
-the maintainer. No technical literacy assumed — MTP, tags and transcoding must
-never surface as concepts. The job: browse a library on local disk or a NAS,
-play tracks to decide, build playlists, push a set to the watch, and take
-things off to make room.
+Primary: the owner — NAS music, whole albums and soundtracks, often untagged
+WAV/FLAC. Secondary: a public first-run user. Job: plug in, choose, see what
+will happen (tags, size, room left, permanence), send, watch every file verify.
 
-## Chosen direction
+## Constraints
 
-**The Fjord.** Cold blue-black ground drawn from fjord depth; an absolute
-waterline as the only structural rule; one warm value — brass, low sun on
-water — reserved for the active state and the primary action. Scandinavian
-discipline means restraint and craft in the joinery, never applied ornament:
-no runes, no knotwork, no longship silhouettes.
+Only proven capabilities (PRODUCT.md). No delete, no playlists, no playback,
+no knobs. Mixes (a playlist sent as an album) is planned and ships only once
+the core supports it. No network: every font and asset vendored. No Bond or
+Omega marks. Plain HTML/CSS/JS, no npm.
 
-Depth is the single spatial idea. Surfaces sit at a stated depth (`--air`
-above the line, `--d1`..`--d4` below); deeper is colder, darker, denser. The
-product maps onto it exactly: the library is open air, the watch is under
-water, and capacity is how high the water has risen.
+## Direction contract
 
-## Composition — approved comp F, with G's now-playing
+THESIS: Every step of the send is a title card from a modern Bond opening —
+black ink, one silhouette, one line of widely tracked capitals — and the send
+run is the credits, tracks rising as each is proven. It refuses the
+category's sidebar-plus-track-table file manager.
 
-`.impeccable/mocks/comp-f.html` is the approved comp.
+OWN-WORLD: Ink black ground (#050506) with a faintly raised ink (#0E0E10);
+bone ink text (#EDE8DE, dimmed #A7A29A); hairlines at bone 10%. Champagne
+(#C9A45C) is law: it lights only what is proven — a verified track, the send
+action, the room left — never decoration. Blood red (#8E1B1B, legible tint
+for text) appears only on failure, always with the word. One self-hosted thin
+wide-capital display face for title lines only; a vendored workhorse sans for
+everything operable; tabular figures for sizes and hashes. Every state is a
+mark plus a word. No cards, no glass, no gradients as surfaces; ink moves, UI
+chrome does not.
 
-Three columns: a sources and playlists rail; an album channel carrying a full
-hero (art at real size, HiFi metadata beside it) above the track list; and the
-watch as the far wall, whose water level *is* the capacity gauge. A player bar
-runs the full width at the bottom. G's now-playing treatment — large art, big
-title, HiFi badge — folds into the channel's hero.
+STORY: The owner sees at once which watch is connected and how much room it
+has; chooses albums by drop or from the library; reads a calm review that
+says exactly what will go, how it will be tagged, whether it fits, and that
+what goes on stays on; presses Send; watches the credits roll up as each
+track is proven by hash; unplugs and runs.
 
-## Memorable moment
+FIRST VIEWPORT: 1280×800. Left ~55%: the ink field, a round-watch silhouette
+(authored SVG, generic, no brand) sitting in slowly settled ink at optical
+centre, ~300px. Right column, vertically centred: the title line
+"FORERUNNER 165 MUSIC" in the display face (~34px, tracking ~0.28em), beneath
+it one quiet line of room — "2.3 GB free · room for about 470 tracks" — and
+one action, "Choose music". Top-right, small tracked links: On the watch ·
+Ledger. Bottom edge: the four-step index as words (Watch · Choose · Review ·
+Send), the current one in bone, the rest dim. No watch: the silhouette is
+empty ink, title "CONNECT YOUR WATCH", and the fix (cable, udev rule, gvfs)
+in one plain line.
 
-The waterline. One value, `#4a8cbe`, with a soft bloom, and the strongest value
-change anywhere in the app — because capacity is the fact that governs every
-decision the user makes. E's downward-send gesture is kept as a behaviour: a
-selection travels down into the water.
+FORM: Title Sequence — my list position 1 (Impeccable's pick; the roll
+assigned position 5, Shanghai Glass). Seed key a89ed0a8. Signature
+interaction: the credits roll — during Send, each track line rises into
+place and resolves to "Verified" in champagne with its hash prefix, and a
+thread of champagne ink blooms in the field once per verified track; at rest
+the ink is still. Motion grammar: 150–250 ms exponential ease-out for UI,
+ink is a bounded canvas effect that never runs when idle and respects
+prefers-reduced-motion.
 
-## Constraints this surface must respect
-
-- One MTP session at a time; a fresh session per file. Transfers are serial,
-  slow, and cannot be parallelised. The UI must stay responsive and honest
-  about queue position.
-- Files without title+artist tags transfer but are invisible on the watch.
-  This must be surfaced before sending, in words, not as a colour.
-- The watch does not expose its indexed library; the local journal is the only
-  record of what Pelican put there.
-- Failure is routine — firmware rejections, orphaned stubs, pulled cables.
-  Every failure must be legible and fixable without a terminal.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 
 ## Unresolved
 
-- **Playlists on the device.** The FR165 rejects MTP playlist writes;
-  `better-sync` reports success on FR945/FR255/Venu. Playlists are real in the
-  app regardless; whether they also land on the watch needs a hardware probe.
-  The UI must not imply the watch has playlists until that is settled.
-- **Bit-perfect playback.** Webview audio goes through CoreAudio's mixer and
-  may resample. The comp's "bit-perfect" badge is not yet a claim we can make.
-- **Network sources (Navidrome).** Out of scope. It would break the product's
-  stated no-network promise and needs an explicit opt-in and a rewritten claim
-  if ever taken up.
+- Mixes UI waits on core support (per-file track order, album artist).
+- Cancel-between-files needs core support before the Send view can offer Stop.

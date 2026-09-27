@@ -801,8 +801,14 @@
       `${(st.ledger?.verified ?? 0).toLocaleString("en")} sent by Pelican${st.ledger?.resets ? " since the last reset" : ""}`,
     ];
     if (st.ledger?.failed) facts.push(`${plural(st.ledger.failed, "failed attempt")} in the ledger`);
+    // Plain words first; the shell's own sentence (paths, commands) folds
+    // under "What Pelican saw", as on the not-connected cards.
     const warn = st.gvfs_warning
-      ? `<p class="warn-line">${mark("warn")}<span><span class="word">Warning</span> ${withCode(st.gvfs_warning)}</span></p>`
+      ? `<p class="warn-line">${mark("warn")}<span><span class="word">Warning</span> The file manager also has the watch open. Close it, or press the eject mark next to the watch in its side bar, before you send.</span></p>
+        <details class="every runs saw">
+          <summary>${mark("open")}What Pelican saw</summary>
+          <p class="rule-why">${withCode(st.gvfs_warning)}</p>
+        </details>`
       : "";
     v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">${esc(st.model || "Your watch")}</h1>
       <p class="lede"><span class="gold">${esc(bytes(st.free_bytes))} free</span> · room for about ${room.toLocaleString("en")} tracks</p>

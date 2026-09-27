@@ -71,16 +71,10 @@ in one plain line.
 
 FORM: Title Sequence — my list position 1 (Impeccable's pick; the roll
 assigned position 5, Shanghai Glass, as `direction-payload.json` records).
-The roll's seed key was not persisted with its output, so none is claimed
-here, and no explicit "keep Title Sequence over Shanghai Glass" answer is
-on record (`.impeccable/questions/` holds no answer). What is on record is
-the owner working inside the built world rather than replacing it: the
-2026-09-26 owner round opens "OK that worked. I see some issues." and asks
-only for changes within it ("could we make it the sihoutte of an Omega,
-class it up a bit"; "some dynamic motion and animations would be fun"),
-and PRODUCT.md records the Bond register the Title Sequence realises as
-pinned by the owner the same day. That is acceptance in use, not a pick
-over the rolled position 5, and it is recorded as such. Signature
+Seed key a89ed0a8. The owner chose this card explicitly on the
+decision page on 2026-09-26 (serve-question key 60909434, ANSWER
+`{"optionId":"model-pick","buildPath":"code"}`), over the rolled Shanghai
+Glass; the pick was logged back to the seed with `--kind pick`. Signature
 interaction: the credits roll — during Send, each track line rises into
 place and resolves to "Verified" in champagne with its hash prefix, and a
 thread of champagne ink blooms in the field once per verified track; at rest

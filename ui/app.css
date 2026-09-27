@@ -61,9 +61,12 @@
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --fast: 180ms;
   /* Card views: the field takes 52%, but gives way to the title column
-     until "FORERUNNER 165 MUSIC" (608px at 34px / 0.28em, plus the stage's
-     insets) holds one line — at 1280 that is 45%. */
-  --field: clamp(40%, 100% - 702px, 52%);
+     until "FORERUNNER 165 MUSIC" (609px at 34px / 0.28em, less its -0.28em
+     trailing margin) holds one line. The column reserves the title, the
+     right gutter and the stage's left inset at its largest (64px), so the
+     line holds through the 1280-1460 band where that inset still grows
+     with 4vw. 1280: 44%; 1440: 50%; 1600 up: 52%. */
+  --field: clamp(40%, 100% - 716px, 52%);
 
   color-scheme: dark;
 }
@@ -248,6 +251,25 @@ body[data-view="ledger"] {
   transition: transform 300ms var(--ease);
 }
 
+.watch .bezel-line {
+  fill: none;
+  stroke: rgb(237 232 222 / 0.07);
+  stroke-width: 0.8;
+}
+
+.watch .facets {
+  fill: none;
+  stroke: rgb(237 232 222 / 0.1);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+.watch .dial-ring {
+  fill: none;
+  stroke: rgb(237 232 222 / 0.07);
+  stroke-width: 1;
+}
+
 .watch .pip {
   fill: rgb(237 232 222 / 0.16);
 }
@@ -307,9 +329,25 @@ body.no-watch .watch .sil-edge {
   fill: var(--ink);
 }
 
+/* Empty, the watch is drawn in bone hairline: one continuous edge (the
+   scalloped bezel, the lugs, the crowns), the dial ring inside it, and the
+   lug facets. Nothing dotted, so the head reads round, not jagged. */
 body.no-watch .watch .sil-edge {
-  stroke: rgb(237 232 222 / 0.2);
-  stroke-dasharray: 2 5;
+  stroke: rgb(237 232 222 / 0.22);
+  stroke-width: 1.4;
+}
+
+body.no-watch .watch .bezel-line {
+  stroke: rgb(237 232 222 / 0.22);
+  stroke-width: 0.7;
+}
+
+body.no-watch .watch .dial-ring {
+  stroke: rgb(237 232 222 / 0.18);
+}
+
+body.no-watch .watch .facets {
+  stroke: rgb(237 232 222 / 0.14);
 }
 
 body.no-watch .watch .room-arc,
@@ -1435,6 +1473,21 @@ details.runs pre code {
   margin-top: 22px;
 }
 
+/* The no-watch fixes: plain moves, numbered like the reset steps. What the
+   shell actually said is folded beneath the actions for anyone who wants
+   the evidence. */
+.howto.fix {
+  max-width: 52ch;
+}
+
+details.saw {
+  margin-top: 30px;
+}
+
+details.saw .rule-why {
+  max-width: 60ch;
+}
+
 /* ------------------------------------------------ on the watch + ledger */
 
 .watch-row {
@@ -1844,6 +1897,13 @@ details.tags .overrides {
 
 .backup-failed li {
   overflow-wrap: anywhere;
+}
+
+#backup-next .why-not {
+  flex-basis: 100%;
+  margin-top: -4px;
+  font-size: var(--t-sm);
+  color: var(--bone-dim);
 }
 
 .backup .why-not {

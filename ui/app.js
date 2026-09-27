@@ -542,8 +542,10 @@
 
   // ------------------------------------------------------------ motion
 
-  // Title cards: the title line resolves out of wide, soft tracking, and the
-  // lines beneath it settle in after it. List views bring their rows in as a
+  // Title cards: the title line opens from its centre out of soft focus (a
+  // clip-path reveal, never tracking or size, so the line is laid out once
+  // at its final width and cannot re-wrap mid-motion), and the lines
+  // beneath it settle in after it. List views bring their rows in as a
   // list. Web Animations, so a later re-render never replays an entrance.
   const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
   function enter(sec) {
@@ -554,10 +556,10 @@
         if (el.classList.contains("title")) {
           el.animate(
             [
-              { opacity: 0, filter: "blur(6px)", letterSpacing: "0.46em" },
-              { opacity: 1, filter: "blur(0)", letterSpacing: "0.28em" },
+              { opacity: 0, filter: "blur(6px)", clipPath: "inset(-20% 50% -20% 50%)" },
+              { opacity: 1, filter: "blur(0)", clipPath: "inset(-20% -4% -20% -4%)" },
             ],
-            { duration: 480, easing: EASE, fill: "backwards" },
+            { duration: 520, easing: EASE, fill: "backwards" },
           );
         } else {
           el.animate(
@@ -714,38 +716,83 @@
           </div>`;
         return;
       }
-      const title = {
-        none: "Connect your watch",
-        permission: "Permission needed",
-        gvfs: "Release the watch",
-        busy: "The watch is busy",
-      }[kind];
-      const line =
-        st.error ||
-        "Plug the watch in with a data cable. If it is plugged in, install udev/70-garmin-mtp.rules, or release it from the file manager with gio mount -u.";
       const rule = S.rule;
       // The USB rule is offered where it can be the fix: a permission
       // problem, or no watch at all while the rule is not installed.
       const offer =
         (kind === "permission" || kind === "none") && rule && rule.state !== "current" && rule.state !== "unknown";
       const replug = S.ruleInstalled && kind === "permission" && rule && rule.state === "current";
-      const heading = replug ? "Unplug and replug the watch" : title;
-      // With the fix on offer, the lede says what is wrong in plain words;
-      // the shell's own sentence stays beneath it as the evidence.
-      const lede = replug
-        ? "The USB rule is installed, but the watch still refuses Pelican. Unplug it, plug it back in, then check again."
+      // Every state says what to do in plain words, as moves a person makes
+      // with the watch and this computer. File names, commands and the
+      // shell's own sentence stay folded under "What Pelican saw".
+      const plain = replug
+        ? {
+            title: "Unplug and replug the watch",
+            lede: "The USB rule is installed. The watch needs to be plugged in again before it takes effect.",
+            steps: ["Unplug the cable from the watch", "Wait five seconds", "Plug it back in, then check again"],
+          }
         : offer && kind === "permission"
-          ? "Pelican can see the watch but is not allowed to open it. This computer needs the USB rule, once."
-          : line;
-      const evidence = replug || (offer && kind === "permission");
-      v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">${esc(heading)}</h1>
-        <p class="lede">${withCode(lede)}</p>
-        ${evidence ? `<p class="facts">${withCode(firstSentence(line))}</p>` : ""}
+          ? {
+              title: "Permission needed",
+              lede: "Pelican can see the watch but this computer won't let it open it yet. Install the USB rule once, and it can.",
+              steps: [],
+            }
+          : {
+              none: {
+                title: "Connect your watch",
+                lede: "Plug the watch into this computer with the cable that came with it.",
+                steps: [
+                  "Use the Garmin cable. Many phone cables only charge and carry no data",
+                  "Plug it straight into the computer, not into a hub or a monitor",
+                  "Wake the watch: press any button, then check again",
+                ],
+              },
+              gvfs: {
+                title: "Release the watch",
+                lede: "The file manager has the watch open, and only one program can hold it at a time.",
+                steps: [
+                  "Close any file manager window showing the watch",
+                  "In the file manager's side bar, press the eject mark next to the watch",
+                  "Check again",
+                ],
+              },
+              busy: {
+                title: "The watch is busy",
+                lede: "Another program is using the watch right now.",
+                steps: [
+                  "Close Garmin Express, the file manager, or any music app that opened the watch",
+                  "If that doesn't free it, unplug the watch and plug it back in",
+                  "Check again",
+                ],
+              },
+              permission: {
+                title: "Permission needed",
+                lede: "The watch is plugged in, but this computer won't let Pelican open it.",
+                steps: [
+                  "Unplug the watch and plug it back in",
+                  "If it still refuses, restart the computer once with the watch unplugged",
+                  "Check again",
+                ],
+              },
+            }[kind];
+      const saw = st.error
+        ? `<details class="every runs saw">
+            <summary>${mark("open")}What Pelican saw</summary>
+            <p class="rule-why">${withCode(st.error)}</p>
+          </details>`
+        : "";
+      const steps = plain.steps.length
+        ? `<ol class="howto fix" aria-label="What to do">${plain.steps.map((t) => `<li>${esc(t)}</li>`).join("")}</ol>`
+        : "";
+      v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">${esc(plain.title)}</h1>
+        <p class="lede">${esc(plain.lede)}</p>
+        ${steps}
         ${offer ? ruleBlock(rule) : ""}
         <div class="actions${offer ? " after-rule" : ""}">
           <button type="button" class="${offer ? "text-btn" : "act"}" data-act="recheck"${S.ruleBusy ? " disabled" : ""}>Check again</button>
           <button type="button" class="text-btn" data-go="library">Choose music meanwhile</button>
-        </div>`;
+        </div>
+        ${saw}`;
       return;
     }
     const room = roomFor(st);
@@ -780,13 +827,6 @@
     if (S.view === "reset") renderReset();
     syncChrome();
   }
-
-  // "could not open the watch: Permission denied (os error 13)." — the
-  // shell's sentences after the first are its own copy of the fix.
-  const firstSentence = (t) => {
-    const m = /^.*?\.(?=\s|$)/.exec(String(t));
-    return m ? m[0] : String(t);
-  };
 
   // --- The USB rule ----------------------------------------------------
   //
@@ -868,8 +908,8 @@
   // loads each folder as it opens, and a tick on every folder and song.
   // Nobody types a path.
 
-  const PLACE_MARK = { home: "home", music: "music", network: "network", drive: "drive", library: "library" };
-  const COMPUTER = { label: "Computer", path: "/", kind: "drive" };
+  const PLACE_MARK = { home: "home", music: "music", network: "network", drive: "drive", library: "library", computer: "computer" };
+  const COMPUTER = { label: "Computer", path: "/", kind: "computer" };
   const under = (p, dir) => p.startsWith(dir.endsWith("/") ? dir : `${dir}/`);
 
   async function loadPlaces() {
@@ -980,7 +1020,7 @@
         const cur = !S.showChosen && p.path === S.place;
         return `<li><button type="button" class="place" data-act="place" data-path="${esc(p.path)}" title="${esc(p.path)}"${
           cur ? ' aria-current="location"' : ""
-        }>${mark(PLACE_MARK[p.kind] || "drive")}<span class="pl">${esc(p.label)}</span></button></li>`;
+        }>${mark(p.path === "/" ? "computer" : PLACE_MARK[p.kind] || "drive")}<span class="pl">${esc(p.label)}</span></button></li>`;
       })
       .join("");
     const n = S.chosen.length;
@@ -1920,6 +1960,9 @@
 
   function resetStep(n) {
     const r = S.reset;
+    // No way past the backup while it is still copying, from any control.
+    const copying = r.backup && (r.backup.state === "listing" || r.backup.state === "copying");
+    if (copying && typeof n === "number" && n > 2) return;
     r.step = n;
     if (typeof n === "number") r.reached = Math.max(r.reached, n);
     r.error = null;
@@ -1979,10 +2022,7 @@
         <p class="lede">Sync the watch with Garmin Connect so your activities upload. If you use Agoge or another fitness app, pull your activities into it first.</p>
         <div class="backup" id="backup"></div>
         <p class="facts">To keep your settings too: on the watch face, hold UP, then choose System, Back Up &amp; Restore, Back Up Now. That saves them to Garmin Connect.</p>
-        <div class="actions">
-          <button type="button" class="act" data-act="reset-step" data-n="3">Continue</button>
-          ${back(1)}
-        </div>`;
+        <div class="actions" id="backup-next"></div>`;
       paintBackup();
       return;
     }
@@ -2054,6 +2094,7 @@
     if (!box) return;
     const r = S.reset;
     const b = r.backup;
+    paintBackupNext(b);
     const st = S.status;
     const connected = st && st.connected;
     const where = r.dest ? `<span class="path">${esc(r.dest)}</span>` : "a dated folder in Documents";
@@ -2086,6 +2127,30 @@
       <span class="meter wide" aria-hidden="true"><i></i></span>
       <p class="rule-why"><span class="path">${esc(b.path || "")}</span></p>`;
     $(".meter i", box).style.transform = `scaleX(${pct.toFixed(3)})`;
+  }
+
+  // The way on from step 2. The next card says to erase the watch, so a
+  // backup in progress holds Continue: it opens when the copy finishes (or
+  // was never started). While it runs, the only other move is to stop it,
+  // and a stopped or partial copy is named on the button that goes on.
+  function paintBackupNext(b) {
+    const next = $("#backup-next");
+    if (!next) return;
+    const back = `<button type="button" class="text-btn" data-act="reset-step" data-n="1">Back</button>`;
+    const running = b && (b.state === "listing" || b.state === "copying");
+    if (running) {
+      next.innerHTML = `<button type="button" class="act" disabled aria-describedby="backup-wait">Continue</button>
+        <button type="button" class="text-btn" data-act="backup-stop"${b.stopping ? " disabled" : ""}>${
+          b.stopping ? "Stopping after this file" : "Stop the backup"
+        }</button>
+        <p class="why-not" id="backup-wait">Continue opens when the backup finishes. The next step erases the watch.</p>`;
+      return;
+    }
+    const partial = b && b.state === "finished" && (b.stopped || (b.failed && b.failed.length));
+    next.innerHTML = `<button type="button" class="act" data-act="reset-step" data-n="3">${
+      partial ? "Continue without a full backup" : "Continue"
+    }</button>
+      ${back}`;
   }
 
   async function startBackup() {
@@ -2381,6 +2446,19 @@
       case "backup":
         startBackup();
         break;
+      case "backup-stop": {
+        const b = S.reset && S.reset.backup;
+        if (!b || b.stopping) break;
+        b.stopping = true;
+        paintBackup();
+        announce("Stopping the backup after this file.");
+        try {
+          await api.invoke("stop");
+        } catch (err) {
+          notice(errText(err), { error: true });
+        }
+        break;
+      }
       default:
         break;
     }
@@ -2723,13 +2801,19 @@
       emitBackup({ run_id: id, kind: "listing" });
       await wait(500);
       let total = 0;
+      let files = 0;
+      stopFlag = false;
       for (let i = 0; i < GARMIN.length; i += 1) {
         const [path, size] = GARMIN[i];
         total += size;
+        files += 1;
         emitBackup({ run_id: id, kind: "file", index: i, total: GARMIN.length, path, bytes: size });
         await wait(34);
+        if (stopFlag) break;
       }
-      emitBackup({ run_id: id, kind: "finished", files: GARMIN.length, bytes: total, dest, failed: [], unreadable: 0, stopped: false });
+      const stopped = stopFlag && files < GARMIN.length;
+      stopFlag = false;
+      emitBackup({ run_id: id, kind: "finished", files, bytes: total, dest, failed: [], unreadable: 0, stopped });
     }
 
     const listeners = [];

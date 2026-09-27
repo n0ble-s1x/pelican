@@ -72,7 +72,15 @@ in one plain line.
 FORM: Title Sequence — my list position 1 (Impeccable's pick; the roll
 assigned position 5, Shanghai Glass, as `direction-payload.json` records).
 The roll's seed key was not persisted with its output, so none is claimed
-here. Signature
+here, and no explicit "keep Title Sequence over Shanghai Glass" answer is
+on record (`.impeccable/questions/` holds no answer). What is on record is
+the owner working inside the built world rather than replacing it: the
+2026-09-26 owner round opens "OK that worked. I see some issues." and asks
+only for changes within it ("could we make it the sihoutte of an Omega,
+class it up a bit"; "some dynamic motion and animations would be fun"),
+and PRODUCT.md records the Bond register the Title Sequence realises as
+pinned by the owner the same day. That is acceptance in use, not a pick
+over the rolled position 5, and it is recorded as such. Signature
 interaction: the credits roll — during Send, each track line rises into
 place and resolves to "Verified" in champagne with its hash prefix, and a
 thread of champagne ink blooms in the field once per verified track; at rest
@@ -179,6 +187,35 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     running in `#reset-2`), `#reset-refused`, `#reset-done`, plus the
     earlier ones.
 
+- Finish review fixes, 2026-09-26 (disposition: fix):
+  - **Silhouette.** Empty states draw one continuous bone hairline edge
+    (22%, no dash), a dial ring at r 105 and the lug facets, and the
+    bezel's scalloped edge is drawn again over the end links, so the head
+    reads round lit or empty. Lugs are slim lyre blades with a twist facet
+    and air beside the end link. The bracelet tapers and its links stagger
+    (polished centre link, outer links half a pitch off).
+  - **Plain-words recovery.** Connect / Release / Busy / Permission each
+    say the move as a numbered list (the reset steps' list); the shell's
+    sentence, with its file names and commands, is folded under "What
+    Pelican saw". There is still no release IPC: the gvfs card tells the
+    owner to close the file manager window and eject the watch from its
+    side bar.
+  - **Backup gate.** While the GARMIN copy runs, Continue is disabled with
+    its reason and the one other move is Stop the backup (the shell's
+    `stop` covers backups); `resetStep` refuses to pass card 2 mid-copy
+    from any control. A stopped or partial copy reads "Continue without a
+    full backup".
+  - **Title entrance.** clip-path from the centre + blur + opacity, 520 ms;
+    no letter-spacing. Height measured constant (one line, 43px) through
+    every frame at 1280/1360/1440/1460/1600.
+  - **Title band.** Field is clamp(40%, 100% − 716px, 52%): the reserve
+    covers the stage inset at its 64px maximum, so 1280–1460 holds one line.
+  - **Place marks.** Drives: a drive body with activity dots. Computer: a
+    monitor on its stand.
+  - **Ceiling notes not taken:** the gun-barrel/aperture device is out
+    (PRODUCT.md bans the gun barrel); an ink-wipe between title cards and a
+    credits voice for the list views are open for a later round.
+
 ## Unresolved
 
 - Playlists (as albums) and stop-between-files are built and shipped in the
@@ -186,6 +223,3 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 - The window's backup, reset-check and wedge paths are exercised only
   against the in-file mock; the shell side of the new IPC is built
   separately.
-- DESIGN.md still describes the generic round watch, the footer promise and
-  "the field does nothing at rest"; it needs the silhouette, the breathing
-  decision and the explorer written back into it.

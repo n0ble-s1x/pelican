@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Pelican</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-view="watch">
+
+<!-- State marks. Every state is a mark plus a word; these are the marks.
+     One 1.25 stroke on a 16 grid, drawn here so nothing is fetched. -->
+<svg class="defs" aria-hidden="true" focusable="false">
+  <symbol id="m-verified" viewBox="0 0 16 16"><path d="M3.5 8.4l3 3 6-6.8"/></symbol>
+  <symbol id="m-skipped" viewBox="0 0 16 16"><path d="M4 8h8"/></symbol>
+  <symbol id="m-failed" viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></symbol>
+  <symbol id="m-pending" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.5"/></symbol>
+  <symbol id="m-active" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" class="ring"/><circle cx="8" cy="8" r="1.6" class="dot"/></symbol>
+  <symbol id="m-other" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/></symbol>
+  <symbol id="m-warn" viewBox="0 0 16 16"><path d="M8 3.5v5.5M8 11.6v.9"/></symbol>
+  <symbol id="m-up" viewBox="0 0 16 16"><path d="M4.5 9.5L8 6l3.5 3.5"/></symbol>
+  <symbol id="m-down" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></symbol>
+  <symbol id="m-open" viewBox="0 0 16 16"><path d="M6.5 4l4 4-4 4"/></symbol>
+</svg>
+
+<div class="frame">
+
+  <!-- The ink field: a bounded canvas, still at rest, one bloom per proven
+       track. The watch sits in it at optical centre. -->
+  <div class="field" id="field" aria-hidden="true">
+    <canvas id="ink"></canvas>
+    <svg id="watch" class="watch" viewBox="0 0 320 480" focusable="false">
+      <defs>
+        <linearGradient id="strap-fade-top" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+          <stop offset="1" stop-color="#fff" stop-opacity="1"/>
+        </linearGradient>
+        <linearGradient id="strap-fade-bottom" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+        </linearGradient>
+        <mask id="strap-mask-top"><rect x="0" y="0" width="320" height="140" fill="url(#strap-fade-top)"/></mask>
+        <mask id="strap-mask-bottom"><rect x="0" y="340" width="320" height="140" fill="url(#strap-fade-bottom)"/></mask>
+      </defs>
+      <g class="strap">
+        <path mask="url(#strap-mask-top)" d="M106 0h108v96c0 12-6 22-14 30H120c-8-8-14-18-14-30z"/>
+        <path mask="url(#strap-mask-bottom)" d="M120 354h80c8 8 14 18 14 30v96H106v-96c0-12 6-22 14-30z"/>
+        <g class="holes" mask="url(#strap-mask-bottom)">
+          <circle cx="160" cy="412" r="3"/><circle cx="160" cy="432" r="3"/><circle cx="160" cy="452" r="3"/>
+        </g>
+      </g>
+      <g class="buttons">
+        <rect x="270" y="166" width="16" height="26" rx="4" transform="rotate(-30 278 179)"/>
+        <rect x="270" y="268" width="16" height="26" rx="4" transform="rotate(30 278 281)"/>
+        <rect x="34" y="166" width="16" height="26" rx="4" transform="rotate(30 42 179)"/>
+        <rect x="34" y="268" width="16" height="26" rx="4" transform="rotate(-30 42 281)"/>
+        <rect x="270" y="217" width="14" height="26" rx="4"/>
+      </g>
+      <circle class="case" cx="160" cy="240" r="120"/>
+      <circle class="bezel" cx="160" cy="240" r="108"/>
+      <g class="ticks" id="ticks"></g>
+      <circle class="room-track" cx="160" cy="240" r="114"/>
+      <circle class="room-arc" id="room-arc" cx="160" cy="240" r="114" pathLength="100" transform="rotate(-90 160 240)"/>
+      <circle class="dial" cx="160" cy="240" r="96"/>
+      <text class="dial-count" id="dial-count" x="160" y="246" text-anchor="middle"></text>
+      <text class="dial-word" id="dial-word" x="160" y="270" text-anchor="middle"></text>
+    </svg>
+    <div class="veil" id="veil"><p>Release to add</p></div>
+  </div>
+
+  <header class="top">
+    <p class="mark">Pelican</p>
+    <p class="demo" id="demo-flag" hidden>Demo data · no watch is touched</p>
+    <nav class="aside-nav" aria-label="Watch records">
+      <button type="button" class="link" data-go="onwatch">On the watch</button>
+      <span class="sep" aria-hidden="true">·</span>
+      <button type="button" class="link" data-go="ledger">Ledger</button>
+    </nav>
+  </header>
+
+  <main class="stage" id="stage" tabindex="-1">
+    <p class="notice" id="notice" role="status" hidden></p>
+    <section class="view" id="v-watch" data-card aria-labelledby="t-watch"></section>
+    <section class="view" id="v-choose" data-card aria-labelledby="t-choose" hidden></section>
+    <section class="view" id="v-library" aria-labelledby="t-library" hidden></section>
+    <section class="view" id="v-review" aria-labelledby="t-review" hidden></section>
+    <section class="view" id="v-send" data-card aria-labelledby="t-send" hidden></section>
+    <section class="view" id="v-done" data-card aria-labelledby="t-done" hidden></section>
+    <section class="view" id="v-onwatch" aria-labelledby="t-onwatch" hidden></section>
+    <section class="view" id="v-ledger" aria-labelledby="t-ledger" hidden></section>
+  </main>
+
+  <footer class="foot">
+    <nav aria-label="Steps">
+      <ol class="steps" id="steps">
+        <li><button type="button" data-step="watch">Watch</button></li>
+        <li><button type="button" data-step="choose">Choose</button></li>
+        <li><button type="button" data-step="review">Review</button></li>
+        <li><button type="button" data-step="send">Send</button></li>
+      </ol>
+    </nav>
+    <p class="promise">No account · no network · nothing leaves this computer</p>
+  </footer>
+</div>
+
+<p class="sr-only" id="announce" aria-live="polite"></p>
+<script src="app.js"></script>
+</body>
+</html>

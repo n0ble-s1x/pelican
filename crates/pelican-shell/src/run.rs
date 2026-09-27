@@ -35,7 +35,7 @@ pub struct Target<'a> {
 pub fn push(
     entries: Vec<PlanEntry>,
     to: Target<'_>,
-    resend: bool,
+    options: Options,
     open: impl FnOnce() -> Result<Box<dyn Backend>>,
     encode: Encode<'_>,
     stop: Stop,
@@ -54,10 +54,7 @@ pub fn push(
         entries,
         &mut ledger,
         open,
-        Options {
-            resend,
-            ..Options::default()
-        },
+        options,
         Env {
             staging_base: to.cache,
             encode,
@@ -124,7 +121,7 @@ mod tests {
                 data: &f.data,
                 cache: &f.cache,
             },
-            false,
+            Options::default(),
             move || Ok(dev.backend()),
             &copy,
             stop,
@@ -194,6 +191,27 @@ mod tests {
             Some(Payload::Finished { skipped: 2, .. })
         ));
         assert_eq!(dev.files("Music").len(), 2);
+    }
+
+    /// The watch stops answering mid-run: the run ends in an error whose
+    /// text, as the window gets it, is the replug instruction.
+    #[test]
+    fn a_wedged_watch_ends_the_run_with_the_replug_instruction() {
+        use pelican_core::error::REPLUG;
+        use pelican_core::mtp::fake::Faults;
+        let f = fixture();
+        let dev = FakeDevice::new();
+        dev.set_faults(Faults {
+            wedged: true,
+            ..Faults::default()
+        });
+        let (r, events) = run(&f, &dev, Stop::new());
+        let e = r.expect_err("a wedged watch cannot succeed");
+        assert_eq!(dto::explain_device_error(&e), REPLUG);
+        assert!(
+            !events.iter().any(|p| matches!(p, Payload::Finished { .. })),
+            "{events:?}"
+        );
     }
 
     #[test]

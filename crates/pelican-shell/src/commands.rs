@@ -20,12 +20,12 @@ use pelican_core::garmin::{self, Device};
 use pelican_core::ledger::Ledger;
 use pelican_core::preview::{self, Room};
 use pelican_core::transcode::encoder;
-use pelican_core::transfer::{self, PlanEntry, Stop};
-use pelican_core::{library, mtp, paths, platform, source, watch};
+use pelican_core::transfer::{self, Options, PlanEntry, Stop};
+use pelican_core::{backup, library, mtp, paths, places, platform, reset, source, watch};
 
 use crate::dto::{
-    self, LedgerDto, ListingDto, Payload, PlanRequest, PreviewDto, ProgressEvent, PushStarted,
-    Status, WatchRow,
+    self, BackupEvent, BackupPayload, BackupStarted, LedgerDto, ListingDto, Payload, PlaceDto,
+    PlanRequest, PreviewDto, ProgressEvent, PushStarted, Status, WatchRow,
 };
 use crate::run::{self, Target};
 use crate::Shell;
@@ -89,10 +89,12 @@ pub async fn status(shell: Shared<'_>) -> Result<Status, String> {
         shell.watch.forget();
         match read_status(gvfs.clone()) {
             Ok((s, room)) => {
-                shell.watch.remember(s.serial.clone(), Some(room));
+                shell
+                    .watch
+                    .remember(s.serial.clone(), Some(room), s.model.clone());
                 Ok(s)
             }
-            Err(e) => Ok(Status::disconnected(dto::explain_device_error(&e), gvfs)),
+            Err(e) => Ok(Status::from_error(&e, gvfs)),
         }
     })
     .await
@@ -123,6 +125,7 @@ fn read_status(gvfs_warning: Option<String>) -> Result<(Status, Room)> {
         ledger,
         gvfs_warning,
         error,
+        error_kind: None,
     };
     Ok((status, room))
 }
@@ -168,6 +171,20 @@ pub async fn library_list(path: String) -> Result<ListingDto, String> {
     .await
 }
 
+/// Where music usually lives, so nobody types a path: Home, Music, the
+/// library, mounted network shares and removable drives. Reads the mount
+/// table and a few folders; never the watch.
+#[tauri::command]
+pub async fn places(shell: Shared<'_>) -> Result<Vec<PlaceDto>, String> {
+    let shell = shell.inner().clone();
+    off_thread(move || {
+        let cfg = crate::config::load(shell.config_file.as_deref());
+        let root = cfg.library_root_or(crate::config::home().as_deref());
+        Ok(dto::places(places::places(root.as_deref())))
+    })
+    .await
+}
+
 // ── preview and push ─────────────────────────────────────────────────────
 
 fn plan(req: &PlanRequest) -> Result<Vec<PlanEntry>> {
@@ -188,7 +205,7 @@ pub async fn preview(shell: Shared<'_>, req: PlanRequest) -> Result<PreviewDto, 
             Some(s) => Some(Ledger::read(&data_dir().map_err(err)?, &s).map_err(err)?),
             None => None,
         };
-        let p = preview::build(&entries, ledger.as_ref(), req.resend, shell.watch.room());
+        let p = preview::build_with(&entries, ledger.as_ref(), &req.resend(), shell.watch.room());
         Ok(PreviewDto::from_core(p))
     })
     .await
@@ -267,7 +284,11 @@ fn push_run(
             data: &data,
             cache: &cache,
         },
-        req.resend,
+        Options {
+            resend: req.resend,
+            resend_sources: req.resend_sources.iter().map(PathBuf::from).collect(),
+            ..Options::default()
+        },
         || mtp::open(&device),
         &encoder::encode,
         stop,
@@ -277,8 +298,9 @@ fn push_run(
     Ok(())
 }
 
-/// Stop the running push before its next file. The file in flight is
-/// finished and proven first; there is no mid-file stop.
+/// Stop the running push or backup before its next file. The file in
+/// flight is finished (and, in a push, proven) first; there is no mid-file
+/// stop.
 #[tauri::command]
 pub fn stop(shell: Shared<'_>) {
     shell.watch.request_stop();
@@ -325,6 +347,135 @@ pub async fn ledger(shell: Shared<'_>) -> Result<LedgerDto, String> {
     .await
 }
 
+// ── before a factory reset: the backup ──────────────────────────────────
+
+/// Where a backup goes unless the person picks elsewhere:
+/// `~/Documents/Pelican/<model> backup <YYYY-MM-DD>`. Not created. The
+/// model is the one the last `status` read, else the USB label.
+#[tauri::command]
+pub async fn default_backup_dir(shell: Shared<'_>) -> Result<String, String> {
+    let shell = shell.inner().clone();
+    off_thread(move || {
+        let model = shell
+            .watch
+            .model()
+            .or_else(|| garmin::pick_device(None).ok().map(|d| d.label()))
+            .unwrap_or_else(|| "Garmin watch".to_string());
+        backup::default_dest(&model)
+            .map(|p| p.to_string_lossy().into_owned())
+            .ok_or_else(|| "HOME is not set, so there is no Documents folder".to_string())
+    })
+    .await
+}
+
+/// The destination a backup may write to: an absolute path that is not an
+/// existing file. The core never replaces a file inside it.
+fn backup_dest(dest: &str) -> Result<PathBuf, String> {
+    let p = PathBuf::from(dest.trim());
+    if !p.is_absolute() {
+        return Err("choose a folder for the backup".into());
+    }
+    if p.exists() && !p.is_dir() {
+        return Err(format!("{} is a file, not a folder", p.display()));
+    }
+    Ok(p)
+}
+
+/// Copy every file under the watch's `GARMIN` folder into `dest/GARMIN`.
+/// Read-only on the watch: it lists and downloads, nothing else. Returns
+/// the run id at once; the run is heard about on [`dto::BACKUP_EVENT`] and
+/// `stop` ends it between files.
+#[tauri::command]
+pub fn backup_watch(
+    app: AppHandle,
+    shell: Shared<'_>,
+    dest: String,
+) -> Result<BackupStarted, String> {
+    let dest = backup_dest(&dest)?;
+    let shell = shell.inner().clone();
+    let guard = shell.watch.lock.try_acquire()?;
+    let id = run_id();
+    let stop = Stop::new();
+    shell.watch.set_stop(Some(stop.clone()));
+
+    let run = id.clone();
+    let spawned = std::thread::Builder::new()
+        .name("pelican-backup".into())
+        .spawn(move || {
+            let _guard = guard;
+            let emit = |payload| {
+                let _ = app.emit(
+                    dto::BACKUP_EVENT,
+                    BackupEvent {
+                        run_id: run.clone(),
+                        payload,
+                    },
+                );
+            };
+            let r = (|| -> Result<()> {
+                let device = pick(&shell)?;
+                let mut dev = mtp::open(&device)?;
+                backup::backup(dev.as_mut(), &dest, &stop, &mut |p| {
+                    emit(dto::map_backup(p))
+                })?;
+                Ok(())
+            })();
+            if let Err(e) = r {
+                if pelican_core::error::is_wedged(&e) {
+                    shell.watch.forget();
+                }
+                emit(BackupPayload::Error {
+                    message: dto::explain_device_error(&e),
+                });
+            }
+            shell.watch.set_stop(None);
+        });
+    if let Err(e) = spawned {
+        return Err(format!("could not start the backup: {e}"));
+    }
+    Ok(BackupStarted { run_id: id })
+}
+
+// ── after a factory reset: the ledger ────────────────────────────────────
+
+/// Re-read `/Music` now and count the audio objects left. Read-only.
+#[tauri::command]
+pub async fn reset_check(shell: Shared<'_>) -> Result<reset::Check, String> {
+    let shell = shell.inner().clone();
+    let guard = shell.watch.lock.try_acquire()?;
+    off_thread(move || {
+        let _guard = guard;
+        (|| -> Result<reset::Check> {
+            let device = pick(&shell)?;
+            reset::check(mtp::open(&device)?.as_mut())
+        })()
+        .map_err(|e| dto::explain_device_error(&e))
+    })
+    .await
+}
+
+/// Start a fresh ledger for this watch — only if the watch, read again
+/// here and now, holds no audio. The person's "it's clean" is never taken
+/// on its own; the core re-reads `/Music` in this call and refuses while
+/// anything is left. Append-only: a `reset` line, and the name counter
+/// keeps rising.
+#[tauri::command]
+pub async fn reset_ledger(shell: Shared<'_>) -> Result<reset::Outcome, String> {
+    let shell = shell.inner().clone();
+    let guard = shell.watch.lock.try_acquire()?;
+    off_thread(move || {
+        let _guard = guard;
+        (|| -> Result<reset::Outcome> {
+            let device = pick(&shell)?;
+            let serial = serial_of(&device)?;
+            let mut ledger = Ledger::open(&data_dir()?, &serial)?;
+            reset::reset_ledger(mtp::open(&device)?.as_mut(), &mut ledger)
+        })()
+        .map_err(|e| dto::explain_device_error(&e))
+    })
+    .await
+}
+
 // ── the USB rule ─────────────────────────────────────────────────────────
 
 /// Whether the udev rule is installed and is the one this build ships.
@@ -339,4 +490,25 @@ pub async fn udev_rule_status() -> Result<crate::udev::RuleStatus, String> {
 #[tauri::command]
 pub async fn install_udev_rule() -> Result<crate::udev::InstallResult, String> {
     off_thread(|| Ok(crate::udev::install())).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_backup_goes_only_to_an_absolute_folder() {
+        assert!(backup_dest("").is_err());
+        assert!(backup_dest("Documents/backup").is_err());
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("f");
+        std::fs::write(&file, b"x").unwrap();
+        assert!(backup_dest(file.to_str().unwrap()).is_err());
+        let new = tmp.path().join("FR165 backup 2026-09-26");
+        assert_eq!(backup_dest(new.to_str().unwrap()).unwrap(), new);
+        assert_eq!(
+            backup_dest(tmp.path().to_str().unwrap()).unwrap(),
+            tmp.path()
+        );
+    }
 }

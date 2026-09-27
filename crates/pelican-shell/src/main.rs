@@ -9,8 +9,9 @@
 //!
 //! `commands.rs` is the IPC surface and says why no command does its work
 //! on the thread it is called on; `device.rs` is the one-session-at-a-time
-//! lock; `dto.rs` is the contract's shapes; `run.rs` is a push; `udev.rs` is the one privileged action, installing
-//! the USB rule through polkit.
+//! lock; `dto.rs` is the contract's shapes; `run.rs` is a push; `env.rs` is the NVIDIA-on-Wayland
+//! workaround set before the webview exists; `udev.rs` is the one
+//! privileged action, installing the USB rule through polkit.
 //!
 //! Run it with `cargo run -p pelican-shell`, **not** `cargo tauri dev`: a
 //! dev server is served over http with no CSP, so developing against it
@@ -20,6 +21,7 @@ mod commands;
 mod config;
 mod device;
 mod dto;
+mod env;
 mod run;
 mod udev;
 
@@ -38,17 +40,24 @@ pub struct Shell {
 }
 
 fn main() {
+    // Before anything creates GTK or the webview: they read it at startup.
+    env::apply_nvidia_wayland_workaround();
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::status,
             commands::library_root,
             commands::set_library_root,
             commands::library_list,
+            commands::places,
             commands::preview,
             commands::push,
             commands::stop,
             commands::watch_list,
             commands::ledger,
+            commands::default_backup_dir,
+            commands::backup_watch,
+            commands::reset_check,
+            commands::reset_ledger,
             commands::udev_rule_status,
             commands::install_udev_rule,
         ])

@@ -105,8 +105,8 @@ Out of scope:
 - **No delete command exists**, as in the core. `library_list` and
   `preview` only read local files; `set_library_root` writes one file,
   `$XDG_CONFIG_HOME/pelican/config.json`.
-- **One device session at a time.** `status`, `watch_list` and `push` share
-  one lock and a second caller is refused as busy; device work runs on its
+- **One device session at a time.** `status`, `watch_list`, `push`,
+  `backup_watch`, `reset_check` and `reset_ledger` share one lock and a second caller is refused as busy; device work runs on its
   own OS thread, never the UI thread.
 - Run it with `cargo run -p pelican-shell`, not `cargo tauri dev`: a dev
   server is served without the CSP.
@@ -145,6 +145,11 @@ The GTK3 stack Tauri uses on Linux brings two argued advisory exceptions
   paths are passed as absolute paths, never through a shell.
 - On the watch it only creates files in `/Music`, under names it has never
   used. It has no code path that deletes or overwrites anything there.
+- The watch backup is read-only on the watch (it lists and downloads
+  `GARMIN/`) and writes only into the folder you pick, default
+  `~/Documents/Pelican/`, creating files and never replacing one.
+- A watch's ledger is reset only after Pelican re-reads `/Music` itself and
+  finds no audio left; the reset is an appended line, not an erasure.
 - It does **not** open network sockets, write outside its data dirs, or
   modify system files — with one exception you trigger yourself: the
   window's "Install the USB rule" button writes

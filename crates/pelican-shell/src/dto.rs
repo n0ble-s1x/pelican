@@ -11,15 +11,20 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
+use pelican_core::error::{self as core_error, DeviceErrorKind};
 use pelican_core::ledger::{self, Ledger};
 use pelican_core::mtp::fold_name;
+use pelican_core::places::{Place, PlaceKind};
 use pelican_core::transcode::tags::{Mix, Overrides};
-use pelican_core::transfer::{Outcome, Progress, Skip, Tally};
+use pelican_core::transfer::{Outcome, Progress, Resend, Skip, Tally};
 use pelican_core::watch::{Origin, Row};
-use pelican_core::{library, preview};
+use pelican_core::{backup, library, preview};
 
-/// The one event channel. Every payload carries its run's `run_id`.
+/// The push's event channel. Every payload carries its run's `run_id`.
 pub const PROGRESS_EVENT: &str = "pelican://progress";
+
+/// The backup's event channel, shaped the same way.
+pub const BACKUP_EVENT: &str = "pelican://backup";
 
 // ── requests ─────────────────────────────────────────────────────────────
 
@@ -35,6 +40,20 @@ pub struct PlanRequest {
     pub mix: Option<Mix>,
     #[serde(default)]
     pub resend: bool,
+    /// Send these again although the ledger has them on the watch: the
+    /// per-track "Send again" in review. Each is sent under a fresh name.
+    #[serde(default)]
+    pub resend_sources: Vec<String>,
+}
+
+impl PlanRequest {
+    /// The run-wide toggle and the per-track list, as the core takes them.
+    pub fn resend(&self) -> Resend {
+        Resend::new(
+            self.resend,
+            self.resend_sources.iter().map(std::path::PathBuf::from),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -71,6 +90,8 @@ pub struct LedgerTotals {
     pub verified: u32,
     pub failed: u32,
     pub unresolved: u32,
+    /// Factory resets recorded; the other totals count since the last one.
+    pub resets: u32,
 }
 
 impl From<ledger::Totals> for LedgerTotals {
@@ -79,6 +100,7 @@ impl From<ledger::Totals> for LedgerTotals {
             verified: t.verified as u32,
             failed: t.failed as u32,
             unresolved: t.unresolved as u32,
+            resets: t.resets as u32,
         }
     }
 }
@@ -102,17 +124,34 @@ pub struct Status {
     pub gvfs_warning: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Why the watch could not be read; absent when connected. `wedged`
+    /// means it stopped answering, and `error` is then the replug
+    /// instruction word for word.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<DeviceErrorKind>,
 }
 
 impl Status {
-    pub fn disconnected(error: String, gvfs_warning: Option<String>) -> Self {
+    pub fn disconnected(
+        error: String,
+        kind: DeviceErrorKind,
+        gvfs_warning: Option<String>,
+    ) -> Self {
         Self {
             connected: false,
             max_objects: pelican_core::watch::MAX_OBJECTS as u32,
             gvfs_warning,
             error: Some(error),
+            error_kind: Some(kind),
             ..Self::default()
         }
+    }
+
+    /// The status for a failed read: the error sorted into its kind (a
+    /// busy watch that gvfs holds is `gvfs`), with its fix as the text.
+    pub fn from_error(e: &anyhow::Error, gvfs_warning: Option<String>) -> Self {
+        let kind = core_error::classify_with(e, gvfs_warning.is_some());
+        Self::disconnected(explain_device_error(e), kind, gvfs_warning)
     }
 }
 
@@ -122,7 +161,14 @@ impl Status {
 /// found", and the gvfs remedy for contention. What it cannot know is that
 /// a permission failure on Linux almost always means the udev rule is not
 /// installed, so that is added here.
+///
+/// A watch that stopped answering gets the replug instruction and nothing
+/// else: the timeout underneath means nothing to the person who has to
+/// pull the cable.
 pub fn explain_device_error(e: &anyhow::Error) -> String {
+    if core_error::is_wedged(e) {
+        return core_error::REPLUG.to_string();
+    }
     let msg = format!("{e:#}");
     let m = msg.to_ascii_lowercase();
     if m.contains("permission denied") || m.contains("access denied") || m.contains("eacces") {
@@ -202,6 +248,29 @@ impl ListingDto {
                 .collect(),
         }
     }
+}
+
+// ── places ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PlaceDto {
+    pub label: String,
+    pub path: String,
+    pub kind: PlaceKind,
+}
+
+/// A place whose path is not UTF-8 is left out, as in a listing: it could
+/// not be handed back to `library_list`.
+pub fn places(p: Vec<Place>) -> Vec<PlaceDto> {
+    p.into_iter()
+        .filter_map(|p| {
+            Some(PlaceDto {
+                path: utf8(&p.path)?,
+                label: p.label,
+                kind: p.kind,
+            })
+        })
+        .collect()
 }
 
 // ── preview ──────────────────────────────────────────────────────────────
@@ -427,6 +496,85 @@ impl Throttle {
     }
 }
 
+// ── backup ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BackupStarted {
+    pub run_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BackupFailure {
+    pub path: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BackupPayload {
+    Listing,
+    File {
+        index: usize,
+        total: usize,
+        path: String,
+        bytes: u64,
+    },
+    Finished {
+        files: usize,
+        bytes: u64,
+        dest: String,
+        /// Files that could not be copied, and why. The rest were.
+        failed: Vec<BackupFailure>,
+        /// Objects the watch listed but would not describe.
+        unreadable: usize,
+        stopped: bool,
+    },
+    Error {
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BackupEvent {
+    pub run_id: String,
+    #[serde(flatten)]
+    pub payload: BackupPayload,
+}
+
+/// Paths on the watch are device-controlled text: control bytes go.
+pub fn map_backup(p: backup::Progress) -> BackupPayload {
+    let clean = pelican_core::garmin::strip_control;
+    match p {
+        backup::Progress::Listing => BackupPayload::Listing,
+        backup::Progress::File {
+            index,
+            total,
+            path,
+            bytes,
+        } => BackupPayload::File {
+            index,
+            total,
+            path: clean(&path),
+            bytes,
+        },
+        backup::Progress::Finished(s) => BackupPayload::Finished {
+            files: s.files,
+            bytes: s.bytes,
+            dest: lossy(&s.dest),
+            failed: s
+                .failed
+                .into_iter()
+                .map(|f| BackupFailure {
+                    path: clean(&f.path),
+                    reason: clean(&f.reason),
+                })
+                .collect(),
+            unreadable: s.unreadable,
+            stopped: s.stopped,
+        },
+    }
+}
+
 // ── watch list and ledger ────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -457,6 +605,7 @@ pub fn watch_rows(rows: Vec<Row>, ledger: Option<&Ledger>) -> Vec<WatchRow> {
         .map(|l| {
             l.events()
                 .iter()
+                .filter(|e| e.event != ledger::Kind::Reset)
                 .map(|e| (fold_name(&e.remote), e))
                 .collect()
         })
@@ -719,6 +868,7 @@ mod tests {
             "resend": true
         }))
         .unwrap();
+        assert!(r.resend_sources.is_empty(), "optional for older callers");
         assert_eq!(r.paths, ["/m/A"]);
         assert_eq!(r.mix.as_ref().map(|m| m.name.as_str()), Some("Long Run"));
         assert!(r.resend);
@@ -738,18 +888,178 @@ mod tests {
 
     #[test]
     fn a_disconnected_status_names_the_fix_and_omits_the_rest() {
-        let s = Status::disconnected("no Garmin device found".into(), None);
+        let e = anyhow::anyhow!("no Garmin device found");
+        let s = Status::from_error(&e, None);
         assert_eq!(
             serde_json::to_value(s).unwrap(),
             json!({"connected": false, "max_objects": 500,
-                   "ledger": {"verified": 0, "failed": 0, "unresolved": 0},
-                   "error": "no Garmin device found"})
+                   "ledger": {"verified": 0, "failed": 0, "unresolved": 0, "resets": 0},
+                   "error": "no Garmin device found", "error_kind": "not_found"})
         );
         let e = anyhow::anyhow!("opening USB interface: Permission denied (os error 13)");
         let m = explain_device_error(&e);
         assert!(m.contains("udev/70-garmin-mtp.rules"), "{m}");
         let e = anyhow::anyhow!("no Garmin device found on USB");
         assert_eq!(explain_device_error(&e), "no Garmin device found on USB");
+    }
+
+    #[test]
+    fn a_wedged_watch_says_to_replug_and_nothing_else() {
+        let io = std::io::Error::new(std::io::ErrorKind::TimedOut, "bulk in");
+        let e = anyhow::Error::new(io).context("opening MTP session to Forerunner 165");
+        let s = serde_json::to_value(Status::from_error(&e, None)).unwrap();
+        assert_eq!(s["error_kind"], "wedged");
+        assert_eq!(s["error"], core_error::REPLUG);
+        // Wherever else a device error surfaces (a run's `error`, a
+        // command's rejection), the text is the same instruction.
+        let e = anyhow::Error::new(core_error::Wedged).context("the run stopped");
+        assert_eq!(explain_device_error(&e), core_error::REPLUG);
+    }
+
+    #[test]
+    fn every_error_kind_reaches_status() {
+        let kind = |e: anyhow::Error, gvfs: Option<&str>| {
+            serde_json::to_value(Status::from_error(&e, gvfs.map(str::to_string))).unwrap()
+                ["error_kind"]
+                .clone()
+        };
+        let denied = || anyhow::anyhow!("opening USB interface: Permission denied (os error 13)");
+        assert_eq!(kind(denied(), None), "permission");
+        let busy = || anyhow::anyhow!("claiming interface: exclusive access, resource busy");
+        assert_eq!(kind(busy(), None), "busy");
+        assert_eq!(kind(busy(), Some("gvfs-mtp holds it")), "gvfs");
+        assert_eq!(kind(anyhow::anyhow!("something odd"), None), "other");
+        // A permission failure keeps its udev fix in the text.
+        let s = Status::from_error(&denied(), None);
+        assert!(s.error.unwrap().contains("udev/70-garmin-mtp.rules"));
+        // Connected: no kind at all.
+        let v = serde_json::to_value(Status {
+            connected: true,
+            ..Status::default()
+        })
+        .unwrap();
+        assert!(v.get("error_kind").is_none());
+    }
+
+    #[test]
+    fn per_track_send_again_reaches_the_core() {
+        let r: PlanRequest = serde_json::from_value(json!({
+            "paths": ["/m/A", "/m/B/03 - Three.flac"],
+            "mix": {"name": "Long Run"},
+            "resend": false,
+            "resend_sources": ["/m/A/01 - One.flac"]
+        }))
+        .unwrap();
+        let resend = r.resend();
+        assert!(resend.covers(Path::new("/m/A/01 - One.flac")));
+        assert!(!resend.covers(Path::new("/m/A/02 - Two.flac")));
+        let all = PlanRequest {
+            resend: true,
+            ..PlanRequest::default()
+        };
+        assert!(all.resend().covers(Path::new("/anything.flac")));
+    }
+
+    #[test]
+    fn places_take_the_contract_shape() {
+        let v = serde_json::to_value(places(vec![
+            Place {
+                label: "Home".into(),
+                path: PathBuf::from("/home/six"),
+                kind: PlaceKind::Home,
+            },
+            Place {
+                label: "nas".into(),
+                path: PathBuf::from("/mnt/nas"),
+                kind: PlaceKind::Network,
+            },
+        ]))
+        .unwrap();
+        assert_eq!(
+            v,
+            json!([
+                {"label": "Home", "path": "/home/six", "kind": "home"},
+                {"label": "nas", "path": "/mnt/nas", "kind": "network"}
+            ])
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_place_that_is_not_utf8_is_left_out() {
+        use std::os::unix::ffi::OsStrExt;
+        let bad = PathBuf::from(std::ffi::OsStr::from_bytes(b"/run/media/six/\xff"));
+        let out = places(vec![Place {
+            label: "USB".into(),
+            path: bad,
+            kind: PlaceKind::Drive,
+        }]);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn backup_events_take_the_contract_shape() {
+        let ev = |p| {
+            serde_json::to_value(BackupEvent {
+                run_id: "b1".into(),
+                payload: p,
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            ev(map_backup(backup::Progress::Listing)),
+            json!({"run_id": "b1", "kind": "listing"})
+        );
+        assert_eq!(
+            ev(map_backup(backup::Progress::File {
+                index: 0,
+                total: 5,
+                path: "GARMIN/Activity/\u{1b}[2Ja.fit".into(),
+                bytes: 12,
+            })),
+            json!({"run_id": "b1", "kind": "file", "index": 0, "total": 5,
+                   "path": "GARMIN/Activity/[2Ja.fit", "bytes": 12})
+        );
+        let finished = map_backup(backup::Progress::Finished(backup::Summary {
+            files: 4,
+            bytes: 99,
+            dest: PathBuf::from("/home/six/Documents/Pelican/FR165 backup 2026-09-26"),
+            failed: vec![backup::Failed {
+                path: "GARMIN/..".into(),
+                reason: "not a plain file name".into(),
+            }],
+            unreadable: 1,
+            stopped: false,
+        }));
+        assert_eq!(
+            ev(finished),
+            json!({"run_id": "b1", "kind": "finished", "files": 4, "bytes": 99,
+                   "dest": "/home/six/Documents/Pelican/FR165 backup 2026-09-26",
+                   "failed": [{"path": "GARMIN/..", "reason": "not a plain file name"}],
+                   "unreadable": 1, "stopped": false})
+        );
+        assert_eq!(
+            ev(BackupPayload::Error {
+                message: core_error::REPLUG.into()
+            }),
+            json!({"run_id": "b1", "kind": "error", "message": core_error::REPLUG})
+        );
+    }
+
+    #[test]
+    fn a_reset_line_is_a_ledger_row_and_joins_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut l = Ledger::open(tmp.path(), "42").unwrap();
+        let mut e = Event::new(Kind::Verified, 1, "pl00001-One.mp3");
+        e.source_sha256 = "aa".into();
+        l.append(e).unwrap();
+        assert!(l.reset("factory reset confirmed").unwrap());
+        let dto = serde_json::to_value(LedgerDto::from_core(&l)).unwrap();
+        let rows = dto["rows"].as_array().unwrap();
+        assert_eq!(rows.last().unwrap()["event"], "reset");
+        assert_eq!(rows.last().unwrap()["remote"], "");
+        let t: LedgerTotals = l.totals().into();
+        assert_eq!((t.verified, t.resets), (0, 1));
     }
 
     #[test]

@@ -64,6 +64,33 @@ if git grep -nE '(storage|session)\.delete\(|delete_object' -- 'crates/*.rs'; th
     fail "a device delete call is back in the tree — Pelican has no delete"
 fi
 
+# The window's IPC surface is three lists that must agree: the commands the
+# build script ACL-gates, the ones `generate_handler!` registers, and the
+# ones the capability grants. A command registered but not gated is callable
+# by anything in the webview; one granted but not registered is a grant
+# nobody reviewed. The capability may add only event listening — never a
+# `*:default` set — and the CSP may name no remote origin and no
+# 'unsafe-inline'.
+shell=crates/pelican-shell
+gated=$(sed -n '/commands(&\[/,/\])/p' "$shell/build.rs" | grep -oE '"[a-z_]+"' | tr -d '"' | sort)
+handled=$(sed -n '/generate_handler!\[/,/\]/p' "$shell/src/main.rs" | grep -oE 'commands::[a-z_]+' | sed 's/commands:://' | sort)
+granted=$(grep -oE '"allow-[a-z-]+"' "$shell/capabilities/main.json" | tr -d '"' | sed 's/^allow-//; s/-/_/g' | sort)
+if [[ "$gated" != "$handled" || "$gated" != "$granted" ]]; then
+    diff <(echo "$gated") <(echo "$handled") || true
+    diff <(echo "$gated") <(echo "$granted") || true
+    fail "pelican-shell: build.rs, generate_handler! and capabilities/main.json list different commands"
+fi
+extra=$(grep -oE '"[a-z-]+:[a-z:-]+"' "$shell/capabilities/main.json" | tr -d '"' \
+    | grep -vxE 'core:event:allow-(listen|unlisten)' || true)
+if [[ -n "$extra" ]]; then
+    fail "pelican-shell grants more than its own commands and event listening: $extra"
+fi
+csp=$(grep -oE '"csp": *"[^"]*"' "$shell/tauri.conf.json")
+if [[ "$csp" == *unsafe-inline* || "$csp" == *unsafe-eval* ]] \
+    || grep -oE 'https?://[^ ;"]+' <<<"$csp" | grep -vqx 'http://ipc.localhost'; then
+    fail "pelican-shell CSP allows inline/eval or a remote origin: $csp"
+fi
+
 # cargo-audit and cargo-deny each keep their own advisory ignore list, and
 # only .cargo/audit.toml carries the argument for why each entry is there.
 # A drift means one of the two tools has been silenced without a reason.

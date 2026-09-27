@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "pelican-main",
+  "description": "Exactly the commands ui/ invokes, plus listening for events (the run's progress and the window's file drop). No core:default: the webview gets no window, webview, path, menu, tray, image, resources or app permission, and there is no fs, shell, dialog or http plugin to grant.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "allow-status",
+    "allow-library-root",
+    "allow-set-library-root",
+    "allow-library-list",
+    "allow-preview",
+    "allow-push",
+    "allow-stop",
+    "allow-watch-list",
+    "allow-ledger",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

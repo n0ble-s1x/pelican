@@ -54,8 +54,7 @@ Out of scope:
 - **No telemetry, no network access.** The binary opens no sockets and
   compiles no HTTP/TLS code. `cargo deny check sources` audits where crates
   come from; `scripts/check.sh` additionally asserts that `reqwest`, `hyper`
-  and `tower-http` are not in the compiled graph — a guard kept for when a
-  graphical shell returns and puts them in `Cargo.lock`.
+  and `tower-http` are not in the compiled graph, graphical shell included.
 - **Reproducible builds** via committed `Cargo.lock`.
 - **`unsafe_code = "deny"`** in `Cargo.toml` — every `unsafe` block in our
   code requires an explicit `#[allow(unsafe_code)]` with a SAFETY comment.
@@ -80,20 +79,48 @@ Out of scope:
   seat user on Garmin devices; no mode change, no group, no `root:root`
   daemon, no setuid binary).
 
-## The graphical shell (removed, returning)
+## The graphical shell
 
-The macOS Tauri shell was removed in the 2026-09 rebuild; Pelican is currently
-a command-line tool only, with no webview in the build. Its threat-model
-notes (no JS package manager, `withGlobalTauri` exposure, the capability ACL
-kept 1:1 with `invoke()` calls, the CSP) are in this file's history at
-`c6fa7c5` and apply unchanged to the planned Linux UI.
+`crates/pelican-shell` builds `pelican-app`, a Tauri 2 window over
+`pelican-core` (Linux-first, system webkit2gtk). What keeps it small:
+
+- **No JS supply chain.** `ui/` is plain HTML, CSS and JS, checked in and
+  compiled into the binary. No npm, no bundler, no `node_modules` — so the
+  whole dependency graph is the one `cargo deny` and `cargo audit` read.
+- **Tauri with default features off** (`wry` only: no asset compression,
+  no runtime-mutable ACL) and **no Tauri plugins** — no fs, shell, dialog,
+  http, updater or opener. No asset protocol is enabled.
+- **The ACL is the boundary.** `build.rs` registers an app manifest, so
+  every command is ACL-gated, and `capabilities/main.json` grants exactly
+  the nine commands the UI invokes plus `core:event:allow-listen` /
+  `allow-unlisten` (for run progress and file drag-and-drop) — no
+  `core:default`. `scripts/check.sh` fails if the gated, registered and
+  granted lists differ or anything else is granted.
+- **CSP**: `default-src 'self'`; scripts and styles from `'self'` only (no
+  `'unsafe-inline'`, no `'unsafe-eval'`); `img-src 'self' data:`; IPC as the
+  only `connect-src`; no objects, frames, workers or form targets; no remote
+  origin anywhere — also asserted by `scripts/check.sh`. `freezePrototype`
+  is on. `withGlobalTauri` exposes `window.__TAURI__` to the page's own
+  scripts, which the CSP limits to the bundled files.
+- **No delete command exists**, as in the core. `library_list` and
+  `preview` only read local files; `set_library_root` writes one file,
+  `$XDG_CONFIG_HOME/pelican/config.json`.
+- **One device session at a time.** `status`, `watch_list` and `push` share
+  one lock and a second caller is refused as busy; device work runs on its
+  own OS thread, never the UI thread.
+- Run it with `cargo run -p pelican-shell`, not `cargo tauri dev`: a dev
+  server is served without the CSP.
+
+The GTK3 stack Tauri uses on Linux brings two argued advisory exceptions
+(`glib` 0.18, `proc-macro-error`); the reasoning is in `.cargo/audit.toml`.
 
 ## What you, the user, should know
 
 - Krypteia · Pelican runs in **userspace** with no elevated privileges.
-- It writes only to `~/.local/share/pelican/` (the per-watch ledger) and
+- It writes only to `~/.local/share/pelican/` (the per-watch ledger),
   `~/.cache/pelican/staging/` (per-run transcodes, removed when the run ends
-  and swept on the next start if a run was killed). Per-user dirs, never
+  and swept on the next start if a run was killed) and, for the window only,
+  `~/.config/pelican/config.json` (the music folder). Per-user dirs, never
   `/tmp` or another shared location.
 - It reads your source files and never writes to them.
 - It opens USB devices through `nusb`, which needs the udev rule for non-root

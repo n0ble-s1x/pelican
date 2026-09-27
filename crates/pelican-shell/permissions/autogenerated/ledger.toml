@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ledger"
+description = "Enables the ledger command without any pre-configured scope."
+commands.allow = ["ledger"]
+
+[[permission]]
+identifier = "deny-ledger"
+description = "Denies the ledger command without any pre-configured scope."
+commands.deny = ["ledger"]

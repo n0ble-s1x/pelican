@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/pelican-core", "crates/pelican"]
+members = ["crates/pelican-core", "crates/pelican", "crates/pelican-shell"]
 
 # Shared package metadata. Both crates ship as one product, so version,
 # licence and provenance live here rather than being kept in sync by hand.
@@ -28,6 +28,11 @@ nusb = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+# The window. Default features off: no brotli asset compression, no
+# runtime-mutable ACL (`dynamic-acl`), no Windows controls, no X11-only or
+# D-Bus extras — only wry over webkit2gtk. No Tauri plugin is used at all.
+tauri = { version = "2.11", default-features = false, features = ["wry"] }
+tauri-build = { version = "2.6", default-features = false }
 tempfile = "3"
 tokio = { version = "1", features = ["rt", "macros", "time"] }
 tracing = "0.1"

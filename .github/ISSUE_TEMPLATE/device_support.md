@@ -9,7 +9,7 @@ labels: device-support
 
 - Garmin model:
 - Firmware version (Settings → System → About):
-- OS + version (e.g. "macOS 26.6.2" or "Pop!_OS 24.04"):
+- Linux distribution and kernel (e.g. "CachyOS, kernel 7.2" or "Pop!_OS 24.04"):
 - `pelican --version`:
 
 ## Result
@@ -23,6 +23,6 @@ labels: device-support
 
 ## Notes
 
-<!-- Anything specific to your device — firmware quirks, USB-mode handling,
-     filename limits, behaviour differences. We add these to the README
+<!-- Anything specific to your device: firmware quirks, USB-mode handling,
+     filename limits, behavior differences. We add these to the README
      compatibility matrix. -->

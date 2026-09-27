@@ -14,6 +14,8 @@ device, list the model + firmware. Headless CLI test commands are great. -->
 - [ ] Updated `Cargo.lock` (if dependencies changed)
 - [ ] No new network-capable deps introduced (or: discussed first per
       [CONTRIBUTING.md](../CONTRIBUTING.md))
+- [ ] Any new `invoke()` in `ui/` has a matching command in `build.rs`,
+      `generate_handler!` and `capabilities/main.json` (`check.sh` enforces)
 
 ## Related issues
 

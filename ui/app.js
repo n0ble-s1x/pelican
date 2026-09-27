@@ -1,13 +1,13 @@
 /* Pelican — the window.
  *
  * Plain JS, no build. Talks to the Tauri shell through the IPC contract
- * (status, library_root, set_library_root, library_list, preview, push,
- * stop, watch_list, ledger, udev_rule_status, install_udev_rule, and
- * "pelican://progress" events). When
+ * (status, places, library_root, library_list, preview, push, stop,
+ * watch_list, ledger, udev_rule_status, install_udev_rule,
+ * default_backup_dir, backup_watch, reset_check, reset_ledger, and the
+ * "pelican://progress" and "pelican://backup" events). When
  * window.__TAURI__ is absent the same contract is served by an in-file mock
  * with the owner's real library, clearly marked "Demo data", and the URL
- * hash jumps to each state (#watch, #nowatch, #permission, #choose,
- * #library, #review, #review-mix, #send, #done, #onwatch, #ledger).
+ * hash jumps to each state (see demoState at the end).
  */
 (() => {
   "use strict";
@@ -153,7 +153,7 @@
     // The case, in canvas pixels.
     function geometry() {
       const f = cv.getBoundingClientRect();
-      const c = $("#watch .case").getBoundingClientRect();
+      const c = $("#watch .case-ref").getBoundingClientRect();
       return {
         x: (c.left - f.left + c.width / 2) * dpr,
         y: (c.top - f.top + c.height / 2) * dpr,
@@ -388,14 +388,36 @@
     return { bloom, settle, resize };
   })();
 
-  // The room-left arc: the one lit thing on the case.
+  // The room-left arc: the one lit thing on the watch, riding the bezel.
+  // It sweeps in the first time a watch is read, and eases after that; a
+  // send takes each proven track's room off it as it lands.
   function setRoomArc(st) {
     const arc = $("#room-arc");
+    const free = S.roomFree != null ? S.roomFree : st && st.free_bytes;
     const pct =
-      st && st.connected && st.capacity_bytes ? Math.max(0, Math.min(100, (st.free_bytes / st.capacity_bytes) * 100)) : 0;
-    arc.style.strokeDasharray = `${pct.toFixed(2)} 100`;
-    // The first value lands without motion; later changes of room ease in.
-    if (!arc.classList.contains("live")) requestAnimationFrame(() => arc.classList.add("live"));
+      st && st.connected && st.capacity_bytes ? Math.max(0, Math.min(100, (free / st.capacity_bytes) * 100)) : 0;
+    const value = `${pct.toFixed(2)} 100`;
+    if (!arc.classList.contains("live")) {
+      if (!pct) {
+        arc.style.strokeDasharray = "0 100";
+        return;
+      }
+      arc.style.strokeDasharray = "0 100";
+      void arc.getBoundingClientRect();
+      arc.classList.add("live");
+      requestAnimationFrame(() => {
+        arc.style.strokeDasharray = value;
+      });
+      return;
+    }
+    arc.style.strokeDasharray = value;
+  }
+
+  // The dive bezel turns one click (6°, anticlockwise, as a unidirectional
+  // bezel does) for each proven track, and stays where the send left it.
+  function turnBezel(clicks = 1) {
+    S.bezel += clicks;
+    $("#watch").style.setProperty("--bz", `${(-6 * S.bezel) % 360}deg`);
   }
 
   // ------------------------------------------------------------ IPC
@@ -406,6 +428,7 @@
   function tauriApi() {
     const invoke = (cmd, args) => TAURI.core.invoke(cmd, args);
     const onProgress = (cb) => TAURI.event.listen("pelican://progress", (e) => cb(e.payload));
+    const onBackup = (cb) => TAURI.event.listen("pelican://backup", (e) => cb(e.payload));
     function onDrop(cb) {
       const wv = TAURI.webview && TAURI.webview.getCurrentWebview && TAURI.webview.getCurrentWebview();
       if (wv && wv.onDragDropEvent) {
@@ -421,10 +444,21 @@
       TAURI.event.listen("tauri://drag-leave", () => cb("leave"));
       TAURI.event.listen("tauri://drag-drop", (e) => cb("drop", (e.payload && e.payload.paths) || []));
     }
-    return { invoke, onProgress, onDrop };
+    return { invoke, onProgress, onBackup, onDrop };
   }
 
   const api = DEMO ? mockApi() : tauriApi();
+
+  // The core's own words for a watch that stopped answering MTP (it happens
+  // after the watch restarts). Everything that can meet it says the same.
+  const REPLUG = "The watch isn't answering. Unplug it, wait five seconds, plug it back in.";
+  const isWedged = (s) => /isn['’]t answering/i.test(String(s || ""));
+
+  // What cannot be undone, said the same way everywhere it is said.
+  const NO_DELETE =
+    "Nothing can be deleted from the watch one song at a time. The only way to clear it is a factory reset, and that erases everything on the watch: activities, health data, settings, Garmin Pay and music.";
+  const NO_DELETE_SHORT =
+    "What you send stays on the watch. Nothing can be deleted from it one song at a time; only a factory reset clears it, and that erases everything on the watch, not just music.";
 
   // Errors from the shell arrive as strings; a busy device gets a calm line.
   function errText(e) {
@@ -433,19 +467,32 @@
     return s;
   }
 
+  // An error line, and what to do about it.
+  function errorBlock(err, fallbackFix) {
+    if (isWedged(err)) {
+      return `<strong>The watch isn't answering.</strong>Unplug it, wait five seconds, plug it back in, then check again.`;
+    }
+    return `<strong>${esc(err)}</strong>${esc(fallbackFix)}`;
+  }
+
   // ------------------------------------------------------------ state
 
   const S = {
     view: "watch",
     status: null,
     root: null,
-    lib: null,
-    rootEditing: false,
-    chosen: [], // [{ path, name, kind: "dir" | "file", count? }]
+    places: null,
+    place: null, // the path the explorer is rooted at
+    showChosen: false, // the explorer shows the chosen list instead of a place
+    tree: new Map(), // path -> { state: "loading" | "ok" | "error", l, error }
+    open: new Set(), // folders shown open in the explorer
+    chosen: [], // [{ path, name, kind: "dir" | "file", count? }], in the order ticked
     overrides: { artist: "", album: "", genre: "", year: "" },
-    mix: { on: false, name: "" },
-    order: null, // explicit per-file order once a mix is reordered
+    mix: { on: false, name: "" }, // "Playlist" in the window; `mix` in the IPC
+    order: null, // explicit per-file order once a playlist is reordered
     resend: false,
+    resendSources: new Set(), // per-track "Send again"
+    tagsOpen: false, // the run-wide tag fields are shown
     preview: null,
     previewing: false,
     previewError: null,
@@ -459,10 +506,20 @@
     ruleBusy: false, // the password prompt is open
     ruleInstalled: false, // installed in this session: next step is a replug
     ruleMsg: null, // { text, error } after a cancelled or failed install
+    bezel: 0, // clicks the dive bezel has turned
+    roomFree: null, // free bytes as a send takes them, until status is read again
+    reset: null, // the Start over walkthrough, while it is open
   };
 
-  const STEP_OF = { watch: 0, choose: 1, library: 1, review: 2, send: 3, done: 3 };
+  const STEP_OF = { watch: 0, library: 1, playlist: 1, review: 2, send: 3, done: 3 };
   const FLOW = Object.keys(STEP_OF);
+  const FLOW_STEPS = [
+    ["watch", "Watch"],
+    ["library", "Choose"],
+    ["review", "Review"],
+    ["send", "Send"],
+  ];
+  const RESET_STEPS = ["Erases", "Back up", "Reset", "Confirm"];
   let flowView = "watch"; // where Back returns to from the watch records
   const running = () => S.run && !S.run.finished && !S.run.error;
 
@@ -483,17 +540,68 @@
     $("#notice").hidden = true;
   };
 
+  // ------------------------------------------------------------ motion
+
+  // Title cards: the title line resolves out of wide, soft tracking, and the
+  // lines beneath it settle in after it. List views bring their rows in as a
+  // list. Web Animations, so a later re-render never replays an entrance.
+  const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
+  function enter(sec) {
+    if (reduceMotion.matches) return;
+    if (sec.hasAttribute("data-card")) {
+      const kids = Array.from(sec.children);
+      kids.forEach((el, i) => {
+        if (el.classList.contains("title")) {
+          el.animate(
+            [
+              { opacity: 0, filter: "blur(6px)", letterSpacing: "0.46em" },
+              { opacity: 1, filter: "blur(0)", letterSpacing: "0.28em" },
+            ],
+            { duration: 480, easing: EASE, fill: "backwards" },
+          );
+        } else {
+          el.animate(
+            [
+              { opacity: 0, transform: "translateY(8px)" },
+              { opacity: 1, transform: "none" },
+            ],
+            { duration: 340, delay: 90 + Math.min(i, 5) * 34, easing: EASE, fill: "backwards" },
+          );
+        }
+      });
+      return;
+    }
+    const head = $(".head", sec);
+    if (head) head.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: EASE, fill: "backwards" });
+    unfold($$(".rows > li, .places li", sec), 60);
+  }
+
+  // Rows arriving as a list: a short stagger, capped.
+  function unfold(rows, delay = 0) {
+    if (reduceMotion.matches) return;
+    rows.slice(0, 14).forEach((el, i) => {
+      el.animate(
+        [
+          { opacity: 0, transform: "translateY(-4px)" },
+          { opacity: 1, transform: "none" },
+        ],
+        { duration: 220, delay: delay + i * 16, easing: EASE, fill: "backwards" },
+      );
+    });
+  }
+
   // ------------------------------------------------------------ views
 
   const RENDER = {
     watch: renderWatch,
-    choose: renderChoose,
     library: renderLibrary,
+    playlist: renderPlaylist,
     review: renderReview,
     send: renderSend,
     done: renderDone,
     onwatch: renderOnWatch,
     ledger: renderLedger,
+    reset: renderReset,
   };
 
   function show(view, { focus = true } = {}) {
@@ -504,11 +612,7 @@
     for (const sec of $$(".view")) sec.hidden = sec.id !== `v-${view}`;
     const sec = $(`#v-${view}`);
     RENDER[view]();
-    if (focus && prev !== view && !reduceMotion.matches) {
-      sec.classList.remove("enter");
-      void sec.offsetWidth;
-      sec.classList.add("enter");
-    }
+    if (focus && prev !== view) enter(sec);
     syncChrome();
     if (focus && prev !== view) {
       const h = $(".title", sec);
@@ -516,22 +620,52 @@
     }
   }
 
-  function syncChrome() {
-    const step = STEP_OF[S.view];
+  function renderSteps() {
+    const ol = $("#steps");
     const busy = running();
-    const have = S.chosen.length > 0;
-    $$("#steps button").forEach((b, i) => {
-      const name = b.dataset.step;
-      b.toggleAttribute("aria-current", i === step);
-      if (i === step) b.setAttribute("aria-current", "step");
-      const enabled =
-        !busy &&
-        i !== step &&
-        (name === "watch" || name === "choose" || (name === "review" && have) || (name === "send" && S.run && S.run.finished));
-      b.disabled = !enabled;
-    });
+    if (S.view === "reset" && S.reset) {
+      const at = S.reset.step === "done" || S.reset.step === "refused" ? 4 : S.reset.step;
+      ol.innerHTML = RESET_STEPS.map((name, i) => {
+        const n = i + 1;
+        const cur = n === at;
+        const ok = !cur && n <= S.reset.reached && !S.reset.checking && S.reset.step !== "done";
+        return `<li><button type="button" data-rstep="${n}"${cur ? ' aria-current="step"' : ""}${ok ? "" : " disabled"}>${name}</button></li>`;
+      }).join("");
+      $(".steps-nav").setAttribute("aria-label", "Start over");
+    } else {
+      const step = STEP_OF[S.view];
+      const have = S.chosen.length > 0;
+      ol.innerHTML = FLOW_STEPS.map(([name, word], i) => {
+        const cur = i === step;
+        const ok =
+          !busy &&
+          !cur &&
+          (name === "watch" || name === "library" || (name === "review" && have) || (name === "send" && S.run && S.run.finished));
+        return `<li><button type="button" data-step="${name}"${cur ? ' aria-current="step"' : ""}${ok ? "" : " disabled"}>${word}</button></li>`;
+      }).join("");
+      $(".steps-nav").setAttribute("aria-label", "Steps");
+    }
+    // One hairline under the current step, travelling between them.
+    const rule = $("#steps-rule");
+    const cur = $('[aria-current="step"]', ol);
+    if (!cur) {
+      rule.style.opacity = "0";
+      return;
+    }
+    const nav = $(".steps-nav").getBoundingClientRect();
+    const r = cur.getBoundingClientRect();
+    const first = rule.style.opacity !== "1";
+    if (first) rule.classList.add("still");
+    rule.style.opacity = "1";
+    rule.style.transform = `translateX(${r.left - nav.left + 2}px) scaleX(${(Math.max(0, r.width - 4) / 100).toFixed(4)})`;
+    if (first) requestAnimationFrame(() => rule.classList.remove("still"));
+  }
+
+  function syncChrome() {
+    const busy = running();
+    renderSteps();
     $$(".aside-nav .link").forEach((b) => {
-      const cur = b.dataset.go === S.view;
+      const cur = b.dataset.go === S.view || (b.dataset.go === "onwatch" && S.view === "reset");
       if (cur) b.setAttribute("aria-current", "page");
       else b.removeAttribute("aria-current");
       b.disabled = busy;
@@ -543,8 +677,12 @@
 
   // --- Watch -----------------------------------------------------------
 
-  function classify(err) {
-    const e = String(err || "").toLowerCase();
+  function classify(st) {
+    const k = st.error_kind;
+    if (k === "wedged" || isWedged(st.error)) return "wedged";
+    if (k === "busy" || k === "gvfs" || k === "permission") return k;
+    if (k === "not_found" || k === "other") return "none";
+    const e = String(st.error || "").toLowerCase();
     if (/\bbusy\b/.test(e)) return "busy";
     if (/gvfs|gio mount/.test(e) && !/no watch|not found|cable/.test(e)) return "gvfs";
     if (/permission|udev|access denied/.test(e) && !/no watch|not found|cable/.test(e)) return "permission";
@@ -560,7 +698,22 @@
       return;
     }
     if (!st.connected) {
-      const kind = classify(st.error);
+      const kind = classify(st);
+      if (kind === "wedged") {
+        v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">The watch isn't answering</h1>
+          <p class="lede">Unplug it, wait five seconds, plug it back in.</p>
+          <ol class="replug" aria-label="What to do">
+            <li><span class="n">1</span>Unplug the cable from the watch</li>
+            <li><span class="n">2</span>Wait five seconds</li>
+            <li><span class="n">3</span>Plug it back in</li>
+          </ol>
+          <p class="facts">This can happen after the watch restarts. Once it's plugged back in, Pelican finds it again.</p>
+          <div class="actions">
+            <button type="button" class="act" data-act="recheck">Check again</button>
+            <button type="button" class="text-btn" data-go="library">Choose music meanwhile</button>
+          </div>`;
+        return;
+      }
       const title = {
         none: "Connect your watch",
         permission: "Permission needed",
@@ -591,14 +744,14 @@
         ${offer ? ruleBlock(rule) : ""}
         <div class="actions${offer ? " after-rule" : ""}">
           <button type="button" class="${offer ? "text-btn" : "act"}" data-act="recheck"${S.ruleBusy ? " disabled" : ""}>Check again</button>
-          <button type="button" class="text-btn" data-go="choose">Choose music meanwhile</button>
+          <button type="button" class="text-btn" data-go="library">Choose music meanwhile</button>
         </div>`;
       return;
     }
     const room = roomFor(st);
     const facts = [
       `${plural(st.music_objects ?? 0, "track")} of ${st.max_objects ?? 500} on the watch`,
-      `${(st.ledger?.verified ?? 0).toLocaleString("en")} sent by Pelican`,
+      `${(st.ledger?.verified ?? 0).toLocaleString("en")} sent by Pelican${st.ledger?.resets ? " since the last reset" : ""}`,
     ];
     if (st.ledger?.failed) facts.push(`${plural(st.ledger.failed, "failed attempt")} in the ledger`);
     const warn = st.gvfs_warning
@@ -609,7 +762,7 @@
       <p class="facts">${esc(facts.join(" · "))}</p>
       ${warn}
       <div class="actions">
-        <button type="button" class="act" data-go="choose">Choose music</button>
+        <button type="button" class="act" data-go="library">Choose music</button>
         ${S.chosen.length ? `<button type="button" class="text-btn" data-go="review">Review what is chosen</button>` : ""}
       </div>`;
   }
@@ -618,10 +771,13 @@
     try {
       S.status = await api.invoke("status");
     } catch (e) {
-      S.status = { connected: false, error: errText(e) };
+      const msg = errText(e);
+      S.status = { connected: false, error: msg, error_kind: isWedged(msg) ? "wedged" : undefined };
     }
-    if (!S.status.connected) await refreshRule();
+    S.roomFree = null;
+    if (!S.status.connected && classify(S.status) !== "wedged") await refreshRule();
     if (S.view === "watch") renderWatch();
+    if (S.view === "reset") renderReset();
     syncChrome();
   }
 
@@ -705,35 +861,275 @@
     if (b) b.focus({ preventScroll: true });
   }
 
-  // --- Choose ----------------------------------------------------------
+  // --- Library: the explorer ------------------------------------------
+  //
+  // Places down the side (Home, Music, the library, network shares,
+  // drives, the whole computer), a folder tree that opens in place and
+  // loads each folder as it opens, and a tick on every folder and song.
+  // Nobody types a path.
 
-  function renderChoose() {
-    const v = $("#v-choose");
-    const list = S.chosen.length
-      ? `<ul class="chosen" aria-label="Chosen">${S.chosen
-          .map(
-            (c, i) => `<li>
-              <span class="name">${esc(c.name)}<span class="where">${esc(dirname(c.path))}</span></span>
-              <span class="dim small">${c.kind === "dir" ? (c.count != null ? plural(c.count, "track") : "folder") : "track"}</span>
-              <button type="button" class="text-btn" data-act="unchoose" data-i="${i}" aria-label="Leave out ${esc(c.name)}">Leave out</button>
-            </li>`,
-          )
-          .join("")}</ul>`
-      : `<p class="empty-teach">Nothing chosen yet. Whole albums work best: each track is tagged from its file, or from its folder names when the file has none.</p>`;
-    v.innerHTML = `<h1 class="title" id="t-choose" tabindex="-1">Choose music</h1>
-      <p class="lede">Drop albums or folders anywhere on this window, or pick them from your library.</p>
-      ${list}
-      <div class="actions">
-        ${S.chosen.length ? `<button type="button" class="act" data-go="review">Review</button>` : ""}
-        <button type="button" class="${S.chosen.length ? "text-btn" : "act"}" data-go="library">Open the library</button>
+  const PLACE_MARK = { home: "home", music: "music", network: "network", drive: "drive", library: "library" };
+  const COMPUTER = { label: "Computer", path: "/", kind: "drive" };
+  const under = (p, dir) => p.startsWith(dir.endsWith("/") ? dir : `${dir}/`);
+
+  async function loadPlaces() {
+    if (S.places) return;
+    try {
+      S.places = await api.invoke("places");
+    } catch (_) {
+      S.places = [];
+    }
+    if (!S.places.some((p) => p.path === "/")) S.places = [...S.places, COMPUTER];
+    if (!S.place) {
+      const pick =
+        S.places.find((p) => p.kind === "library") || S.places.find((p) => p.kind === "music") || S.places[0];
+      S.place = pick.path;
+    }
+  }
+
+  async function loadDir(path) {
+    const cur = S.tree.get(path);
+    if (cur && (cur.state === "ok" || cur.state === "loading")) return;
+    S.tree.set(path, { state: "loading" });
+    if (S.view === "library") paintTree();
+    try {
+      S.tree.set(path, { state: "ok", l: await api.invoke("library_list", { path }) });
+    } catch (e) {
+      S.tree.set(path, { state: "error", error: errText(e) });
+    }
+    if (S.view === "library") paintTree(path);
+  }
+
+  async function openLibrary() {
+    await loadPlaces();
+    if (S.view === "library") renderLibrary();
+    if (!S.showChosen) await loadDir(S.place);
+  }
+
+  // Tick state. A ticked folder covers everything inside it.
+  function coveredBy(path) {
+    const c = S.chosen.find((x) => x.kind === "dir" && under(path, x.path));
+    return c ? c.path : null;
+  }
+  const isChosen = (path) => S.chosen.some((c) => c.path === path);
+  const hasChosenInside = (path) => S.chosen.some((c) => under(c.path, path));
+
+  const dirEntry = (d) => ({ path: d.path, name: d.name, kind: "dir", count: d.audio_files });
+  const fileEntry = (f) => ({ path: f.path, name: f.name, kind: "file" });
+
+  function pick(el) {
+    const path = el.dataset.path;
+    if (el.checked) {
+      const entry = el.dataset.kind === "dir" ? dirEntry({ path, name: el.dataset.name, audio_files: Number(el.dataset.count) }) : fileEntry({ path, name: el.dataset.name });
+      // A folder takes the place of anything already ticked inside it.
+      const at = S.chosen.findIndex((c) => under(c.path, path));
+      S.chosen = S.chosen.filter((c) => !under(c.path, path));
+      if (at >= 0) S.chosen.splice(Math.min(at, S.chosen.length), 0, entry);
+      else S.chosen.push(entry);
+    } else if (isChosen(path)) {
+      S.chosen = S.chosen.filter((c) => c.path !== path);
+    } else {
+      const anc = coveredBy(path);
+      if (anc) uncover(path, anc);
+    }
+    invalidatePreview();
+    paintTree();
+    paintBar();
+    syncChrome();
+  }
+
+  // Untick something inside a ticked folder: the folder gives way to
+  // everything in it except that one, level by level. Every level is
+  // loaded already, since the row was on screen to be unticked.
+  function uncover(path, anc) {
+    const idx = S.chosen.findIndex((c) => c.path === anc);
+    const inserts = [];
+    let cur = anc;
+    for (;;) {
+      const n = S.tree.get(cur);
+      if (!n || n.state !== "ok") break;
+      const rest = path.slice((cur.endsWith("/") ? cur : `${cur}/`).length).split("/");
+      const next = `${cur.replace(/\/$/, "")}/${rest[0]}`;
+      for (const d of n.l.dirs) if (d.path !== next && (d.audio_files || d.has_subdirs)) inserts.push(dirEntry(d));
+      for (const f of n.l.files) if (f.path !== next) inserts.push(fileEntry(f));
+      if (next === path) break;
+      cur = next;
+    }
+    S.chosen.splice(idx, 1, ...inserts);
+  }
+
+  function chosenSummary() {
+    const dirs = S.chosen.filter((c) => c.kind === "dir").length;
+    const files = S.chosen.length - dirs;
+    if (!S.chosen.length) return "Tick folders or songs. Open a folder with its arrow.";
+    const bits = [];
+    if (dirs) bits.push(plural(dirs, "folder"));
+    if (files) bits.push(plural(files, "song"));
+    return `${bits.join(" and ")} chosen`;
+  }
+
+  function placeHead() {
+    if (S.showChosen) return `<p class="where">Chosen for this send, in the order you ticked them.</p>`;
+    const p = (S.places || []).find((x) => x.path === S.place);
+    return `<p class="where">${p ? `${esc(p.label)} · ` : ""}<span class="path">${esc(S.place || "")}</span></p>`;
+  }
+
+  function placesHtml() {
+    const list = (S.places || [])
+      .map((p) => {
+        const cur = !S.showChosen && p.path === S.place;
+        return `<li><button type="button" class="place" data-act="place" data-path="${esc(p.path)}" title="${esc(p.path)}"${
+          cur ? ' aria-current="location"' : ""
+        }>${mark(PLACE_MARK[p.kind] || "drive")}<span class="pl">${esc(p.label)}</span></button></li>`;
+      })
+      .join("");
+    const n = S.chosen.length;
+    return `<nav class="places" aria-label="Places">
+        <ul>${list}</ul>
+        <ul class="places-chosen"><li><button type="button" class="place" data-act="chosen-list"${S.showChosen ? ' aria-current="location"' : ""}>${mark("list")}<span class="pl">Chosen</span><span class="n" id="chosen-n">${n ? n.toLocaleString("en") : ""}</span></button></li></ul>
+      </nav>`;
+  }
+
+  function renderLibrary() {
+    const v = $("#v-library");
+    v.innerHTML = `<div class="head">
+        <h1 class="title" id="t-library" tabindex="-1">Library</h1>
+        <div id="lib-where">${placeHead()}</div>
       </div>
-      <p class="quiet small">Library folder: <span class="path">${esc(S.root || "…")}</span></p>`;
+      <div class="explorer">
+        ${placesHtml()}
+        <ul class="rows tree" id="tree" aria-label="Folders and songs"></ul>
+      </div>
+      <div class="bar" id="lib-bar"></div>`;
+    paintTree();
+    paintBar();
+  }
+
+  function paintBar() {
+    const bar = $("#lib-bar");
+    if (!bar) return;
+    const have = S.chosen.length > 0;
+    bar.innerHTML = `<span class="count" aria-live="polite">${esc(chosenSummary())}</span>
+      ${have ? `<button type="button" class="text-btn" data-act="clear-chosen">Clear</button>` : ""}
+      <button type="button" class="act" data-act="make-playlist"${have ? "" : " disabled"}>Make a playlist</button>
+      <button type="button" class="act" data-act="review-album"${have ? "" : " disabled"}>Review</button>`;
+    const n = $("#chosen-n");
+    if (n) n.textContent = have ? S.chosen.length.toLocaleString("en") : "";
+  }
+
+  // Re-render the tree body only, keeping scroll and focus. `opened` is a
+  // folder whose children just arrived: they unfold under it.
+  function paintTree(opened) {
+    const ul = $("#tree");
+    if (!ul) return;
+    const active = document.activeElement;
+    const activeId = active && ul.contains(active) ? active.id : null;
+    const top = ul.scrollTop;
+    ul.innerHTML = S.showChosen ? chosenRows() : treeRows(S.place, 0);
+    for (const el of $$("[data-mixed]", ul)) el.indeterminate = true;
+    for (const li of $$("[data-d]", ul)) li.style.setProperty("--d", li.dataset.d);
+    ul.scrollTop = top;
+    if (activeId) {
+      const el = document.getElementById(activeId);
+      if (el) el.focus({ preventScroll: true });
+    }
+    if (opened && opened !== S.place) unfold($$(`[data-parent="${CSS.escape(opened)}"]`, ul));
+    else if (opened === S.place) unfold($$("li", ul));
+  }
+
+  function treeRows(path, depth) {
+    const n = S.tree.get(path);
+    // Depth goes on as a data attribute and becomes --d in paintTree: the
+    // CSP (style-src 'self') refuses inline style attributes.
+    const pad = `data-d="${depth}" data-parent="${esc(path)}"`;
+    if (!n || n.state === "loading") {
+      return depth === 0 ? skeletonRows(6) : `<li class="row tree-row is-note" ${pad}><span></span><span></span><span class="t dim">Opening…</span></li>`;
+    }
+    if (n.state === "error") {
+      const msg = isWedged(n.error) ? n.error : `${n.error} If this is a network share, check it is mounted.`;
+      return `<li class="row tree-row is-note" ${pad}><span></span><span class="fail">${mark("failed")}</span><span class="t wrap"><span class="fail word">Can't open</span> <span class="dim">${esc(msg)}</span></span></li>`;
+    }
+    const { dirs, files } = n.l;
+    if (!dirs.length && !files.length) {
+      return depth === 0
+        ? `<li class="empty-row"><p class="empty"><strong>No music here.</strong>Pelican reads MP3, FLAC, WAV, AAC/M4A, Ogg, Opus, WMA, APE and AIFF. Choose another place, or open a folder that holds albums.</p></li>`
+        : `<li class="row tree-row is-note" ${pad}><span></span><span></span><span class="t dim">No music in this folder.</span></li>`;
+    }
+    let out = "";
+    for (const d of dirs) {
+      const has = d.audio_files > 0 || d.has_subdirs;
+      const open = has && S.open.has(d.path);
+      const h = hashStr(d.path);
+      const on = isChosen(d.path) || !!coveredBy(d.path);
+      const mixed = !on && hasChosenInside(d.path);
+      const sub =
+        d.audio_files > 0
+          ? `${plural(d.audio_files, "song")}${d.has_subdirs ? " · folders inside" : ""}`
+          : d.has_subdirs
+            ? "folders inside"
+            : "no music";
+      out += `<li class="row tree-row dir${open ? " is-open" : ""}${has ? "" : " is-empty"}" ${pad}>
+          <span class="disc">${
+            has
+              ? `<button type="button" class="chev" tabindex="-1" aria-hidden="true" data-act="toggle" data-path="${esc(d.path)}">${mark("open")}</button>`
+              : ""
+          }</span>
+          <input type="checkbox" class="check" id="c-${h}" data-act="pick" data-kind="dir" data-path="${esc(d.path)}" data-name="${esc(d.name)}" data-count="${d.audio_files}" aria-label="Choose ${esc(d.name)}"${on ? " checked" : ""}${mixed ? " data-mixed" : ""}${has ? "" : " disabled"}>
+          ${
+            has
+              ? `<button type="button" class="t name-btn" id="x-${h}" data-act="toggle" data-path="${esc(d.path)}" aria-expanded="${open}">${esc(d.name)}<span class="sub">${esc(sub)}</span></button>`
+              : `<span class="t">${esc(d.name)}<span class="sub">${esc(sub)}</span></span>`
+          }
+          <span></span>
+        </li>`;
+      if (open) out += treeRows(d.path, depth + 1);
+    }
+    for (const f of files) {
+      const h = hashStr(f.path);
+      const on = isChosen(f.path) || !!coveredBy(f.path);
+      out += `<li class="row tree-row file" ${pad}>
+          <span class="disc"></span>
+          <input type="checkbox" class="check" id="c-${h}" data-act="pick" data-kind="file" data-path="${esc(f.path)}" data-name="${esc(f.name)}"${on ? " checked" : ""}>
+          <label class="t" for="c-${h}">${esc(f.name)}</label>
+          <span class="size">${esc(bytes(f.bytes))}</span>
+        </li>`;
+    }
+    return out;
+  }
+
+  function chosenRows() {
+    if (!S.chosen.length) {
+      return `<li class="empty-row"><p class="empty"><strong>Nothing chosen yet.</strong>Tick folders or songs in any place, or drop them on this window. Whole albums work best: each song is tagged from its file, or from its folder names when the file has none.</p></li>`;
+    }
+    return S.chosen
+      .map(
+        (c, i) => `<li class="row chosen-row">
+          ${mark(c.kind === "dir" ? "library" : "music")}
+          <span class="t">${esc(c.name)}<span class="sub">${esc(dirname(c.path))}</span></span>
+          <span class="size">${c.kind === "dir" ? (c.count ? plural(c.count, "song") : "folder") : "song"}</span>
+          <button type="button" class="text-btn" data-act="unchoose" data-i="${i}" aria-label="Leave out ${esc(c.name)}">Leave out</button>
+        </li>`,
+      )
+      .join("");
+  }
+
+  async function toggleDir(path) {
+    if (S.open.has(path)) {
+      S.open.delete(path);
+      paintTree();
+      return;
+    }
+    S.open.add(path);
+    const n = S.tree.get(path);
+    if (n && n.state === "ok") paintTree(path);
+    else await loadDir(path);
   }
 
   function addChosen(entries) {
     let added = 0;
     for (const e of entries) {
-      if (S.chosen.some((c) => c.path === e.path)) continue;
+      if (isChosen(e.path) || coveredBy(e.path)) continue;
+      S.chosen = S.chosen.filter((c) => !under(c.path, e.path));
       S.chosen.push(e);
       added += 1;
     }
@@ -744,102 +1140,6 @@
   function invalidatePreview() {
     S.preview = null;
     S.order = null;
-  }
-
-  // --- Library ---------------------------------------------------------
-
-  async function loadLibrary(path) {
-    S.lib = { loading: true, path };
-    if (S.view === "library") renderLibrary();
-    try {
-      S.lib = await api.invoke("library_list", { path });
-    } catch (e) {
-      S.lib = { path, error: errText(e), dirs: [], files: [] };
-    }
-    if (S.view === "library") renderLibrary();
-  }
-
-  function crumbs(path) {
-    const root = S.root || "/";
-    const inside = path.startsWith(root) ? path.slice(root.length).split("/").filter(Boolean) : [];
-    const parts = [{ name: basename(root) || root, path: root }];
-    let acc = root;
-    for (const seg of inside) {
-      acc = `${acc.replace(/\/$/, "")}/${seg}`;
-      parts.push({ name: seg, path: acc });
-    }
-    return parts
-      .map((p, i) =>
-        i === parts.length - 1
-          ? `<span aria-current="location">${esc(p.name)}</span>`
-          : `<button type="button" data-act="lib-open" data-path="${esc(p.path)}">${esc(p.name)}</button><span aria-hidden="true">/</span>`,
-      )
-      .join("");
-  }
-
-  function renderLibrary() {
-    const v = $("#v-library");
-    const lib = S.lib;
-    const picked = new Set(S.chosen.map((c) => c.path));
-    const form = S.rootEditing
-      ? `<form class="root-form" data-form="root">
-          <label class="sr-only" for="root-input">Library folder</label>
-          <input class="field-input" id="root-input" name="root" value="${esc(S.root || "")}" spellcheck="false" autocomplete="off" placeholder="/path/to/music">
-          <button type="submit" class="act">Use this folder</button>
-          <button type="button" class="text-btn" data-act="root-cancel">Cancel</button>
-        </form>`
-      : "";
-    let body;
-    if (!lib || lib.loading) {
-      body = `<ul class="rows" aria-busy="true">${skeletonRows(6)}</ul>`;
-    } else if (lib.error) {
-      body = `<div class="rows"><p class="empty"><strong>This folder cannot be read.</strong>${esc(lib.error)} Choose another library folder.</p></div>`;
-    } else if (!lib.dirs.length && !lib.files.length) {
-      body = `<div class="rows"><p class="empty"><strong>No music in this folder.</strong>Pelican reads MP3, FLAC, WAV, AAC/M4A, Ogg, Opus, WMA, APE and AIFF. Open a folder that holds albums, or change the library folder.</p></div>`;
-    } else {
-      const dirs = lib.dirs
-        .map((d) => {
-          const has = d.audio_files > 0 || d.has_subdirs;
-          const sub =
-            d.audio_files > 0
-              ? `${plural(d.audio_files, "track")}${d.has_subdirs ? " · folders inside" : ""}`
-              : d.has_subdirs
-                ? "folders inside"
-                : "no music";
-          const id = `pick-${hashStr(d.path)}`;
-          return `<li class="row lib-row">
-            <input type="checkbox" class="check" id="${id}" data-act="pick" data-kind="dir" data-path="${esc(d.path)}" data-name="${esc(d.name)}" data-count="${d.audio_files}"${picked.has(d.path) ? " checked" : ""}${has ? "" : " disabled"}>
-            <label for="${id}"><span class="t">${esc(d.name)}<span class="sub">${esc(sub)}</span></span></label>
-            <span></span>
-            ${has ? `<button type="button" class="open-btn" data-act="lib-open" data-path="${esc(d.path)}" aria-label="Open ${esc(d.name)}">Open${mark("open")}</button>` : "<span></span>"}
-          </li>`;
-        })
-        .join("");
-      const files = lib.files
-        .map((f) => {
-          const id = `pick-${hashStr(f.path)}`;
-          return `<li class="row lib-row file">
-            <input type="checkbox" class="check" id="${id}" data-act="pick" data-kind="file" data-path="${esc(f.path)}" data-name="${esc(f.name)}"${picked.has(f.path) ? " checked" : ""}>
-            <label for="${id}"><span class="t">${esc(f.name)}</span></label>
-            <span class="size">${esc(bytes(f.bytes))}</span>
-          </li>`;
-        })
-        .join("");
-      body = `<ul class="rows" aria-label="Folders and tracks">${dirs}${files}</ul>`;
-    }
-    v.innerHTML = `<div class="head">
-        <h1 class="title" id="t-library" tabindex="-1">Library</h1>
-        <nav class="crumbs" aria-label="Folder">${crumbs((lib && lib.path) || S.root || "/")}
-          <span aria-hidden="true">·</span><button type="button" data-act="root-edit">Change library folder</button></nav>
-        ${form}
-      </div>
-      ${body}
-      <div class="bar">
-        <span class="count">${S.chosen.length ? `${plural(S.chosen.length, "item")} chosen` : "Tick albums, folders or tracks to choose them."}</span>
-        <button type="button" class="text-btn" data-go="choose">Back</button>
-        <button type="button" class="act" data-go="review"${S.chosen.length ? "" : " disabled"}>Review</button>
-      </div>`;
-    if (S.rootEditing) $("#root-input").focus();
   }
 
   function skeletonRows(n) {
@@ -859,6 +1159,48 @@
     return (h >>> 0).toString(36);
   }
 
+  // --- Playlist: name it, press Enter ----------------------------------
+
+  function songsLabel() {
+    let songs = 0;
+    let exact = true;
+    const folders = new Set();
+    for (const c of S.chosen) {
+      if (c.kind === "file") {
+        songs += 1;
+        folders.add(dirname(c.path));
+      } else {
+        songs += c.count || 0;
+        if (!c.count) exact = false;
+        folders.add(c.path);
+      }
+    }
+    const from = folders.size > 1 ? ` from ${plural(folders.size, "folder")}` : "";
+    return `${exact ? "" : "At least "}${plural(songs, "song")}${from}`;
+  }
+
+  function renderPlaylist() {
+    const v = $("#v-playlist");
+    if (!S.chosen.length) {
+      v.innerHTML = `<h1 class="title" id="t-playlist" tabindex="-1">Make a playlist</h1>
+        <p class="lede">Tick songs in the library first, from as many folders as you like.</p>
+        <div class="actions"><button type="button" class="act" data-go="library">Open the library</button></div>`;
+      return;
+    }
+    v.innerHTML = `<h1 class="title" id="t-playlist" tabindex="-1">Name the playlist</h1>
+      <p class="lede">${esc(songsLabel())}, in the order you ticked them. On the watch it appears under Albums, in this order.</p>
+      <form class="name-form" data-form="playlist" autocomplete="off">
+        <label class="sr-only" for="pl-name">Playlist name</label>
+        <input class="field-input name-input" id="pl-name" name="name" value="${esc(S.mix.name)}" placeholder="Long Run" spellcheck="false" maxlength="80">
+        <button type="submit" class="act">Review</button>
+      </form>
+      <p class="facts">Press Enter to review it. You can change the order there.</p>
+      <p class="facts">A song that is already on the watch goes again as a new copy inside the playlist.</p>
+      <div class="actions"><button type="button" class="text-btn" data-go="library">Back to the library</button></div>`;
+    const input = $("#pl-name");
+    if (input && !STILL) requestAnimationFrame(() => input.focus({ preventScroll: true }));
+  }
+
   // --- Review ----------------------------------------------------------
 
   function previewReq() {
@@ -876,6 +1218,7 @@
       overrides: o,
       mix: S.mix.on && name ? { name } : null,
       resend: S.resend,
+      resend_sources: [...S.resendSources],
     };
   }
 
@@ -909,10 +1252,17 @@
 
   function verdictCell(f) {
     if (f.verdict === "send") {
+      if (S.resendSources.has(f.source)) {
+        return `<span class="state s-send">${mark("pending")}Send again</span><span class="why dim">another copy, under a new name</span>
+          <button type="button" class="text-btn row-btn" data-act="again-undo" data-src="${esc(f.source)}" aria-label="Keep ${esc(f.title)} skipped">Keep skipped</button>`;
+      }
       return `<span class="state s-send">${mark("pending")}Send</span><span class="size">est. ${esc(bytes(f.est_bytes))}</span>`;
     }
     if (f.verdict === "skip") {
-      return `<span class="state s-skip">${mark("skipped")}Skip</span><span class="why dim">${esc(f.reason || "")}</span>`;
+      const again = /^already on watch/i.test(f.reason || "")
+        ? `<button type="button" class="text-btn row-btn" data-act="again-one" data-src="${esc(f.source)}" aria-label="Send ${esc(f.title)} again">Send again</button>`
+        : "";
+      return `<span class="state s-skip">${mark("skipped")}Skip</span><span class="why dim">${esc(f.reason || "")}</span>${again}`;
     }
     return `<span class="state s-refused">${mark("failed")}Refused</span><span class="why fail">${esc(f.reason || "")}</span>`;
   }
@@ -921,8 +1271,8 @@
     const v = $("#v-review");
     if (!S.chosen.length) {
       v.innerHTML = `<div class="head"><h1 class="title" id="t-review" tabindex="-1">Review</h1></div>
-        <div class="rows"><p class="empty"><strong>Nothing to review yet.</strong>Choose albums or tracks first; this is where you see how each will be tagged, whether it fits, and what gets sent.</p></div>
-        <div class="bar"><button type="button" class="act" data-go="choose">Choose music</button></div>`;
+        <div class="rows"><p class="empty"><strong>Nothing to review yet.</strong>Choose albums or songs first; this is where you see how each will be tagged, whether it fits, and what gets sent.</p></div>
+        <div class="bar"><button type="button" class="act" data-go="library">Choose music</button></div>`;
       return;
     }
     if (!S.preview && !S.previewing && !S.previewError) {
@@ -942,12 +1292,12 @@
         <p class="empty"><button type="button" class="act" data-act="preview">Try again</button></p></div>`;
     } else if (p) {
       const t = p.totals;
-      const bits = [`${plural(p.files.length, "track")}`];
+      const bits = [`${plural(p.files.length, "song")}`];
       bits.push(`${t.send.toLocaleString("en")} to send`);
       if (t.skip) bits.push(`${t.skip.toLocaleString("en")} skipped`);
       if (t.refused) bits.push(`${t.refused.toLocaleString("en")} refused`);
-      summary = `${bits.join(" · ")} · about ${bytes(t.est_bytes)}`;
-      list = `<ol class="rows${S.previewing ? " is-stale" : ""}" aria-label="Tracks"${S.previewing ? ' aria-busy="true"' : ""}>${p.files
+      summary = `${mixing && S.mix.name.trim() ? `Playlist “${S.mix.name.trim()}” · ` : ""}${bits.join(" · ")} · about ${bytes(t.est_bytes)}`;
+      list = `<ol class="rows${S.previewing ? " is-stale" : ""}" aria-label="${mixing ? "Playlist, in order" : "Songs"}"${S.previewing ? ' aria-busy="true"' : ""}>${p.files
         .map((f, i) => {
           const sub = [f.artist, f.album, f.year, f.genre].filter(Boolean).join(" · ");
           const order = mixing
@@ -956,7 +1306,7 @@
                 <button type="button" data-act="move" data-i="${i}" data-d="1" aria-label="Move ${esc(f.title)} down"${i === p.files.length - 1 ? " disabled" : ""}><svg class="mk" aria-hidden="true"><use href="#m-down"/></svg></button>
               </span>`
             : "";
-          return `<li class="row track-row is-${esc(f.verdict)}">
+          return `<li class="row track-row is-${esc(f.verdict)}" data-src="${esc(f.source)}">
             <span class="num">${esc(f.track ?? "–")}</span>
             <span class="t">${esc(f.title)}<span class="sub">${esc(sub || "No artist or album")}</span></span>
             <span class="end">${verdictCell(f)}</span>
@@ -964,44 +1314,50 @@
           </li>`;
         })
         .join("")}</ol>
-        <p class="est-note">Sizes are estimates at the one profile (192 kbps MP3); the exact size is known once each track is converted.</p>`;
+        <p class="est-note">Sizes are estimates at the one profile (192 kbps MP3); the exact size is known once each song is converted.</p>`;
     }
 
     v.innerHTML = `<div class="head">
-        <h1 class="title" id="t-review" tabindex="-1">Review</h1>
+        <h1 class="title" id="t-review" tabindex="-1">${mixing ? "Review the playlist" : "Review"}</h1>
         <p class="quiet">${esc(summary)}</p>
       </div>
       <div class="review-body${mixing ? " mixing" : ""}">
         <div class="review-list">${list}</div>
         <div class="review-side">
+          <div class="side-scroll">
           ${fitBlock(p)}
-          <fieldset>
-            <legend class="group-label">For every track</legend>
-            <div class="overrides">
-              ${overrideInput("artist", "Artist")}
-              ${mixing ? "" : overrideInput("album", "Album")}
-              ${overrideInput("genre", "Genre")}
-              ${overrideInput("year", "Year", 'inputmode="numeric" maxlength="4"')}
-            </div>
-          </fieldset>
           <div>
             <label class="toggle"><input type="checkbox" class="check" id="mix-on" data-act="mix-toggle"${mixing ? " checked" : ""}>
-              <span>Send as a mix<span class="dim">It appears on the watch as an album, in this order.</span></span></label>
+              <span>Send as a playlist<span class="dim">On the watch it appears under Albums, in this order.</span></span></label>
             ${
               mixing
-                ? `<label class="sr-only" for="mix-name">Mix name</label>
-                   <input class="field-input mix-name" id="mix-name" data-input="mix" value="${esc(S.mix.name)}" placeholder="Name the mix, e.g. Long Run" autocomplete="off">`
+                ? `<label class="sr-only" for="mix-name">Playlist name</label>
+                   <input class="field-input mix-name" id="mix-name" data-input="mix" value="${esc(S.mix.name)}" placeholder="Name the playlist" autocomplete="off" spellcheck="false" maxlength="80">
+                   <p class="side-note">Songs already on the watch go again as new copies inside it.</p>`
                 : ""
             }
           </div>
+          <details class="every tags" id="tags"${S.tagsOpen || Object.values(S.overrides).some((x) => x.trim()) ? " open" : ""}>
+            <summary>${mark("open")}Tags for every song</summary>
+            <fieldset>
+              <legend class="sr-only">Tags for every song</legend>
+              <div class="overrides">
+                ${overrideInput("artist", "Artist")}
+                ${mixing ? "" : overrideInput("album", "Album")}
+                ${overrideInput("genre", "Genre")}
+                ${overrideInput("year", "Year", 'inputmode="numeric" maxlength="4"')}
+              </div>
+            </fieldset>
+          </details>
           ${
             (p && p.totals.skip) || S.resend
               ? `<label class="toggle"><input type="checkbox" class="check" id="resend" data-act="resend"${S.resend ? " checked" : ""}>
-                  <span>Send skipped tracks again<span class="dim">Each becomes a second entry on the watch.</span></span></label>`
+                  <span>Send every skipped song again<span class="dim">Each goes as another copy, under a new name.</span></span></label>`
               : ""
           }
+          </div>
           <div class="commit">
-            <p class="permanence">What goes on the watch stays on it — tracks remain until the watch is reset.</p>
+            <p class="permanence">${esc(NO_DELETE_SHORT)}</p>
             ${sendBlock(p)}
           </div>
         </div>
@@ -1045,7 +1401,7 @@
         <span class="dim">About <span class="gold">${esc(bytes(Math.max(0, left)))}</span> will remain · ${after.toLocaleString("en")} of ${st.max_objects ?? 500} tracks after</span></div>`;
     }
     return `<div class="fit s-failed">${mark("failed")}<span class="word">Does not fit</span>
-      <span class="dim">${esc(f.reason || "")} Leave some tracks out and review again.</span></div>`;
+      <span class="dim">${esc(f.reason || "")} Leave some songs out and review again.</span></div>`;
   }
 
   function sendBlock(p) {
@@ -1053,12 +1409,12 @@
     const n = p ? p.totals.send : 0;
     if (!S.status || !S.status.connected) why = "Connect the watch to send.";
     else if (!p) why = "";
-    else if (S.mix.on && !S.mix.name.trim()) why = "Name the mix to send it.";
+    else if (S.mix.on && !S.mix.name.trim()) why = "Name the playlist to send it.";
     else if (!p.fits.ok) why = "It does not fit on the watch as chosen.";
-    else if (!n) why = "Nothing here needs sending.";
+    else if (!n) why = "Nothing here needs sending. Use Send again on a song to add another copy.";
     const ok = p && !why && !S.previewing;
     return `<div class="send-block">
-      <button type="button" class="act send" data-act="send"${ok ? "" : " disabled"}>${n ? `Send ${plural(n, "track")}` : "Send"}</button>
+      <button type="button" class="act send" data-act="send"${ok ? "" : " disabled"}>${n ? `Send ${plural(n, "song")}` : "Send"}</button>
       ${why ? `<p class="why-not">${esc(why)}</p>` : ""}
     </div>`;
   }
@@ -1090,6 +1446,7 @@
       lines: preview.files.map((f) => ({
         title: f.title,
         artist: f.artist,
+        est: f.est_bytes || 0,
         state: "pending",
         detail: "",
         remote: null,
@@ -1158,6 +1515,11 @@
           line.detail = `sha256 ${(ev.sha256 || "").slice(0, 12)}`;
           run.tally.verified += 1;
           Ink.bloom();
+          turnBezel(1);
+          if (S.status && S.status.connected) {
+            S.roomFree = Math.max(0, (S.roomFree ?? S.status.free_bytes) - line.est);
+            setRoomArc(S.status);
+          }
           announce(`Verified: ${line.title}`);
         } else if (ev.outcome === "skipped") {
           line.detail = ev.reason || "";
@@ -1177,7 +1539,7 @@
         break;
       case "error":
         run.error = ev.message;
-        announce(`Send stopped: ${ev.message}`);
+        announce(isWedged(ev.message) ? REPLUG : `Send stopped: ${ev.message}`);
         break;
       default:
         return;
@@ -1193,7 +1555,14 @@
         if (S.view === "send") show("done");
       }, 1400);
     }
-    if (ev.kind === "error") renderSend();
+    if (ev.kind === "error") {
+      renderSend();
+      syncChrome();
+      if (isWedged(ev.message)) {
+        S.status = { connected: false, error_kind: "wedged", error: REPLUG, max_objects: 500, ledger: S.status && S.status.ledger };
+        syncChrome();
+      }
+    }
   }
 
   function lineHtml(l) {
@@ -1259,8 +1628,8 @@
       }
       const ceiling = pin ? pin[1].bottom : box.top;
       for (const [li, r] of items) {
-        const under = li !== (pin && pin[0]) && r.top < ceiling - 0.5 && r.bottom > box.top;
-        li.classList.toggle("is-under", under);
+        const hide = li !== (pin && pin[0]) && r.top < ceiling - 0.5 && r.bottom > box.top;
+        li.classList.toggle("is-under", hide);
       }
     });
   }
@@ -1276,11 +1645,11 @@
     bits.push(`${t.verified.toLocaleString("en")} verified`);
     if (t.skipped) bits.push(`${t.skipped} skipped`);
     if (t.failed) bits.push(`${t.failed} failed`);
-    m.innerHTML = `${esc(bits.join(" · "))}${run.name ? ` · <span class="dim">as the mix “${esc(run.name)}”</span>` : ""}`;
+    m.innerHTML = `${esc(bits.join(" · "))}${run.name ? ` · <span class="dim">as the playlist “${esc(run.name)}”</span>` : ""}`;
     const stop = $("#stop");
     if (stop) {
       stop.disabled = run.stopping || !!run.finished || !!run.error;
-      stop.textContent = run.stopping ? "Stopping after this track" : "Stop after this track";
+      stop.textContent = run.stopping ? "Stopping after this song" : "Stop after this song";
     }
   }
 
@@ -1290,25 +1659,35 @@
     if (!run) {
       v.innerHTML = `<h1 class="title" id="t-send" tabindex="-1">Nothing is sending</h1>
         <p class="lede dim">Choose music and review it first; Send starts from Review.</p>
-        <div class="actions"><button type="button" class="act" data-go="choose">Choose music</button></div>`;
+        <div class="actions"><button type="button" class="act" data-go="library">Choose music</button></div>`;
+      return;
+    }
+    if (run.error && isWedged(run.error)) {
+      v.innerHTML = `<h1 class="title" id="t-send" tabindex="-1">The watch stopped answering</h1>
+        <p class="lede">Unplug it, wait five seconds, plug it back in.</p>
+        <p class="quiet">${plural(run.tally.verified, "song")} arrived and ${run.tally.verified === 1 ? "was" : "were"} proven before it stopped; ${
+          run.tally.verified === 1 ? "it is" : "they are"
+        } on the watch and in the ledger. Once the watch is back, review again: what arrived is skipped, and the rest goes.</p>
+        <div class="actions"><button type="button" class="act" data-act="back-review">Back to review</button>
+        <button type="button" class="text-btn" data-go="watch">Check the watch</button></div>`;
       return;
     }
     if (run.error) {
       v.innerHTML = `<h1 class="title" id="t-send" tabindex="-1">Send interrupted</h1>
         <p class="lede"><span class="state s-failed">${mark("failed")}<span class="word">Failed</span></span> ${withCode(run.error)}</p>
-        <p class="quiet">Tracks that finished before this are on the watch and in the ledger. Check the cable and the watch, then review again: what is already there will be skipped.</p>
+        <p class="quiet">Songs that finished before this are on the watch and in the ledger. Check the cable and the watch, then review again: what is already there will be skipped.</p>
         <div class="actions"><button type="button" class="act" data-act="back-review">Back to review</button>
         <button type="button" class="text-btn" data-go="ledger">Open the ledger</button></div>`;
       return;
     }
     v.innerHTML = `<h1 class="title" id="t-send" tabindex="-1">Sending</h1>
       <p class="roll-meta" id="roll-meta"></p>
-      <div class="roll" id="roll" tabindex="0" aria-label="Tracks as they are sent">
+      <div class="roll" id="roll" tabindex="0" aria-label="Songs as they are sent">
         <ol class="roll-list" id="roll-list" role="log" aria-live="off"></ol>
       </div>
       <div class="stop-line">
-        <button type="button" class="act" id="stop" data-act="stop">Stop after this track</button>
-        <span>A track in flight is always finished and proven first.</span>
+        <button type="button" class="act" id="stop" data-act="stop">Stop after this song</button>
+        <span>A song in flight is always finished and proven first.</span>
       </div>`;
     const roll = $("#roll-list");
     roll.innerHTML = run.lines
@@ -1361,22 +1740,24 @@
     const words = [];
     if (f.verified) {
       words.push(
-        "Every verified track was read back from the watch and matched by hash. Unplug the watch; the music appears in its library once it reconnects.",
+        run.name
+          ? `Every verified song was read back from the watch and matched by hash. Unplug the watch; the playlist “${run.name}” appears under Albums once it reconnects.`
+          : "Every verified song was read back from the watch and matched by hash. Unplug the watch; the music appears in its library once it reconnects.",
       );
     }
-    if (f.stopped) words.push("Stopped between tracks: the ones not reached were not sent and took no name.");
-    if (fails.length) words.push("A failed track can be sent again from Review; it goes under a new name.");
+    if (f.stopped) words.push("Stopped between songs: the ones not reached were not sent and took no name.");
+    if (fails.length) words.push("A failed song can be sent again from Review; it goes under a new name.");
     v.innerHTML = `<h1 class="title" id="t-done" tabindex="-1">${esc(title)}</h1>
       <p class="tally">${tally}</p>
       ${words.map((w) => `<p class="quiet">${esc(w)}</p>`).join("")}
       ${
         fails.length
-          ? `<ul class="failures" aria-label="Failed tracks">${fails
+          ? `<ul class="failures" aria-label="Failed songs">${fails
               .map((l) => `<li>${esc(l.title)}<span class="fail">${mark("failed")} Failed · ${esc(l.detail)}</span></li>`)
               .join("")}</ul>`
           : ""
       }
-      <details class="every"><summary>${mark("open")}Every track in this send</summary><ol>${run.lines
+      <details class="every"><summary>${mark("open")}Every song in this send</summary><ol>${run.lines
         .map(
           (l) =>
             `<li><span class="t">${esc(l.title)}</span><span class="state s-${l.state}">${mark(LINE_MARK[l.state])}${LINE_WORD[l.state]}${
@@ -1414,7 +1795,7 @@
     let body = `<ul class="rows" aria-busy="true">${skeletonRows(7)}</ul>`;
     if (S.watchError) {
       summary = "The watch could not be read.";
-      body = `<div class="rows"><p class="empty"><strong>${esc(S.watchError)}</strong>Connect the watch, close anything else that has it open, and check again.</p>
+      body = `<div class="rows"><p class="empty">${errorBlock(S.watchError, "Connect the watch, close anything else that has it open, and check again.")}</p>
         <p class="empty"><button type="button" class="act" data-act="watch-reload">Check again</button></p></div>`;
     } else if (rows && !rows.length) {
       summary = "/Music is empty.";
@@ -1443,17 +1824,18 @@
     v.innerHTML = `<div class="head">
         <h1 class="title" id="t-onwatch" tabindex="-1">On the watch</h1>
         <p class="quiet">${esc(summary)}</p>
-        <p class="honest">Pelican cannot remove anything from the watch: what is on it stays until the watch is reset.</p>
+        <p class="honest">${esc(NO_DELETE)}</p>
       </div>
       ${body}
       <div class="bar"><span class="count">Other: put there by another app or computer.</span>
-        <button type="button" class="text-btn" data-act="back-flow">Back</button></div>`;
+        <button type="button" class="text-btn" data-act="back-flow">Back</button>
+        <button type="button" class="act" data-act="reset-open">Start over</button></div>`;
   }
 
   // --- Ledger ----------------------------------------------------------
 
-  const EVENT_WORD = { reserve: "Reserved", verified: "Verified", failed: "Failed" };
-  const EVENT_MARK = { reserve: "pending", verified: "verified", failed: "failed" };
+  const EVENT_WORD = { reserve: "Reserved", verified: "Verified", failed: "Failed", reset: "Fresh start" };
+  const EVENT_MARK = { reserve: "pending", verified: "verified", failed: "failed", reset: "other" };
 
   async function loadLedger() {
     S.ledger = null;
@@ -1479,7 +1861,7 @@
     let where = "";
     let body = `<ul class="rows" aria-busy="true">${skeletonRows(7)}</ul>`;
     if (S.ledgerError) {
-      body = `<div class="rows"><p class="empty"><strong>The ledger could not be read.</strong>${esc(S.ledgerError)}</p></div>`;
+      body = `<div class="rows"><p class="empty">${errorBlock(S.ledgerError, "")}</p></div>`;
     } else if (lg) {
       where = `<p class="quiet small"><span class="path">${esc(lg.path)}</span> · append-only; a name written here is never used again.</p>`;
       body = lg.rows.length
@@ -1487,6 +1869,14 @@
             .slice()
             .reverse()
             .map((r) => {
+              if (r.event === "reset") {
+                return `<li class="row ledger-row is-reset">
+                  <span class="num">·</span>
+                  <span class="state s-reset">${mark("other")}Fresh start</span>
+                  <span class="t">Factory reset confirmed<span class="sub">The watch read back empty. Names above this line are new; the numbering keeps rising.</span></span>
+                  <span class="when">${esc(when(r.at))}</span>
+                </li>`;
+              }
               const who = [r.title, r.artist, r.album].filter(Boolean).join(" · ");
               return `<li class="row ledger-row">
                 <span class="num">${esc(String(r.counter).padStart(5, "0"))}</span>
@@ -1496,7 +1886,7 @@
               </li>`;
             })
             .join("")}</ul>`
-        : `<div class="rows"><p class="empty"><strong>No sends from this computer yet.</strong>Before each upload Pelican writes the track's new name here, so no name is ever used twice on this watch.</p></div>`;
+        : `<div class="rows"><p class="empty"><strong>No sends from this computer yet.</strong>Before each upload Pelican writes the song's new name here, so no name is ever used twice on this watch.</p></div>`;
     }
     v.innerHTML = `<div class="head">
         <h1 class="title" id="t-ledger" tabindex="-1">Ledger</h1>
@@ -1507,12 +1897,301 @@
         <button type="button" class="text-btn" data-act="back-flow">Back</button></div>`;
   }
 
+  // --- Start over: the factory-reset walkthrough -----------------------
+  //
+  // Four calm title cards: what a reset erases, back up first, the steps
+  // on the watch, and the check. Pelican never resets anything itself; it
+  // copies the watch's files (read-only) and, at the end, reads /Music and
+  // starts a fresh ledger only if the watch really is empty.
+
+  function openReset() {
+    S.reset = {
+      step: 1,
+      reached: 1,
+      dest: null,
+      backup: null,
+      checking: false,
+      found: null,
+      outcome: null,
+      error: null,
+    };
+    show("reset");
+  }
+
+  function resetStep(n) {
+    const r = S.reset;
+    r.step = n;
+    if (typeof n === "number") r.reached = Math.max(r.reached, n);
+    r.error = null;
+    if (n === 2 && !r.dest) loadBackupDest();
+    renderReset();
+    const sec = $("#v-reset");
+    enter(sec);
+    syncChrome();
+    const h = $(".title", sec);
+    if (h) h.focus({ preventScroll: true });
+  }
+
+  async function loadBackupDest() {
+    try {
+      S.reset.dest = await api.invoke("default_backup_dir");
+    } catch (_) {
+      S.reset.dest = null;
+    }
+    if (S.view === "reset" && S.reset.step === 2) paintBackup();
+  }
+
+  function watchLine() {
+    const st = S.status;
+    if (st && st.connected) {
+      return `<p class="watch-line">${mark("verified")}<span>${esc(st.model || "Watch")} is connected.</span></p>`;
+    }
+    if (st && classify(st) === "wedged") {
+      return `<p class="watch-line">${mark("warn")}<span>The watch isn't answering. Unplug it, wait five seconds, plug it back in.</span></p>`;
+    }
+    return `<p class="watch-line dim">${mark("other")}<span>No watch yet. Plug it in with a data cable.</span></p>`;
+  }
+
+  function renderReset() {
+    const v = $("#v-reset");
+    const r = S.reset;
+    if (!r) return;
+    const back = (to) => `<button type="button" class="text-btn" data-act="reset-step" data-n="${to}">Back</button>`;
+    if (r.step === 1) {
+      v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">What a reset erases</h1>
+        <p class="lede">Nothing can be deleted from the watch one song at a time. The only way to clear it is a factory reset, and that erases everything on it, not just music.</p>
+        <ul class="erases" aria-label="What a factory reset erases">
+          <li><span class="what">Activities</span><span class="dim">every recorded run and its history</span></li>
+          <li><span class="what">Health data</span><span class="dim">sleep, heart rate, steps, stress</span></li>
+          <li><span class="what">Settings</span><span class="dim">sport profiles, workouts, your preferences</span></li>
+          <li><span class="what">Garmin Pay</span><span class="dim">the wallet; you add your cards again afterwards</span></li>
+          <li><span class="what">Music</span><span class="dim">every song on the watch</span></li>
+        </ul>
+        <p class="facts">Pelican can't reset the watch. You do it on the watch, and Pelican checks the result.</p>
+        <div class="actions">
+          <button type="button" class="act" data-act="reset-step" data-n="2">Back up first</button>
+          <button type="button" class="text-btn" data-act="reset-close">Not now</button>
+        </div>`;
+      return;
+    }
+    if (r.step === 2) {
+      v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">Back up first</h1>
+        <p class="lede">Sync the watch with Garmin Connect so your activities upload. If you use Agoge or another fitness app, pull your activities into it first.</p>
+        <div class="backup" id="backup"></div>
+        <p class="facts">To keep your settings too: on the watch face, hold UP, then choose System, Back Up &amp; Restore, Back Up Now. That saves them to Garmin Connect.</p>
+        <div class="actions">
+          <button type="button" class="act" data-act="reset-step" data-n="3">Continue</button>
+          ${back(1)}
+        </div>`;
+      paintBackup();
+      return;
+    }
+    if (r.step === 3) {
+      v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">Reset the watch</h1>
+        <p class="lede">On the watch itself. It takes a minute, and the watch does the rest.</p>
+        <ol class="howto" aria-label="Steps on the watch">
+          <li>From the watch face, hold <span class="key">UP</span>.</li>
+          <li>Select <b>System</b>.</li>
+          <li>Select <b>Reset</b>.</li>
+          <li>Select <b>Delete Data and Reset Settings</b>.<span class="dim">Not Reset Default Settings: that one keeps the music.</span></li>
+          <li>Confirm with the checkmark: press <span class="key">START</span>.</li>
+          <li>Wait while the watch erases and restarts. It's done when it asks you to choose a language.</li>
+        </ol>
+        <p class="facts">On the Forerunner 165, UP is the middle button on the left and START is the top button on the right.</p>
+        <div class="actions">
+          <button type="button" class="act" data-act="reset-step" data-n="4">It has restarted</button>
+          ${back(2)}
+        </div>`;
+      return;
+    }
+    if (r.step === 4) {
+      const busy = r.checking;
+      v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">Plug it back in</h1>
+        <p class="lede">Plug the watch in once it shows its setup screen. Pelican reads the watch's music folder itself, and starts a fresh record for this watch only if it is empty.</p>
+        ${watchLine()}
+        ${r.error ? `<p class="empty-line">${errorBlock(r.error, "Plug the watch in, then try again.")}</p>` : ""}
+        <div class="actions">
+          <button type="button" class="act" data-act="reset-confirm"${busy ? ' disabled aria-busy="true"' : ""}>${
+            busy ? `${mark("active")}Reading the music folder` : "The watch is clean"
+          }</button>
+          ${busy ? "" : back(3)}
+        </div>
+        <p class="facts">Pair the watch in Garmin Connect again whenever you're ready.</p>`;
+      return;
+    }
+    if (r.step === "refused") {
+      const n = r.found ?? 0;
+      v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">Music is still on the watch</h1>
+        <p class="lede"><span class="state s-refused">${mark("failed")}<span class="word">Refused</span></span> ${
+          r.message
+            ? esc(r.message)
+            : `The watch still has ${plural(n, "song file")} in its music folder, so it hasn't been factory-reset. Pelican's record for it is unchanged.`
+        }</p>
+        <p class="quiet">Check that you chose Delete Data and Reset Settings, not Reset Default Settings: only the first one clears the music.</p>
+        <div class="actions">
+          <button type="button" class="act" data-act="reset-confirm">Check again</button>
+          <button type="button" class="text-btn" data-act="reset-step" data-n="3">See the steps</button>
+        </div>`;
+      return;
+    }
+    if (r.step === "done") {
+      const o = r.outcome || {};
+      v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">A clean watch</h1>
+        <p class="tally"><span class="state s-verified">${mark("verified")}Verified clean · no songs in its music folder</span></p>
+        <p class="lede">${esc(o.message || "The watch is clean. Pelican has started a fresh record for it — every song can be sent again.")}</p>
+        <p class="quiet">The ledger keeps its history; new names keep counting up from where they were.</p>
+        <div class="actions">
+          <button type="button" class="act" data-act="reset-done">Choose music</button>
+          <button type="button" class="text-btn" data-go="ledger">Open the ledger</button>
+        </div>`;
+    }
+  }
+
+  // The backup block on step 2: the offer, the copy in progress, or what
+  // it copied and where.
+  function paintBackup() {
+    const box = $("#backup");
+    if (!box) return;
+    const r = S.reset;
+    const b = r.backup;
+    const st = S.status;
+    const connected = st && st.connected;
+    const where = r.dest ? `<span class="path">${esc(r.dest)}</span>` : "a dated folder in Documents";
+    if (!b || b.state === "error") {
+      box.innerHTML = `<button type="button" class="act" data-act="backup"${connected ? "" : " disabled"}>Back up the watch's activity files</button>
+        <p class="rule-why">Copies the watch's GARMIN folder, where your activities, sleep, health monitoring, records and settings live, to ${where}. Read-only: nothing on the watch changes.</p>
+        ${connected ? "" : `<p class="why-not">Connect the watch to back it up.</p>`}
+        ${
+          b && b.state === "error"
+            ? `<p class="rule-said fail" role="status">${mark("failed")}<span>${
+                isWedged(b.message) ? esc(REPLUG) : `<span class="word">Not copied</span> ${esc(b.message)}`
+              }</span></p>`
+            : ""
+        }`;
+      return;
+    }
+    if (b.state === "finished") {
+      const failed = b.failed && b.failed.length ? ` ${plural(b.failed.length, "file")} could not be read.` : "";
+      box.innerHTML = `<p class="backup-line">${mark("verified")}<span><span class="word">Copied</span> ${plural(b.files, "file")} · ${esc(bytes(b.bytes))}</span></p>
+        <p class="rule-why">In <span class="path">${esc(b.dest || r.dest || "")}</span>.${esc(failed)}</p>`;
+      return;
+    }
+    const pct = b.total ? (b.index + 1) / b.total : 0;
+    box.innerHTML = `<p class="backup-line" aria-live="polite">${mark("active")}<span><span class="word">${b.total ? "Copying" : "Listing"}</span> ${
+      b.total ? `${(b.index + 1).toLocaleString("en")} of ${b.total.toLocaleString("en")}` : "the watch's folders"
+    }</span></p>
+      <span class="meter wide" aria-hidden="true"><i></i></span>
+      <p class="rule-why"><span class="path">${esc(b.path || "")}</span></p>`;
+    $(".meter i", box).style.transform = `scaleX(${pct.toFixed(3)})`;
+  }
+
+  async function startBackup() {
+    const r = S.reset;
+    if (!r || (r.backup && (r.backup.state === "listing" || r.backup.state === "copying"))) return;
+    if (!r.dest) await loadBackupDest();
+    r.backup = { id: null, state: "listing", index: 0, total: 0, path: "", buffered: [] };
+    paintBackup();
+    announce("Backing up the watch's files.");
+    try {
+      const { run_id: id } = await api.invoke("backup_watch", { dest: r.dest });
+      r.backup.id = id;
+      const early = r.backup.buffered.filter((e) => e.run_id === id);
+      r.backup.buffered = [];
+      early.forEach(onBackup);
+    } catch (e) {
+      r.backup = { state: "error", message: errText(e) };
+      paintBackup();
+    }
+  }
+
+  function onBackup(ev) {
+    const b = S.reset && S.reset.backup;
+    if (!b) return;
+    if (!b.id) {
+      b.buffered.push(ev);
+      return;
+    }
+    if (ev.run_id !== b.id) return;
+    if (ev.kind === "listing") b.state = "listing";
+    else if (ev.kind === "file") {
+      b.state = "copying";
+      b.index = ev.index;
+      b.total = ev.total;
+      b.path = ev.path;
+    } else if (ev.kind === "finished") {
+      Object.assign(b, { state: "finished", files: ev.files, bytes: ev.bytes, dest: ev.dest, failed: ev.failed || [] });
+      announce(`Backup finished: ${ev.files} files copied.`);
+    } else if (ev.kind === "error") {
+      Object.assign(b, { state: "error", message: ev.message });
+      announce(isWedged(ev.message) ? REPLUG : `Backup stopped: ${ev.message}`);
+    }
+    if (S.view === "reset" && S.reset.step === 2) paintBackup();
+  }
+
+  async function confirmClean() {
+    const r = S.reset;
+    if (r.checking) return;
+    r.checking = true;
+    r.error = null;
+    r.step = 4;
+    renderReset();
+    syncChrome();
+    announce("Reading the watch's music folder.");
+    let check;
+    try {
+      check = await api.invoke("reset_check");
+    } catch (e) {
+      r.checking = false;
+      r.error = errText(e);
+      renderReset();
+      syncChrome();
+      return;
+    }
+    if (!check.clean) {
+      r.checking = false;
+      r.found = check.audio_objects;
+      r.message = null;
+      announce(`Refused: the watch still has ${check.audio_objects} song files.`);
+      resetStep("refused");
+      return;
+    }
+    let out;
+    try {
+      out = await api.invoke("reset_ledger");
+    } catch (e) {
+      r.checking = false;
+      r.error = errText(e);
+      renderReset();
+      syncChrome();
+      return;
+    }
+    r.checking = false;
+    if (!out.clean) {
+      r.found = out.audio_objects ?? null;
+      r.message = out.message;
+      resetStep("refused");
+      return;
+    }
+    r.outcome = out;
+    S.ledger = null;
+    S.watchRows = null;
+    announce(out.message);
+    resetStep("done");
+    Ink.bloom();
+    refreshStatus();
+  }
+
   // ------------------------------------------------------------ events
 
   function go(view) {
     if (running() && view !== "send") return;
     clearNotice();
-    if (view === "library" && (!S.lib || S.lib.error)) loadLibrary(S.root);
+    if (view === "choose") view = "library";
+    if (view === "library") {
+      show(view);
+      openLibrary();
+      return;
+    }
     if (view === "onwatch") {
       show(view);
       loadWatchRows();
@@ -1539,6 +2218,11 @@
       go(s === "send" ? "done" : s);
       return;
     }
+    const rstep = e.target.closest("[data-rstep]");
+    if (rstep && !rstep.disabled) {
+      resetStep(Number(rstep.dataset.rstep));
+      return;
+    }
     const el = e.target.closest("[data-act]");
     if (!el || el.disabled) return;
     const act = el.dataset.act;
@@ -1555,26 +2239,60 @@
         renderWatch();
         await refreshStatus();
         break;
+      case "place":
+        S.showChosen = false;
+        S.place = el.dataset.path;
+        $("#lib-where").innerHTML = placeHead();
+        $$("#v-library .place").forEach((b) => b.toggleAttribute("aria-current", b === el));
+        el.setAttribute("aria-current", "location");
+        paintTree(S.place);
+        loadDir(S.place);
+        break;
+      case "chosen-list":
+        S.showChosen = true;
+        $("#lib-where").innerHTML = placeHead();
+        $$("#v-library .place").forEach((b) => b.removeAttribute("aria-current"));
+        el.setAttribute("aria-current", "location");
+        paintTree(S.place);
+        unfold($$("#tree li"));
+        break;
+      case "toggle":
+        toggleDir(el.dataset.path);
+        break;
       case "unchoose":
         S.chosen.splice(Number(el.dataset.i), 1);
         invalidatePreview();
-        renderChoose();
+        paintTree();
+        paintBar();
         syncChrome();
         break;
-      case "lib-open":
-        loadLibrary(el.dataset.path);
+      case "clear-chosen":
+        S.chosen = [];
+        invalidatePreview();
+        paintTree();
+        paintBar();
+        syncChrome();
         break;
-      case "root-edit":
-        S.rootEditing = true;
-        renderLibrary();
+      case "make-playlist":
+        S.mix.on = true;
+        invalidatePreview();
+        go("playlist");
         break;
-      case "root-cancel":
-        S.rootEditing = false;
-        renderLibrary();
+      case "review-album":
+        if (!S.mix.name.trim()) S.mix.on = false;
+        go("review");
         break;
       case "preview":
         runPreview();
         renderReview();
+        break;
+      case "again-one":
+        S.resendSources.add(el.dataset.src);
+        runPreview();
+        break;
+      case "again-undo":
+        S.resendSources.delete(el.dataset.src);
+        runPreview();
         break;
       case "move": {
         const p = S.preview;
@@ -1589,6 +2307,16 @@
         S.preview = { ...p, files };
         S.order = files.map((f) => f.source);
         renderReview();
+        const moved = $(`#v-review .track-row:nth-child(${j + 1})`);
+        if (moved && !reduceMotion.matches) {
+          moved.animate(
+            [
+              { transform: `translateY(${(i - j) * 100}%)`, background: "rgb(237 232 222 / 0.05)" },
+              { transform: "none", background: "transparent" },
+            ],
+            { duration: 220, easing: EASE },
+          );
+        }
         const again = $(`#v-review [data-act="move"][data-i="${j}"][data-d="${el.dataset.d}"]`);
         (again && !again.disabled ? again : $(`#v-review [data-act="move"][data-i="${j}"]`))?.focus();
         previewSoon();
@@ -1619,13 +2347,36 @@
         S.mix = { on: false, name: "" };
         S.overrides = { artist: "", album: "", genre: "", year: "" };
         S.resend = false;
-        go("choose");
+        S.resendSources = new Set();
+        go("library");
         break;
       case "watch-reload":
         loadWatchRows();
         break;
       case "back-flow":
         go(flowView);
+        break;
+      case "reset-open":
+        openReset();
+        break;
+      case "reset-step":
+        resetStep(Number(el.dataset.n));
+        break;
+      case "reset-close":
+        S.reset = null;
+        go("onwatch");
+        break;
+      case "reset-confirm":
+        confirmClean();
+        break;
+      case "reset-done":
+        S.reset = null;
+        S.resendSources = new Set();
+        invalidatePreview();
+        go("library");
+        break;
+      case "backup":
+        startBackup();
         break;
       default:
         break;
@@ -1636,29 +2387,7 @@
     const el = e.target;
     const act = el.dataset.act;
     if (act === "pick") {
-      const path = el.dataset.path;
-      if (el.checked) {
-        addChosen([
-          {
-            path,
-            name: el.dataset.name,
-            kind: el.dataset.kind,
-            count: el.dataset.kind === "dir" ? Number(el.dataset.count) : undefined,
-          },
-        ]);
-      } else {
-        S.chosen = S.chosen.filter((c) => c.path !== path);
-        invalidatePreview();
-      }
-      const count = $("#v-library .bar .count");
-      if (count) {
-        count.textContent = S.chosen.length
-          ? `${plural(S.chosen.length, "item")} chosen`
-          : "Tick albums, folders or tracks to choose them.";
-      }
-      const rev = $('#v-library .bar [data-go="review"]');
-      if (rev) rev.disabled = !S.chosen.length;
-      syncChrome();
+      pick(el);
     } else if (act === "mix-toggle") {
       S.mix.on = el.checked;
       S.order = S.mix.on && S.preview ? S.preview.files.map((f) => f.source) : null;
@@ -1687,30 +2416,51 @@
     }
   });
 
-  document.addEventListener("submit", async (e) => {
-    const form = e.target.closest("[data-form='root']");
+  document.addEventListener("submit", (e) => {
+    const form = e.target.closest("[data-form='playlist']");
     if (!form) return;
     e.preventDefault();
-    const path = form.root.value.trim();
-    if (!path) return;
-    try {
-      S.root = await api.invoke("set_library_root", { path });
-      S.rootEditing = false;
-      loadLibrary(S.root);
-    } catch (err) {
-      notice(errText(err), { error: true });
+    const input = form.elements.name;
+    const name = input.value.trim();
+    if (!name) {
+      input.setAttribute("aria-invalid", "true");
+      input.focus();
+      announce("Name the playlist first.");
+      return;
     }
+    input.removeAttribute("aria-invalid");
+    S.mix = { on: true, name };
+    invalidatePreview();
+    go("review");
   });
 
+  document.addEventListener(
+    "toggle",
+    (e) => {
+      if (e.target.id === "tags") S.tagsOpen = e.target.open;
+    },
+    true,
+  );
+
+  // The tree's keyboard: Right opens a folder, Left closes it (or moves to
+  // its parent's row).
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && S.rootEditing) {
-      S.rootEditing = false;
-      renderLibrary();
-    }
+    const b = e.target.closest && e.target.closest(".name-btn");
+    if (!b || (e.key !== "ArrowRight" && e.key !== "ArrowLeft")) return;
+    const open = S.open.has(b.dataset.path);
+    if (e.key === "ArrowRight" && !open) toggleDir(b.dataset.path);
+    else if (e.key === "ArrowLeft" && open) toggleDir(b.dataset.path);
+    else return;
+    e.preventDefault();
   });
 
   window.addEventListener("focus", () => {
-    if (S.view === "watch" && S.status && !S.status.connected && !running()) refreshStatus();
+    if ((S.view === "watch" || S.view === "reset") && S.status && !S.status.connected && !running()) refreshStatus();
+  });
+
+  // The ink breathes only while a watch is connected and the window shows.
+  document.addEventListener("visibilitychange", () => {
+    document.body.classList.toggle("is-hidden", document.hidden);
   });
 
   // Drops: the shell hands absolute paths; a browser (demo) cannot.
@@ -1723,8 +2473,9 @@
       const added = addChosen(
         paths.map((p) => ({ path: p, name: basename(p), kind: /\.[a-z0-9]{2,4}$/i.test(p) ? "file" : "dir" })),
       );
-      if (S.view !== "choose") go("choose");
-      else renderChoose();
+      S.showChosen = true;
+      if (S.view !== "library") go("library");
+      else renderLibrary();
       syncChrome();
       if (!added && paths.length) notice("Already chosen.", { word: "Note" });
     }
@@ -1732,6 +2483,8 @@
 
   if (api.onDrop) api.onDrop(onDrop);
   api.onProgress(onProgress);
+  api.onBackup(onBackup);
+  window.addEventListener("resize", () => renderSteps());
 
   // ------------------------------------------------------------ boot
 
@@ -1828,6 +2581,9 @@
       ["32_Tortuga.WAV", 37332964], ["33_Windward Bound.WAV", 52946476],
     ];
 
+    const MISMATCH =
+      "read-back mismatch: sent 4,948,096 bytes, read back 4,947,968; the retry under a new name did not match either";
+    const HOME = "/home/six";
     const pad = (n) => String(n).padStart(2, "0");
     const FILES = new Map();
     SOT.forEach(([title, size, secs], i) => {
@@ -1906,7 +2662,8 @@
 
     let root = ROOT;
     let connected = true;
-    let problem = "none"; // why the watch is unreachable: "none" | "permission"
+    let problem = "none"; // why the watch is unreachable: "none" | "permission" | "wedged"
+    let wiped = false; // the demo watch has been factory-reset
     let ruleState = "current";
     // The shipped rule, as the shell compiles it in (udev/70-garmin-mtp.rules).
     const RULE_LINE = 'SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="091e", TAG+="uaccess"';
@@ -1924,6 +2681,54 @@
       command: `/usr/bin/pkexec /bin/sh -c '${SCRIPT}'`,
       manual: `printf '%s\\n' '${RULE_LINE}' | sudo install -m 644 /dev/stdin /etc/udev/rules.d/70-garmin-mtp.rules && sudo udevadm control --reload && sudo udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e`,
     });
+    // Places outside the library, as the demo machine has them.
+    const ELSEWHERE = {
+      "/": [["home", 0, true], ["mnt", 0, true], ["run", 0, true]],
+      "/home": [["six", 0, true]],
+      [HOME]: [["Documents", 0, true], ["Downloads", 0, false], ["Music", 0, false]],
+      [`${HOME}/Documents`]: [["Pelican", 0, false]],
+      [`${HOME}/Downloads`]: [],
+      [`${HOME}/Music`]: [],
+      "/mnt": [["nas", 0, true]],
+      "/mnt/nas": [["Backups", 0, false], ["Music", 0, true]],
+      "/run": [["media", 0, true]],
+      "/run/media": [["six", 0, true]],
+      "/run/media/six": [["SANDISK", 0, false]],
+      "/run/media/six/SANDISK": [],
+    };
+    const PLACES = [
+      { label: "Home", path: HOME, kind: "home" },
+      { label: "Music", path: `${HOME}/Music`, kind: "music" },
+      { label: "Library", path: ROOT, kind: "library" },
+      { label: "nas", path: "/mnt/nas", kind: "network" },
+      { label: "SANDISK", path: "/run/media/six/SANDISK", kind: "drive" },
+    ];
+
+    // The watch's GARMIN folder, as a backup lists it.
+    const GARMIN = [];
+    const day = (d) => `2026-${String(8 + Math.floor(d / 30)).padStart(2, "0")}-${String((d % 30) + 1).padStart(2, "0")}`;
+    for (let d = 0; d < 48; d += 1) GARMIN.push([`GARMIN/Activity/${day(d)}-07-1${d % 10}-04.fit`, 180000 + ((d * 7919) % 90000)]);
+    for (let d = 0; d < 56; d += 1) GARMIN.push([`GARMIN/Monitor/${day(d)}.fit`, 60000 + ((d * 3571) % 20000)]);
+    for (let d = 0; d < 56; d += 1) GARMIN.push([`GARMIN/Sleep/${day(d)}.fit`, 9000 + ((d * 331) % 3000)]);
+    for (let d = 0; d < 20; d += 1) GARMIN.push([`GARMIN/HRVStatus/${day(d)}.fit`, 2400]);
+    GARMIN.push(["GARMIN/Metrics/Metrics.fit", 14200], ["GARMIN/Records/Records.fit", 3100], ["GARMIN/Settings/Settings.fit", 5200], ["GARMIN/Totals/Totals.fit", 900]);
+    const backupListeners = [];
+    const emitBackup = (ev) => backupListeners.forEach((cb) => cb(ev));
+    let backupSeq = 0;
+    async function backupRun(id, dest) {
+      await wait(200);
+      emitBackup({ run_id: id, kind: "listing" });
+      await wait(500);
+      let total = 0;
+      for (let i = 0; i < GARMIN.length; i += 1) {
+        const [path, size] = GARMIN[i];
+        total += size;
+        emitBackup({ run_id: id, kind: "file", index: i, total: GARMIN.length, path, bytes: size });
+        await wait(34);
+      }
+      emitBackup({ run_id: id, kind: "finished", files: GARMIN.length, bytes: total, dest, failed: [], unreadable: 0, stopped: false });
+    }
+
     const listeners = [];
     let stopFlag = false;
     let runSeq = 0;
@@ -1962,7 +2767,7 @@
         if (seen.has(f.source)) {
           verdict = "skip";
           reason = `same audio as ${seen.get(f.source)}`;
-        } else if (!req.resend && verifiedKeys.has(key)) {
+        } else if (!req.resend && !(req.resend_sources || []).includes(f.source) && verifiedKeys.has(key)) {
           verdict = "skip";
           const row = onWatch.find((r) => r.status === "ledger" && r.title === t.title);
           reason = `already on watch as ${row ? row.name : "an earlier send"}`;
@@ -2059,7 +2864,7 @@
         }
         if (r.title === "Sunken Depths") {
           outcome = "failed";
-          reason = "read-back mismatch: sent 4,948,096 bytes, read back 4,947,968; retry failed: the watch stopped answering (USB timeout)";
+          reason = MISMATCH;
         }
         record(r, remote, counterNow, outcome, reason);
         emit({
@@ -2081,12 +2886,19 @@
       await wait(cmd === "preview" ? 380 : 140);
       switch (cmd) {
         case "status":
+          if (connected && wiped) {
+            return { ...JSON.parse(JSON.stringify(status)), music_objects: 0, free_bytes: 3380000000, ledger: { verified: 0, failed: 0, unresolved: 0, resets: 1 } };
+          }
+          if (!connected && problem === "wedged") {
+            return { connected: false, max_objects: 500, ledger: status.ledger, error_kind: "wedged", error: REPLUG };
+          }
           return connected
             ? JSON.parse(JSON.stringify(status))
             : {
                 connected: false,
                 max_objects: 500,
                 ledger: status.ledger,
+                error_kind: problem === "permission" ? "permission" : "not_found",
                 error:
                   problem === "permission"
                     ? "could not open the watch: Permission denied (os error 13). Pelican cannot open the watch without the udev rule: copy udev/70-garmin-mtp.rules to /etc/udev/rules.d/, run `sudo udevadm control --reload`, then unplug and replug the watch."
@@ -2120,8 +2932,10 @@
               dirs.set(rest[0], d);
             }
           }
-          if (!dirs.size && !files.length && path !== ROOT && !path.startsWith(ROOT)) {
-            throw new Error(`${path}: no such folder.`);
+          if (!path.startsWith(ROOT)) {
+            const other = ELSEWHERE[path];
+            if (!other) throw new Error(`${path}: no such folder.`);
+            return { path, parent: dirname(path), dirs: other.map(([n, a, sub]) => ({ name: n, path: `${path === "/" ? "" : path}/${n}`, audio_files: a, has_subdirs: sub })), files: [] };
           }
           return {
             path,
@@ -2148,6 +2962,33 @@
           return JSON.parse(JSON.stringify(onWatch));
         case "ledger":
           return { path: "~/.local/share/pelican/ledger-3456789012.jsonl", rows: ledgerRows.slice() };
+        case "places":
+          return PLACES.map((p) => ({ ...p }));
+        case "default_backup_dir":
+          return `${HOME}/Documents/Pelican/${status.model} backup 2026-09-26`;
+        case "backup_watch": {
+          if (!connected) throw new Error("No watch found. Connect it and try again.");
+          backupSeq += 1;
+          const id = `demo-backup-${backupSeq}`;
+          setTimeout(() => backupRun(id, args.dest), 20);
+          return { run_id: id };
+        }
+        case "reset_check":
+          if (!connected) throw new Error("No watch found. Connect it and try again.");
+          return wiped ? { audio_objects: 0, clean: true } : { audio_objects: onWatch.length, clean: false };
+        case "reset_ledger":
+          if (!wiped) {
+            return {
+              clean: false,
+              reset: false,
+              audio_objects: onWatch.length,
+              message: `The watch still has ${onWatch.length} song files in its music folder, so it has not been factory-reset. Pelican's record was left as it is. Reset the watch, plug it back in, and check again.`,
+            };
+          }
+          if (!ledgerRows.some((r) => r.event === "reset")) {
+            ledgerRows.push({ counter: 0, remote: "", event: "reset", at: new Date().toISOString(), reason: "factory reset confirmed: /Music read back with 0 audio objects" });
+          }
+          return { clean: true, reset: true, audio_objects: 0, message: "The watch is clean. Pelican has started a fresh record for it — every song can be sent again." };
         default:
           throw new Error(`unknown command ${cmd}`);
       }
@@ -2156,6 +2997,7 @@
     return {
       invoke,
       onProgress: (cb) => listeners.push(cb),
+      onBackup: (cb) => backupListeners.push(cb),
       onDrop: (cb) => {
         document.addEventListener("dragover", (e) => {
           e.preventDefault();
@@ -2183,6 +3025,10 @@
           problem = p;
           ruleState = rule;
         },
+        setWiped: (w) => {
+          wiped = w;
+        },
+        MISMATCH,
         preview,
         drive,
         fakeSha,
@@ -2191,19 +3037,28 @@
     };
   }
 
-  // Jump to a state for screenshots: #watch, #nowatch, #permission, #choose,
-  // #library, #review, #review-mix, #send, #done, #onwatch, #ledger.
+  // Jump to a state for screenshots: #watch, #nowatch, #permission,
+  // #wedged, #library, #chosen, #playlist, #review, #review-playlist,
+  // #send, #done, #send-wedged, #onwatch, #ledger, #reset-1 … #reset-4,
+  // #reset-refused, #reset-done.
   async function demoState(name) {
     const D = api.demo;
     S.run = null;
     S.mix = { on: false, name: "" };
     S.order = null;
     S.resend = false;
+    S.resendSources = new Set();
     S.overrides = { artist: "", album: "", genre: "", year: "" };
     S.preview = null;
+    S.reset = null;
+    S.showChosen = false;
     S.root = await api.invoke("library_root");
-    D.setConnected(name !== "nowatch" && name !== "permission");
-    D.setProblem(name === "permission" ? "permission" : "none", name === "permission" ? "missing" : "current");
+    D.setConnected(!["nowatch", "permission", "wedged"].includes(name));
+    D.setProblem(
+      name === "permission" ? "permission" : name === "wedged" ? "wedged" : "none",
+      name === "permission" ? "missing" : "current",
+    );
+    D.setWiped(name === "reset-4" || name === "reset-done");
     S.ruleBusy = false;
     S.ruleInstalled = false;
     S.ruleMsg = null;
@@ -2213,48 +3068,63 @@
       { path: D.SOT_DIR, name: "Sea of Thieves", kind: "dir", count: 25 },
       { path: D.MC_DIR, name: basename(D.MC_DIR), kind: "dir", count: 13 },
     ];
-    const tortuga = { path: `${D.WR_DIR}/32_Tortuga.WAV`, name: "32_Tortuga.WAV", kind: "file" };
+    const file = (p) => ({ path: p, name: basename(p), kind: "file" });
+    const tortuga = file(`${D.WR_DIR}/32_Tortuga.WAV`);
+    const hearth = file(`${D.WR_DIR}/31_The Hearth.WAV`);
+    // Songs ticked across two folders, in the order they were ticked.
+    const mixPick = [
+      `${D.SOT_DIR}/13 - Spectral Sails.wav`,
+      `${D.WR_DIR}/19_Steel on Timber.WAV`,
+      `${D.SOT_DIR}/01 - We Shall Sail Together.wav`,
+      `${D.WR_DIR}/28_Starlight on a Swell.WAV`,
+      `${D.SOT_DIR}/21 - Strongholds Of The Sea.wav`,
+      `${D.SOT_DIR}/24 - The Wild Rose.wav`,
+      `${D.WR_DIR}/10_Blow the Man Down.WAV`,
+    ];
     S.chosen = [];
 
     switch (name) {
       case "nowatch":
       case "permission":
+      case "wedged":
       case "watch":
         show("watch", { focus: false });
         break;
       case "choose":
-        S.chosen = albums.slice();
-        show("choose", { focus: false });
-        break;
       case "library":
-        S.chosen = [albums[0]];
-        S.lib = await api.invoke("library_list", { path: S.root });
+      case "chosen": {
+        S.chosen = mixPick.map(file);
+        await loadPlaces();
+        S.place = D.ROOT;
+        S.open = new Set([D.SOT_DIR, D.WR_DIR]);
+        for (const p of [D.ROOT, D.SOT_DIR, D.WR_DIR]) {
+          S.tree.set(p, { state: "ok", l: await api.invoke("library_list", { path: p }) });
+        }
+        S.showChosen = name === "chosen";
         show("library", { focus: false });
         break;
-      case "review":
-        S.chosen = [...albums, tortuga];
-        S.preview = D.preview(previewReq());
-        show("review", { focus: false });
-        break;
-      case "review-mix": {
-        const pick = [
-          `${D.SOT_DIR}/13 - Spectral Sails.wav`,
-          [...D.FILES.keys()].find((k) => k.includes("/13 - Iva") && k.endsWith(".flac")),
-          `${D.SOT_DIR}/01 - We Shall Sail Together.wav`,
-          [...D.FILES.keys()].find((k) => k.includes("/05 - Iva")),
-          `${D.WR_DIR}/19_Steel on Timber.WAV`,
-          `${D.SOT_DIR}/21 - Strongholds Of The Sea.wav`,
-          [...D.FILES.keys()].find((k) => k.includes("/10 - Iva")),
-          `${D.SOT_DIR}/24 - The Wild Rose.wav`,
-        ];
-        S.chosen = pick.map((p) => ({ path: p, name: basename(p), kind: "file" }));
-        S.mix = { on: true, name: "Long Run" };
-        S.order = pick;
-        S.preview = D.preview(previewReq());
-        show("review", { focus: false });
-        break;
       }
+      case "playlist":
+        S.chosen = mixPick.map(file);
+        S.mix = { on: true, name: "" };
+        show("playlist", { focus: false });
+        break;
+      case "review":
+        S.chosen = [tortuga, hearth, ...albums];
+        S.resendSources = new Set([hearth.path]);
+        S.preview = D.preview(previewReq());
+        show("review", { focus: false });
+        break;
+      case "review-mix":
+      case "review-playlist":
+        S.chosen = mixPick.map(file);
+        S.mix = { on: true, name: "Long Run" };
+        S.order = mixPick;
+        S.preview = D.preview(previewReq());
+        show("review", { focus: false });
+        break;
       case "send":
+      case "send-wedged":
       case "done": {
         S.chosen = [tortuga, ...albums];
         const req = previewReq();
@@ -2275,8 +3145,7 @@
           } else if (f.title === "Sunken Depths") {
             counter += 1;
             l.state = "failed";
-            l.detail =
-              "read-back mismatch: sent 4,948,096 bytes, read back 4,947,968; retry failed: the watch stopped answering (USB timeout)";
+            l.detail = D.MISMATCH;
             run.tally.failed += 1;
           } else {
             counter += f.title === "Spectral Sails" ? 2 : 1;
@@ -2288,9 +3157,14 @@
           }
           run.current = i;
         }
+        turnBezel(run.tally.verified);
         if (name === "done") {
           run.finished = { ...run.tally, stopped: false };
           show("done", { focus: false });
+        } else if (name === "send-wedged") {
+          run.error = REPLUG;
+          S.status = { connected: false, error_kind: "wedged", error: REPLUG, max_objects: 500, ledger: S.status.ledger };
+          show("send", { focus: false });
         } else {
           show("send", { focus: false });
           D.drive(run.id, S.preview.files, upto, counter, { ...run.tally });
@@ -2306,6 +3180,27 @@
       case "ledger":
         show("ledger", { focus: false });
         loadLedger();
+        break;
+      case "reset-1":
+      case "reset-2":
+      case "reset-3":
+      case "reset-4": {
+        const n = Number(name.slice(-1));
+        S.reset = { step: n, reached: n, dest: null, backup: null, checking: false, found: null, outcome: null, error: null };
+        if (n >= 2) S.reset.dest = await api.invoke("default_backup_dir");
+        show("reset", { focus: false });
+        if (n === 2) startBackup();
+        break;
+      }
+      case "reset-refused":
+        S.reset = { step: 4, reached: 4, dest: null, backup: null, checking: false, found: null, outcome: null, error: null };
+        show("reset", { focus: false });
+        await confirmClean();
+        break;
+      case "reset-done":
+        S.reset = { step: 4, reached: 4, dest: null, backup: null, checking: false, found: null, outcome: null, error: null };
+        show("reset", { focus: false });
+        await confirmClean();
         break;
       default:
         show("watch", { focus: false });

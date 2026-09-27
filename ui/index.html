@@ -22,6 +22,12 @@
   <symbol id="m-up" viewBox="0 0 16 16"><path d="M4.5 9.5L8 6l3.5 3.5"/></symbol>
   <symbol id="m-down" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></symbol>
   <symbol id="m-open" viewBox="0 0 16 16"><path d="M6.5 4l4 4-4 4"/></symbol>
+  <symbol id="m-home" viewBox="0 0 16 16"><path d="M2.8 7.6L8 3.4l5.2 4.2M4.4 6.6v6h7.2v-6"/></symbol>
+  <symbol id="m-music" viewBox="0 0 16 16"><path d="M6.6 11.2V4.1l6-1.3v7"/><circle cx="5" cy="11.3" r="1.6"/><circle cx="11" cy="9.9" r="1.6"/></symbol>
+  <symbol id="m-network" viewBox="0 0 16 16"><rect x="2.8" y="3.2" width="10.4" height="4.2" rx=".6"/><rect x="2.8" y="8.6" width="10.4" height="4.2" rx=".6"/><path d="M5.2 5.3h.1M5.2 10.7h.1"/></symbol>
+  <symbol id="m-drive" viewBox="0 0 16 16"><rect x="4.6" y="6.2" width="6.8" height="7.4" rx="1"/><path d="M6.2 6.2V2.8h3.6v3.4"/></symbol>
+  <symbol id="m-library" viewBox="0 0 16 16"><path d="M3.4 3v10M6.4 3v10M9.2 3.6l3 9"/></symbol>
+  <symbol id="m-list" viewBox="0 0 16 16"><path d="M3 4.6h10M3 8h10M3 11.4h6"/></symbol>
 </svg>
 
 <div class="frame">
@@ -30,25 +36,65 @@
        track. The watch sits in it at optical centre, lit from behind. -->
   <div class="field" id="field" aria-hidden="true">
     <canvas id="ink"></canvas>
-    <!-- The watch is a silhouette: one solid shape cut against the lit ink,
-         painted over the canvas so no ink (not even the red thread) crosses
-         it. The straps run off the field's top and bottom edges instead of
-         fading, so case and straps are one unbroken opaque shape. Only the
-         room-left arc is lit on it. Generic round case, no brand. -->
+    <!-- The watch is a dive watch in silhouette, in the classic manner:
+         scalloped unidirectional bezel, twisted lyre lugs, a guarded crown
+         at 3, a helium-valve crown at 10, a bracelet running off the
+         field's top and bottom edges. Silhouette only: no name, no logo,
+         no dial text. It is painted over the ink canvas, so no ink (not
+         even the red thread) crosses it. Lit on it: only the room-left arc,
+         riding the bezel. The bezel turns one click per proven track. -->
     <svg id="watch" class="watch" viewBox="0 60 320 360" focusable="false">
-      <g class="strap">
-        <path d="M106 -1200h108v1296c0 12-6 22-14 30H120c-8-8-14-18-14-30z"/>
-        <path d="M120 354h80c8 8 14 18 14 30v1316H106v-1316c0-12 6-22 14-30z"/>
+      <defs>
+        <!-- The bracelet's links, as hairlines on the silhouette (not cuts:
+             nothing in the ink shows through the watch). -->
+        <pattern id="links" width="320" height="22" patternUnits="userSpaceOnUse" y="7" fill="#ede8de" fill-opacity="0.08">
+          <rect y="20.6" width="320" height="1.2"/>
+          <rect x="139" width="1.2" height="22"/>
+          <rect x="179.8" width="1.2" height="22"/>
+        </pattern>
+        <path id="lug" d="M210 160C216 140 220 122 220 104C220 100 222 98 225 98H233C236 98 237 100 237.5 103C239 128 250 152 274 172L236 196Z"/>
+        <path id="bezel-edge" d="M160.00 116.00 A124 124 0 0 1 172.96 116.68 Q178.08 125.82 185.78 118.71 A124 124 0 0 1 198.32 122.07 Q201.43 132.08 210.44 126.72 A124 124 0 0 1 222.00 132.61 Q222.96 143.05 232.89 139.68 A124 124 0 0 1 242.97 147.85 Q241.74 158.26 252.15 157.03 A124 124 0 0 1 260.32 167.11 Q256.95 177.04 267.39 178.00 A124 124 0 0 1 273.28 189.56 Q267.92 198.57 277.93 201.68 A124 124 0 0 1 281.29 214.22 Q274.18 221.92 283.32 227.04 A124 124 0 0 1 284.00 240.00 Q275.44 246.05 283.32 252.96 A124 124 0 0 1 281.29 265.78 Q271.66 269.92 277.93 278.32 A124 124 0 0 1 273.28 290.44 Q263.00 292.48 267.39 302.00 A124 124 0 0 1 260.32 312.89 Q249.84 312.75 252.15 322.97 A124 124 0 0 1 242.97 332.15 Q232.75 329.84 232.89 340.32 A124 124 0 0 1 222.00 347.39 Q212.48 343.00 210.44 353.28 A124 124 0 0 1 198.32 357.93 Q189.92 351.66 185.78 361.29 A124 124 0 0 1 172.96 363.32 Q166.05 355.44 160.00 364.00 A124 124 0 0 1 147.04 363.32 Q141.92 354.18 134.22 361.29 A124 124 0 0 1 121.68 357.93 Q118.57 347.92 109.56 353.28 A124 124 0 0 1 98.00 347.39 Q97.04 336.95 87.11 340.32 A124 124 0 0 1 77.03 332.15 Q78.26 321.74 67.85 322.97 A124 124 0 0 1 59.68 312.89 Q63.05 302.96 52.61 302.00 A124 124 0 0 1 46.72 290.44 Q52.08 281.43 42.07 278.32 A124 124 0 0 1 38.71 265.78 Q45.82 258.08 36.68 252.96 A124 124 0 0 1 36.00 240.00 Q44.56 233.95 36.68 227.04 A124 124 0 0 1 38.71 214.22 Q48.34 210.08 42.07 201.68 A124 124 0 0 1 46.72 189.56 Q57.00 187.52 52.61 178.00 A124 124 0 0 1 59.68 167.11 Q70.16 167.25 67.85 157.03 A124 124 0 0 1 77.03 147.85 Q87.25 150.16 87.11 139.68 A124 124 0 0 1 98.00 132.61 Q107.52 137.00 109.56 126.72 A124 124 0 0 1 121.68 122.07 Q130.08 128.34 134.22 118.71 A124 124 0 0 1 147.04 116.68 Q153.95 124.56 160.00 116.00Z"/>
+        <g id="crown3">
+          <path d="M266 204C280 206 290 214 291 224V229H280V251H291V256C290 266 280 274 266 276Z"/>
+          <path d="M280 230H298C300 230 301 231 301 233V247C301 249 300 250 298 250H280Z"/>
+          <path d="M301 232.5h2v2h-2zM301 236.5h2v2h-2zM301 240.5h2v2h-2zM301 244.5h2v2h-2z"/>
+        </g>
+        <g id="hev">
+          <path d="M272 234H285V246H272Z"/>
+          <path d="M285 230.5L296 232.5V247.5L285 249.5Z"/>
+          <path d="M296 234h1.6v2h-1.6zM296 238h1.6v2h-1.6zM296 242h1.6v2h-1.6z"/>
+        </g>
+        <g id="case">
+          <path d="M104 -1300H216V150H104Z"/>
+          <path d="M104 330H216V1800H104Z"/>
+          <use href="#lug"/>
+          <use href="#lug" transform="matrix(-1 0 0 1 320 0)"/>
+          <use href="#lug" transform="matrix(1 0 0 -1 0 480)"/>
+          <use href="#lug" transform="matrix(-1 0 0 -1 320 480)"/>
+          <use href="#crown3"/>
+          <use href="#hev" transform="rotate(-150 160 240)"/>
+          <circle cx="160" cy="240" r="118"/>
+        </g>
+      </defs>
+      <!-- One silhouette, drawn twice: stroked for its outer edge, then
+           filled over, so only the outline carries the bone hairline. The
+           bezel turns (app.js), so it is its own group in both passes. -->
+      <g class="sil-edge">
+        <use href="#case"/>
+        <use class="bezel" href="#bezel-edge"/>
       </g>
-      <g class="buttons">
-        <rect x="270" y="166" width="16" height="26" rx="4" transform="rotate(-30 278 179)"/>
-        <rect x="270" y="268" width="16" height="26" rx="4" transform="rotate(30 278 281)"/>
-        <rect x="34" y="166" width="16" height="26" rx="4" transform="rotate(30 42 179)"/>
-        <rect x="34" y="268" width="16" height="26" rx="4" transform="rotate(-30 42 281)"/>
+      <g class="sil">
+        <use href="#case"/>
+        <use class="bezel" href="#bezel-edge"/>
       </g>
-      <circle class="case" cx="160" cy="240" r="120"/>
-      <circle class="room-track" cx="160" cy="240" r="112"/>
-      <circle class="room-arc" id="room-arc" cx="160" cy="240" r="112" pathLength="100" transform="rotate(-90 160 240)"/>
+      <circle class="case-ref" cx="160" cy="240" r="118"/>
+      <g class="links">
+        <rect x="104" y="-1300" width="112" height="1411" fill="url(#links)"/>
+        <rect x="104" y="369" width="112" height="1431" fill="url(#links)"/>
+      </g>
+      <path class="pip bezel" d="M156.4 129.2h7.2l-3.6 6.4z"/>
+      <circle class="room-track" cx="160" cy="240" r="115"/>
+      <circle class="room-arc" id="room-arc" cx="160" cy="240" r="115" pathLength="100" transform="rotate(-90 160 240)"/>
     </svg>
     <div class="veil" id="veil"><p>Release to add</p></div>
   </div>
@@ -66,25 +112,21 @@
   <main class="stage" id="stage" tabindex="-1">
     <p class="notice" id="notice" role="status" hidden></p>
     <section class="view" id="v-watch" data-card aria-labelledby="t-watch"></section>
-    <section class="view" id="v-choose" data-card aria-labelledby="t-choose" hidden></section>
+    <section class="view" id="v-playlist" data-card aria-labelledby="t-playlist" hidden></section>
     <section class="view" id="v-library" aria-labelledby="t-library" hidden></section>
     <section class="view" id="v-review" aria-labelledby="t-review" hidden></section>
     <section class="view" id="v-send" data-card aria-labelledby="t-send" hidden></section>
     <section class="view" id="v-done" data-card aria-labelledby="t-done" hidden></section>
     <section class="view" id="v-onwatch" aria-labelledby="t-onwatch" hidden></section>
     <section class="view" id="v-ledger" aria-labelledby="t-ledger" hidden></section>
+    <section class="view" id="v-reset" data-card aria-labelledby="t-reset" hidden></section>
   </main>
 
   <footer class="foot">
-    <nav aria-label="Steps">
-      <ol class="steps" id="steps">
-        <li><button type="button" data-step="watch">Watch</button></li>
-        <li><button type="button" data-step="choose">Choose</button></li>
-        <li><button type="button" data-step="review">Review</button></li>
-        <li><button type="button" data-step="send">Send</button></li>
-      </ol>
+    <nav aria-label="Steps" class="steps-nav">
+      <ol class="steps" id="steps"></ol>
+      <span class="steps-rule" id="steps-rule" aria-hidden="true"></span>
     </nav>
-    <p class="promise">No account · no network · nothing leaves this computer</p>
   </footer>
 </div>
 

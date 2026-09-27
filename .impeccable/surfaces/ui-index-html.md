@@ -9,9 +9,11 @@ related_targets: []
 
 The Pelican desktop window (Tauri 2, Linux-first) — the only surface. Replaces
 the removed Fjord UI entirely. Views: the guided flow (Watch → Choose →
-Review → Send), a Library way into Choose (browse a music root such as the
-NAS), and two quiet secondary views: On the watch (read-only `/Music`
-listing: ledger / foreign / stub) and Ledger.
+Review → Send), where Choose is the Library explorer (places + folder tree,
+ticks on folders and songs) and a Playlist is named on its own title card;
+two quiet secondary views: On the watch (read-only `/Music` listing: ledger /
+foreign / stub) and Ledger; and Start over, a four-card factory-reset
+walkthrough reached from On the watch.
 
 ## Visitor mode
 
@@ -26,10 +28,12 @@ will happen (tags, size, room left, permanence), send, watch every file verify.
 
 ## Constraints
 
-Only proven capabilities (PRODUCT.md). No delete, no playlists, no playback,
-no knobs. Mixes (a playlist sent as an album) ships as "Send as a mix" on
-Review, over the core's `--mix` path (82fc311); not yet hardware-tested. No network: every font and asset vendored. No Bond or
-Omega marks. Plain HTML/CSS/JS, no npm.
+Only proven capabilities (PRODUCT.md). No delete, no MTP playlists, no
+playback, no knobs. A Playlist is sent as an album over the core's `mix`
+path; not yet hardware-tested. Pelican never resets the watch; it copies the
+watch's files read-only and resets only its own ledger after reading `/Music`
+empty. No network: every font and asset vendored. No Bond or Omega marks: the
+dive-watch silhouette is a silhouette only. Plain HTML/CSS/JS, no npm.
 
 ## Direction contract
 
@@ -105,7 +109,83 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   shell, one fixed command, rule compiled in) when the rule is missing or
   outdated. Demo state: `#permission`.
 
+- Owner round, 2026-09-26 (wedge, footer, silhouette, explorer, playlists,
+  send again, permanence + reset, motion):
+  - **Wedged watch.** `status.error_kind` drives the no-watch card; "wedged"
+    is its own title card, "The watch isn't answering", with the replug
+    instruction as the lede and the three moves as a quiet sequence. A send
+    that meets it ends on "The watch stopped answering" with the same words
+    and says what already arrived. Demo: `#wedged`, `#send-wedged`.
+  - **Footer copy** ("No account · no network · nothing leaves this
+    computer") is gone from every view; the foot holds only the step index.
+  - **Silhouette.** A dive watch in the Seamaster manner, authored SVG:
+    30-scallop bezel, twisted lyre lugs (one path, mirrored four ways),
+    guarded crown at 3, conical helium-valve crown at 10, a three-link
+    bracelet running off both edges. The bracelet's links are bone hairlines
+    at 8% on the silhouette, not cuts, so no ink (the red thread included)
+    shows through the watch. The silhouette is drawn twice (stroked, then
+    filled over) so only its outer edge carries bone. A small pip at 12 on
+    the bezel (bone 16%) is the one interior mark; it exists so the bezel's
+    turn reads. No name, logo or dial text. The room arc rides the bezel
+    ring (r 115 of the 124 bezel).
+  - **Explorer.** Places column (Home, Music, Library, network shares,
+    drives, plus "Computer" = `/` added by the window so any folder is
+    reachable without a picker), a lazily loaded tree (a folder is read by
+    `library_list` when first opened), ticks on folders and songs, tri-state
+    folders, and a "Chosen" place that lists the send in tick order with
+    Leave out. Ticking a folder absorbs anything ticked inside it; unticking
+    a song inside a ticked folder splits the folder into its other contents.
+    No path field anywhere; there is no "Other folder…" because the webview
+    has no native picker in the IPC, and Computer covers it.
+  - **Playlist.** Explorer bar: Make a playlist → a title card, "Name the
+    playlist", one field, Enter → Review the playlist (reorder with the
+    up/down marks; the moved row slides into place). Review keeps a "Send as
+    a playlist" toggle with the one honest line.
+  - **Send again.** A row skipped as "already on watch" offers Send again;
+    once chosen it reads "Send again · another copy, under a new name" with
+    "Keep skipped". The run-wide toggle stays ("Send every skipped song
+    again").
+  - **Permanence.** One statement, two lengths (`NO_DELETE`,
+    `NO_DELETE_SHORT` in app.js), used on On the watch, Review and Start
+    over step 1: nothing can be deleted one song at a time; only a factory
+    reset clears the watch, and it erases everything, not just music.
+  - **Start over.** Four title cards with their own step index in the foot
+    (Erases · Back up · Reset · Confirm): what a reset erases; back up first
+    (sync, the Agoge line, one-click read-only GARMIN backup with live
+    progress, optional settings backup on the watch); the six reset steps on
+    the watch (FR165 button positions named); plug back in → "The watch is
+    clean" calls `reset_check` then `reset_ledger` and reports exactly what
+    it found. Refused is its own card with the word Refused in blood-text
+    and the likely cause (Reset Default Settings keeps music). A clean
+    result is "Verified clean" in champagne (it is proven by read-back) and
+    blooms the ink once.
+  - **Motion — the at-rest decision.** One loop is allowed at rest: the ink
+    breathes (a 14 s transform-only swell of the lit plume behind the case;
+    the canvas is never redrawn for it). It runs only while a watch is
+    connected and the window is visible, so a live watch reads as alive and
+    a missing one as still. Reduced motion and `?still` hold it at rest.
+    Nothing else loops at rest. The rest of the motion: title cards resolve
+    from wide soft tracking (480 ms) with their lines settling after them
+    (≤ 500 ms total); list views bring rows in as a list (220 ms, 16 ms
+    stagger, capped at 14); a folder's contents unfold under it; a hairline
+    travels under the current step (360 ms); the bezel clicks 6°
+    anticlockwise per proven track and rests where the send left it; the
+    room arc sweeps in on first read and gives up each proven track's room
+    as it lands; credits and blooms as before. Controls stay 180 ms.
+    Entrances use the Web Animations API so a re-render never replays them.
+  - Demo states: `#wedged`, `#library`, `#chosen`, `#playlist`,
+    `#review` (a skipped row with Send again, one set to send again),
+    `#review-playlist`, `#send-wedged`, `#reset-1` … `#reset-4` (backup
+    running in `#reset-2`), `#reset-refused`, `#reset-done`, plus the
+    earlier ones.
+
 ## Unresolved
 
-- Mixes and stop-between-files are built (82fc311) and shipped in the window;
-  neither is hardware-tested yet.
+- Playlists (as albums) and stop-between-files are built and shipped in the
+  window; neither is hardware-tested yet.
+- The window's backup, reset-check and wedge paths are exercised only
+  against the in-file mock; the shell side of the new IPC is built
+  separately.
+- DESIGN.md still describes the generic round watch, the footer promise and
+  "the field does nothing at rest"; it needs the silhouette, the breathing
+  decision and the explorer written back into it.

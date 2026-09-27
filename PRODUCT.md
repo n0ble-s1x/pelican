@@ -60,8 +60,11 @@ Sessions are short and occasional. The watch holds ~3.5 GB and 500 tracks.
 
 **Session shape (owner's call):** a **guided flow** is the default — connect →
 choose → review → send — because it teaches the watch's limits as it goes.
-A **library view** (browse the NAS by artist/album, tick what goes) is
-available as an alternative way into "choose".
+"Choose" is a **library explorer** (owner, 2026-09-26: "don't make folks type
+paths"): places down the side (Home, Music, the library, mounted network
+shares, removable drives, the whole computer), a folder tree that opens in
+place, and a tick on every folder and every song. No path is ever typed.
+Dropping folders on the window still works.
 
 ## Capabilities and Constraints
 
@@ -76,24 +79,44 @@ available as an alternative way into "choose".
   burned before its upload starts.
 - Read-back SHA-256 per file; one retry under a fresh name on mismatch.
 - Capacity check (free space + 2 MiB, 500 audio objects) before any write.
-- Skip tracks already verified on this watch (override: resend).
+- Skip tracks already verified on this watch. **Send again** (owner,
+  2026-09-26): per song from Review, or for every skipped song at once; each
+  goes as another copy under a fresh name (the core never reuses one).
 - Watch status: model, serial, free/total space, `/Music` count, ledger totals.
 - Read-only view of `/Music`: each entry is `ledger` (Pelican sent it),
   `foreign`, or `stub` (broken).
 - The ledger itself, viewable.
+- **A watch that stops answering** (seen on hardware 2026-09-26 after a watch
+  reboot) is named as such, with the fix in plain words: "The watch isn't
+  answering. Unplug it, wait five seconds, plug it back in." No docs needed.
+- **Back up the watch** (read-only): copies the watch's whole `GARMIN` folder
+  (activities, sleep, health monitoring, records, settings) to
+  `~/Documents/Pelican/<model> backup <date>`. Never writes to the watch.
+- **Start over** after a factory reset: a four-step walkthrough (what a reset
+  erases → back up first → the reset steps on the watch → plug back in).
+  Pelican reads `/Music` itself and resets its ledger for that watch only if
+  no audio remains; otherwise it refuses and says why. Pelican never resets
+  the watch.
 
-**Owner-requested — "Mixes" (playlist as album):** built in the core and the
+**Owner-requested — Playlists (sent as albums):** built in the core and the
 window, **not yet hardware-tested**. The watch rejects MTP playlists, so a
-user-ordered mix is sent as an **album**: album tag = mix name, album artist
-"Various Artists", track numbers = mix order, each song keeping its own
-artist. It appears on the watch under Albums and plays in order. A song in two
-mixes is two files. In the window it is "Send as a mix" on Review.
+user-ordered **Playlist** is sent as an **album**: album tag = playlist name,
+album artist "Various Artists", track numbers = playlist order, each song
+keeping its own artist. In the window: tick songs across any folders, "Make a
+playlist", name it, Enter → Review (reorder there) → Send, with one honest
+line: "On the watch it appears under Albums, in this order." A song already
+on the watch goes again as a new copy inside the playlist (the skip key is
+audio + album). The IPC keeps the core's name, `mix`.
 
 **Hard constraints the design must respect:**
 
 - **Permanence.** A track sent to the watch stays in its music library until a
   factory reset. MTP delete frees space but leaves a dead library entry, so
   Pelican has **no delete**. This must be felt *before* sending, not footnoted.
+  Said the same way everywhere (Review, On the watch, Start over): nothing can
+  be deleted one song at a time; only a factory reset clears the watch, and it
+  erases **everything** — activities, health data, settings, Garmin Pay and
+  music — not just music.
 - **No playlists on the watch.** Real MTP playlist writes fail on the FR165
   and each attempt leaves an undeletable stub. Never imply otherwise.
 - One MTP connection at a time; a desktop auto-mount (gvfs) blocks Pelican.
@@ -112,6 +135,13 @@ mixes is two files. In the window it is "Send as a mix" on Review.
   in the manner of those films' title design and the First Light identity, not
   a spy-gadget or MI6-terminal pastiche. Pelican is public, so it carries **no
   Bond or Omega marks** — no 007 logo, gun barrel, or franchise type.
+- **The watch silhouette** (owner, 2026-09-26): a classic dive watch in the
+  Seamaster manner — scalloped unidirectional bezel, twisted lyre lugs,
+  guarded crown at 3, helium-valve crown at 10, bracelet. **Silhouette only**:
+  no name, logo, dial text or any other mark.
+- **Motion** (owner, 2026-09-26: "some dynamic motion and animations would be
+  fun"): title-card transitions, the bezel clicking round per proven track,
+  the room arc, the credits roll, ink blooms. Classy, never busy.
 - Rejected: the old "UNSC tactical" theme; any generic file-manager feel; a UI
   full of knobs (there is one profile — no bitrate pickers or advanced toggles).
 
@@ -136,7 +166,9 @@ mixes is two files. In the window it is "Send as a mix" on Review.
    interface that pretends otherwise.
 4. **Simple to the point of quiet.** One profile, few choices, the right
    default everywhere. The firmware's quirks are Pelican's problem.
-5. **Nothing leaves the machine** — in the code and visibly in the interface.
+5. **Nothing leaves the machine** — in the code. (The footer line saying so
+   was removed at the owner's request, 2026-09-26; the promise stands in
+   SECURITY.md and the invariants, not as window copy.)
 
 ## Accessibility & Inclusion
 

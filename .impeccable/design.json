@@ -1,0 +1,416 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-27T01:00:45+00:00",
+  "title": "Design System: Pelican",
+  "extensions": {
+    "colorMeta": {
+      "champagne": {
+        "role": "primary",
+        "displayName": "Proof Champagne",
+        "canonical": "oklch(73.7% 0.101 82.7)",
+        "tonalRamp": [
+          "#1e0200",
+          "#3b1c00",
+          "#593900",
+          "#795700",
+          "#9a772d",
+          "#bd9850",
+          "#e4be76",
+          "#ffe99f"
+        ]
+      },
+      "champagne-lift": {
+        "role": "primary",
+        "displayName": "Champagne Lift",
+        "canonical": "oklch(78.3% 0.092 81.8)",
+        "tonalRamp": [
+          "#1d0300",
+          "#391c00",
+          "#573900",
+          "#775812",
+          "#997838",
+          "#bb9959",
+          "#e2bf7e",
+          "#ffe9a8"
+        ]
+      },
+      "blood": {
+        "role": "secondary",
+        "displayName": "Blood",
+        "canonical": "oklch(42.3% 0.150 26.6)",
+        "tonalRamp": [
+          "#320000",
+          "#580000",
+          "#7c000a",
+          "#a1302b",
+          "#c7534b",
+          "#ed756b",
+          "#ff9b8f",
+          "#ffc5b8"
+        ]
+      },
+      "blood-text": {
+        "role": "secondary",
+        "displayName": "Blood, Legible",
+        "canonical": "oklch(64.7% 0.136 27.5)",
+        "tonalRamp": [
+          "#310000",
+          "#540000",
+          "#771211",
+          "#9c3730",
+          "#c1594f",
+          "#e67a6f",
+          "#ffa093",
+          "#ffcbbc"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(11.6% 0.003 285.9)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#242426",
+          "#3f3f41",
+          "#5d5d5f",
+          "#7d7d7f",
+          "#9e9ea0",
+          "#c4c4c6",
+          "#eeeef0"
+        ]
+      },
+      "ink-raised": {
+        "role": "neutral",
+        "displayName": "Raised Ink",
+        "canonical": "oklch(16.5% 0.004 285.9)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#242426",
+          "#3f3f42",
+          "#5d5d60",
+          "#7d7d80",
+          "#9e9ea1",
+          "#c4c4c7",
+          "#eeeef1"
+        ]
+      },
+      "ink-high": {
+        "role": "neutral",
+        "displayName": "High Ink",
+        "canonical": "oklch(20.2% 0.008 285.7)",
+        "tonalRamp": [
+          "#0b0b0e",
+          "#232428",
+          "#3f3f44",
+          "#5d5d62",
+          "#7d7d82",
+          "#9e9ea3",
+          "#c3c3c9",
+          "#eeeef4"
+        ]
+      },
+      "silhouette": {
+        "role": "neutral",
+        "displayName": "Silhouette",
+        "canonical": "oklch(6.9% 0.008 284.1)",
+        "tonalRamp": [
+          "#0b0b0e",
+          "#232428",
+          "#3f3f44",
+          "#5d5d62",
+          "#7c7d82",
+          "#9e9ea3",
+          "#c3c3c9",
+          "#eeeef4"
+        ]
+      },
+      "bone": {
+        "role": "neutral",
+        "displayName": "Bone",
+        "canonical": "oklch(93.2% 0.014 84.6)",
+        "tonalRamp": [
+          "#0e0b05",
+          "#27241c",
+          "#433f37",
+          "#615d55",
+          "#817d74",
+          "#a39e95",
+          "#c8c4ba",
+          "#f3eee4"
+        ]
+      },
+      "bone-dim": {
+        "role": "neutral",
+        "displayName": "Dim Bone",
+        "canonical": "oklch(71.4% 0.013 79.8)",
+        "tonalRamp": [
+          "#0e0b06",
+          "#27231d",
+          "#433f38",
+          "#615d56",
+          "#817d75",
+          "#a39e96",
+          "#c8c3bb",
+          "#f3eee5"
+        ]
+      },
+      "bone-faint": {
+        "role": "neutral",
+        "displayName": "Faint Bone",
+        "canonical": "oklch(61.9% 0.013 79.8)",
+        "tonalRamp": [
+          "#0e0b06",
+          "#27231d",
+          "#433f38",
+          "#625d55",
+          "#817d75",
+          "#a39e95",
+          "#c9c3bb",
+          "#f3eee5"
+        ]
+      },
+      "hair": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "rgb(237 232 222 / 0.1)",
+        "tonalRamp": [
+          "rgb(237 232 222 / 0.04)",
+          "rgb(237 232 222 / 0.06)",
+          "rgb(237 232 222 / 0.1)",
+          "rgb(237 232 222 / 0.14)",
+          "rgb(237 232 222 / 0.2)",
+          "rgb(237 232 222 / 0.3)",
+          "rgb(237 232 222 / 0.5)",
+          "rgb(237 232 222 / 0.7)"
+        ]
+      },
+      "hair-strong": {
+        "role": "neutral",
+        "displayName": "Strong Hairline",
+        "canonical": "rgb(237 232 222 / 0.2)",
+        "tonalRamp": [
+          "rgb(237 232 222 / 0.04)",
+          "rgb(237 232 222 / 0.06)",
+          "rgb(237 232 222 / 0.1)",
+          "rgb(237 232 222 / 0.14)",
+          "rgb(237 232 222 / 0.2)",
+          "rgb(237 232 222 / 0.3)",
+          "rgb(237 232 222 / 0.5)",
+          "rgb(237 232 222 / 0.7)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The one title line on a card view."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "List-view titles."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "PELICAN top-left; the drop veil."
+      },
+      "lede": {
+        "displayName": "Lede",
+        "purpose": "The one line under a title."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Track names, rows, quiet lines."
+      },
+      "body-sm": {
+        "displayName": "Body Small",
+        "purpose": "Facts, subtitles, sizes, credit status lines, permanence."
+      },
+      "label-action": {
+        "displayName": "Label, Action",
+        "purpose": "Uppercase button labels; Send at 600."
+      },
+      "label-nav": {
+        "displayName": "Label, Nav",
+        "purpose": "Uppercase tracked links and step index."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Promise line, estimates, field labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ink-dissolve",
+        "value": "0 12px 14px -2px #050506",
+        "purpose": "Only under a failed credit stuck at the top of the roll; rows beneath dissolve into ink. Not a lift."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Exponential ease-out for all UI transitions."
+      },
+      {
+        "name": "fast",
+        "value": "180ms",
+        "purpose": "Colour, border, background transitions."
+      },
+      {
+        "name": "enter",
+        "value": "240ms",
+        "purpose": "View entrance (6px rise) and credit status resolve (3px blur out)."
+      },
+      {
+        "name": "rise",
+        "value": "520ms",
+        "purpose": "A credit rising 22px into the roll."
+      },
+      {
+        "name": "room-arc",
+        "value": "900ms",
+        "purpose": "The champagne room-left arc settling."
+      },
+      {
+        "name": "bloom",
+        "value": "2800ms",
+        "purpose": "One ink bloom per proven track (champagne) or failure (blood); canvas only, never at rest, baked under reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-height",
+        "value": "max-height: 700px"
+      },
+      {
+        "name": "narrow",
+        "value": "max-width: 1100px"
+      },
+      {
+        "name": "stacked",
+        "value": "max-width: 820px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Every flow action except Send: hairline-bordered tracked capitals.",
+      "html": "<button class=\"ds-act\">Choose music</button>",
+      "css": ":root{--ink:#050506;--ink-raised:#0e0e10;--bone:#ede8de;--bone-dim:#a7a29a;--bone-faint:#8a857d;--hair:rgb(237 232 222 / .1);--hair-strong:rgb(237 232 222 / .2);--champagne:#c9a45c;--blood:#8e1b1b;--blood-text:#d46a5f;--ease:cubic-bezier(.16,1,.3,1)}.ds-act{font-family:\"Hanken Grotesk\",system-ui,sans-serif;min-height:44px;padding:0 22px;background:transparent;border:1px solid rgb(237 232 222 / .5);border-radius:1px;font-size:.8125rem;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:#ede8de;cursor:pointer;transition:background-color 180ms var(--ease),border-color 180ms var(--ease)}.ds-act:hover{background:rgb(237 232 222 / .07);border-color:#ede8de}.ds-act:active{background:rgb(237 232 222 / .12)}.ds-act:focus-visible{outline:1px solid #ede8de;outline-offset:3px}"
+    },
+    {
+      "name": "Send Button",
+      "kind": "button",
+      "refersTo": "button-send",
+      "description": "The one champagne fill: the action that commits to proof.",
+      "html": "<button class=\"ds-send\">Send 39 tracks</button>",
+      "css": ":root{--ink:#050506;--ink-raised:#0e0e10;--bone:#ede8de;--bone-dim:#a7a29a;--bone-faint:#8a857d;--hair:rgb(237 232 222 / .1);--hair-strong:rgb(237 232 222 / .2);--champagne:#c9a45c;--blood:#8e1b1b;--blood-text:#d46a5f;--ease:cubic-bezier(.16,1,.3,1)}.ds-send{font-family:\"Hanken Grotesk\",system-ui,sans-serif;min-height:44px;padding:0 22px;background:#c9a45c;border:1px solid #c9a45c;border-radius:1px;font-size:.8125rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#050506;cursor:pointer;transition:background-color 180ms var(--ease),border-color 180ms var(--ease)}.ds-send:hover{background:#d6b373;border-color:#d6b373}.ds-send:focus-visible{outline:1px solid #ede8de;outline-offset:3px}.ds-send:disabled{background:transparent;border-color:rgb(237 232 222 / .2);color:#8a857d;cursor:not-allowed}"
+    },
+    {
+      "name": "Text Button",
+      "kind": "button",
+      "refersTo": "text-button",
+      "description": "Secondary actions as hairline-underlined dim text.",
+      "html": "<button class=\"ds-text-btn\">Choose a different folder</button>",
+      "css": ".ds-text-btn{font-family:\"Hanken Grotesk\",system-ui,sans-serif;background:none;border:0;padding:6px 0;font-size:.8125rem;color:#a7a29a;text-decoration:underline;text-decoration-color:rgb(237 232 222 / .2);text-underline-offset:5px;cursor:pointer;transition:color 180ms cubic-bezier(.16,1,.3,1)}.ds-text-btn:hover{color:#ede8de;text-decoration-color:#a7a29a}.ds-text-btn:focus-visible{outline:1px solid #ede8de;outline-offset:3px}"
+    },
+    {
+      "name": "Step Index",
+      "kind": "nav",
+      "refersTo": "link-tracked",
+      "description": "The four-step index as tracked words; current in bone.",
+      "html": "<ol class=\"ds-steps\"><li><button>Watch</button></li><li><button>Choose</button></li><li><button aria-current=\"step\">Review</button></li><li><button disabled>Send</button></li></ol>",
+      "css": ".ds-steps{display:flex;list-style:none;padding:0;margin:0;gap:4px;background:#050506}.ds-steps li+li::before{content:\"\\00b7\";color:#8a857d;margin:0 8px 0 4px}.ds-steps button{font-family:\"Hanken Grotesk\",system-ui,sans-serif;background:none;border:0;padding:6px 2px;font-size:.75rem;letter-spacing:.24em;text-transform:uppercase;color:#8a857d;cursor:pointer;transition:color 180ms cubic-bezier(.16,1,.3,1)}.ds-steps button:not(:disabled):hover{color:#a7a29a}.ds-steps button[aria-current=step]{color:#ede8de}.ds-steps button:disabled{cursor:default}.ds-steps button:focus-visible{outline:1px solid #ede8de;outline-offset:3px}"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Raised-ink field; focus turns the hairline bone, no glow.",
+      "html": "<input class=\"ds-input\" placeholder=\"/mnt/nas/Music\">",
+      "css": ".ds-input{font-family:\"Hanken Grotesk\",system-ui,sans-serif;min-height:38px;padding:0 12px;background:#0e0e10;border:1px solid rgb(237 232 222 / .2);border-radius:1px;color:#ede8de;font-size:.9375rem;transition:border-color 180ms cubic-bezier(.16,1,.3,1)}.ds-input:hover{border-color:rgb(237 232 222 / .34)}.ds-input:focus-visible{outline:none;border-color:#ede8de}.ds-input::placeholder{color:#8a857d}.ds-input[aria-invalid=true]{border-color:#d46a5f}"
+    },
+    {
+      "name": "Notice",
+      "kind": "custom",
+      "refersTo": "notice",
+      "description": "One pinned band: mark, capitalised word, sentence.",
+      "html": "<p class=\"ds-notice ds-err\"><svg class=\"ds-mk\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M4.5 4.5l7 7M11.5 4.5l-7 7\"/></svg><span class=\"ds-word\">Problem</span><span>The watch is mounted by the desktop. Unmount it, then try again.</span></p>",
+      "css": ".ds-mk{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}.ds-notice{font-family:\"Hanken Grotesk\",system-ui,sans-serif;display:flex;gap:10px;align-items:center;margin:0;padding:10px 14px;background:#0e0e10;border:1px solid rgb(237 232 222 / .2);font-size:.8125rem;color:#ede8de}.ds-notice.ds-err{border-color:#8e1b1b}.ds-err .ds-mk,.ds-err .ds-word{color:#d46a5f}.ds-word{font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:.75rem}"
+    },
+    {
+      "name": "Credit (Verified / Failed)",
+      "kind": "custom",
+      "refersTo": "credit-verified",
+      "description": "The credits roll: name, then mark + word + detail; champagne only when proven.",
+      "html": "<ol class=\"ds-roll\"><li class=\"ds-credit ds-ok\"><span class=\"ds-ct\">Who Shall Not Be Returning</span><span class=\"ds-cs\"><svg class=\"ds-mk\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M3.5 8.4l3 3 6-6.8\"/></svg><b>Verified</b><span class=\"ds-d\">sha256 e3f9b9241a26</span></span></li><li class=\"ds-credit ds-bad\"><span class=\"ds-ct\">Sunken Depths</span><span class=\"ds-cs\"><svg class=\"ds-mk\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M4.5 4.5l7 7M11.5 4.5l-7 7\"/></svg><b>Failed</b><span class=\"ds-d\">read-back mismatch; retry failed</span></span></li></ol>",
+      "css": ".ds-mk{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}.ds-roll{list-style:none;margin:0;padding:12px 16px;background:#050506}.ds-credit{font-family:\"Hanken Grotesk\",system-ui,sans-serif;padding:9px 0;animation:ds-rise 520ms cubic-bezier(.16,1,.3,1) both}.ds-ct{display:block;font-size:1.0625rem;color:#ede8de}.ds-cs{display:flex;gap:8px;align-items:center;margin-top:2px;font-size:.8125rem;font-variant-numeric:tabular-nums}.ds-cs b{font-weight:600}.ds-ok .ds-cs{color:#c9a45c}.ds-bad .ds-ct{color:#a7a29a}.ds-bad .ds-cs{color:#d46a5f}@keyframes ds-rise{from{opacity:0;transform:translateY(22px)}}@media (prefers-reduced-motion:reduce){.ds-credit{animation:none}}"
+    },
+    {
+      "name": "Title Card",
+      "kind": "card",
+      "description": "A card view: one display title line, one lede, one action. Not a container: no fill, no border.",
+      "html": "<div class=\"ds-tc\"><h1 class=\"ds-title\">Forerunner 165 Music</h1><p class=\"ds-lede\">2.3 GB free &middot; room for about 470 tracks</p></div>",
+      "css": ".ds-tc{padding:32px;background:#050506}.ds-title{font-family:\"Julius Sans One\",\"Hanken Grotesk\",sans-serif;font-weight:400;font-size:2.125rem;line-height:1.25;letter-spacing:.24em;margin:0 -.24em 0 0;text-transform:uppercase;color:#ede8de;text-wrap:balance}.ds-lede{font-family:\"Hanken Grotesk\",system-ui,sans-serif;margin:20px 0 0;font-size:1.0625rem;color:#ede8de;font-variant-numeric:tabular-nums}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Title Sequence",
+    "overview": "Every step of the send is a title card from a modern Bond opening: black ink, one silhouette, one line of widely tracked capitals. The window is a split frame. On the left, a bounded field of ink holds a generic round watch as a solid silhouette, lit from behind. On the right, one title line, one or two quiet lines, and one action. Sending is the credits: track lines rise into place and resolve to a proven state, and a thread of champagne ink blooms in the field once for each verified file.\n\nThe register is classy, elegant and simple. That means the craft and restraint of title design, not a spy-gadget or terminal pastiche, and no franchise marks of any kind. Density stays low even in the list views. Rows are separated by hairlines, never boxed, and the ink field narrows to a column so the list has room. Colour is almost entirely ink and bone. The two accents are permissions, not decoration. Champagne means proven. Blood means failed, and the word always goes with it.\n\nMotion belongs to the ink. Chrome settles in 150 to 250 ms and then stays still. The field renders once and does nothing at rest. It runs a bounded bloom only when a track resolves, and it bakes to a still residue under reduced motion.",
+    "keyCharacteristics": [
+      "Ink-black ground with bone text; hairlines at bone 10% and 20%.",
+      "Champagne lights only proven things: verified tracks, the room-left arc, the Send action.",
+      "One thin, wide-capital display face for title lines only; a tabular-figure grotesque for everything operable.",
+      "Every state is a stroked mark plus a word.",
+      "No cards, no glass, no gradient surfaces, no elevation.",
+      "Ink moves; chrome does not."
+    ],
+    "rules": [
+      {
+        "name": "The Proven Gold Rule",
+        "body": "Champagne marks only what has been proven or what commits to proof: a verified file, the room left, the Send action. If an element has not been verified, it is not gold.",
+        "section": "colors"
+      },
+      {
+        "name": "The Named Failure Rule",
+        "body": "Red never appears alone. Every use of blood or blood-text sits beside the word (Failed, Refused, Stub, Does not fit), and blood reaches the ink field only as the single thread for a failed credit.",
+        "section": "colors"
+      },
+      {
+        "name": "The Title Card Rule",
+        "body": "The display face sets title lines, the wordmark and the drop veil. It is never used for an operable control, a row, a number, or a sentence.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Truth Rule",
+        "body": "Every figure is tabular and lining (set on body), so sizes, counts, track numbers and hash prefixes hold their columns.",
+        "section": "typography"
+      },
+      {
+        "name": "The Still Chrome Rule",
+        "body": "Ink moves; chrome does not. UI transitions use the exponential ease-out (cubic-bezier(0.16, 1, 0.3, 1)) at 180 ms, with 240 ms view entrances, and then stop. The canvas animates only while a bloom is live, pauses when the window is hidden, and bakes to its residue under prefers-reduced-motion.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** give every state a mark and a word. Colour is never the only signal.",
+      "**Do** keep one title line per view in the display face, tracked 0.24em in uppercase, and one action (or one Send) beneath it.",
+      "**Do** separate rows with hairlines (bone at 10%) and leave the rows themselves unfilled.",
+      "**Do** set every size, count and hash in tabular lining figures.",
+      "**Do** keep UI motion to 150–250 ms exponential ease-out. Let only the ink field move at length, and stop it when idle or under reduced motion.",
+      "**Do** vendor every font and asset. The window makes no network request."
+    ],
+    "donts": [
+      "**Don't** use champagne on anything unproven, such as a hover, a heading, a selection or an ornament.",
+      "**Don't** show blood or blood-text without the failure word next to it, and don't use blood (#8e1b1b) for text.",
+      "**Don't** set buttons, rows, numbers or body copy in the display face.",
+      "**Don't** box content in cards, frosted panels or gradient-filled surfaces. Alpha masks that dissolve an edge are allowed; filled gradients are not.",
+      "**Don't** add elevation shadows. The one ink-coloured dissolve under a sticky failed credit is the whole vocabulary.",
+      "**Don't** put Bond, 007 or Omega marks, a gun barrel, or franchise type anywhere.",
+      "**Don't** add a counter or brand detail to the watch silhouette. Its only lit element is the room arc."
+    ]
+  }
+}

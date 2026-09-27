@@ -1,10 +1,17 @@
-# Playlist Sync (M3U8) — Working Recipe
+# Playlists: why MTP playlist writes fail on the FR165
 
-Verified path for getting an M3U8 playlist onto a Garmin music watch via MTP,
-based on `better-sync` (Schachte) — a Go CLI that has been doing this in
-production on FR family + Venu since at least 2024.
+**Result:** on the Forerunner 165 Music (firmware 2506), every MTP playlist
+write tried was rejected. Six variants of path style and format code were
+sent on 2026-05-03; the watch accepted each transfer, then turned each file
+into a broken stub that cannot be deleted. Pelican therefore sends a
+playlist as an album instead (see the README).
 
-## The recipe
+What was tried is the recipe below, taken from `better-sync` (Schachte), a
+Go CLI that reports success with it on older Forerunner models and the Venu.
+The probe that ran it (`examples/probe_playlist.rs`) was removed in the
+rebuild and is in git history only.
+
+## The recipe that was tried
 
 1. **Find the `Music` folder** at storage root (case-insensitive). Use that
    ObjectHandle as `parent`. *Do not* try to create a subfolder for playlists.
@@ -37,7 +44,7 @@ mtp-rs note: `ObjectFormatCode` is a `num_enum`; use
 ## What our previous attempt got wrong
 
 ```rust
-// crates/pelican-core/src/mtp.rs — old write_raw
+// crates/pelican-core/src/mtp.rs, old write_raw
 let format = if lower.ends_with(".m3u8") || lower.ends_with(".m3u") {
     ObjectFormatCode::Text   // 0x3004
 } else {
@@ -45,7 +52,7 @@ let format = if lower.ends_with(".m3u8") || lower.ends_with(".m3u") {
 };
 ```
 
-- Used `Text` (0x3004) — Garmin firmware silently rejects playlist writes
+- Used `Text` (0x3004). Garmin firmware silently rejects playlist writes
   with non-playlist format codes. `0xBA05` is the format the firmware looks
   for.
 - Wrote a body of just filenames (`#EXTM3U\n<file>\n...`). Once the format
@@ -63,7 +70,7 @@ let format = if lower.ends_with(".m3u8") || lower.ends_with(".m3u") {
   in the playlist UI, or does it pull title from the referenced file's ID3?
   better-sync's default omits `#EXTINF`.
 
-## 2026-05-03 · FR165 Music probe — all standard MTP variants fail
+## 2026-05-03 · FR165 Music probe: all standard MTP variants fail
 
 `examples/probe_playlist.rs` ran six variants in one session:
 
@@ -79,7 +86,7 @@ let format = if lower.ends_with(".m3u8") || lower.ends_with(".m3u") {
 \* F was *briefly* visible in `list_objects` as a 46-byte readable entry
 (despite a 72-byte write), but downloading the bytes produced a Protocol
 GeneralError and wedged the session. The "readable" appearance was almost
-certainly a mid-validation race — by the next listing it would have
+certainly a mid-validation race; by the next listing it would have
 become a stub like the others.
 
 `MtpDevice` returned `Ok` for all six `SendObjectInfo` + `SendObject`
@@ -88,7 +95,7 @@ sequences. The watch's post-write validator silently rejected each.
 ### Working hypothesis: FR165 firmware may not accept MTP playlist writes
 
 `better-sync` is verified working against FR945 / FR255 / Venu / Forerunner
-645 — older models. FR165 Music was released Mar 2024 and ships with a
+645, all older models. FR165 Music was released Mar 2024 and ships with a
 post-Garmin-Connect-IQ-2.0 firmware family. Garmin's official mobile app
 (both iOS + Android) syncs playlists to newer watches via Bluetooth +
 Garmin Connect cloud, *not* MTP. The MTP playlist code path may simply
@@ -97,13 +104,13 @@ not exist in FR165 firmware.
 Evidence for this hypothesis:
 - All known playlist format codes silently rejected
 - Path-style and body-content variants all fail equivalently
-- Music files themselves write fine — only playlists are special-cased
+- Music files themselves write fine; only playlists are special-cased
 
 ### Next moves to confirm or refute
 
 1. **Capture Garmin Express on Windows** writing a playlist to *any* music
    watch via Wireshark+USBPcap. Compare wire bytes against our attempts.
-2. **Test the same `probe_playlist` against a FR945 / FR255** if accessible —
+2. **Test the same `probe_playlist` against a FR945 / FR255** if accessible:
    if those work and FR165 doesn't, hypothesis confirmed.
 3. **Inspect Garmin Connect mobile-app traffic** for FR165 to see how it
    delivers playlists (BLE GATT? cloud-side index?).
@@ -112,7 +119,7 @@ Evidence for this hypothesis:
 
 ## References
 
-- `better-sync` — `pkg/files/playlist.go` and `pkg/util/sanitize.go`
+- `better-sync`: `pkg/files/playlist.go` and `pkg/util/sanitize.go`
   (snapshot in [`references/better-sync-playlist.go.txt`](references/better-sync-playlist.go.txt))
 - Garmin support: "Audio file types supported on watches"
   https://support.garmin.com/en-US/?faq=JyNEOTsZaR3KMXqej3oQp5

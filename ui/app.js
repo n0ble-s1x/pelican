@@ -1,13 +1,11 @@
-/* Pelican — the window.
+/* Pelican: the window.
  *
- * Plain JS, no build. Talks to the Tauri shell through the IPC contract
- * (status, places, library_root, library_list, preview, push, stop,
- * watch_list, ledger, udev_rule_status, install_udev_rule,
- * default_backup_dir, backup_watch, reset_check, reset_ledger, and the
- * "pelican://progress" and "pelican://backup" events). When
- * window.__TAURI__ is absent the same contract is served by an in-file mock
- * with the owner's real library, clearly marked "Demo data", and the URL
- * hash jumps to each state (see demoState at the end).
+ * Plain JS, no build. Talks to the Tauri shell over IPC (status, places,
+ * library_list, preview, push, stop, watch_list, ledger, udev_rule_status,
+ * install_udev_rule, default_backup_dir, backup_watch, reset_check,
+ * reset_ledger, and the "pelican://progress" and "pelican://backup"
+ * events). Opened in a plain browser it loads demo.js, which serves the
+ * same contract from fixtures and marks the window "Demo data".
  */
 (() => {
   "use strict";
@@ -31,7 +29,7 @@
 
   // SI units, as GNOME shows them. One decimal below 100 of a unit.
   function bytes(n) {
-    if (n == null) return "–";
+    if (n == null) return "-";
     const units = ["B", "KB", "MB", "GB", "TB"];
     let v = n;
     let u = 0;
@@ -59,27 +57,28 @@
     });
   }
 
-  // The watch holds about this many more tracks: free space at the one
-  // profile for a 3.5-minute track, capped by the 500-object limit. It is an
-  // "about" by design; Review shows the real estimate for what was chosen.
-  const RESERVE_BYTES = 2 * 1024 * 1024;
-  const AVG_TRACK_BYTES = (210 * 192000) / 8;
+  const MAX_OBJECTS = 500; // core watch::MAX_OBJECTS
+  const RESERVE_BYTES = 2 * 1024 * 1024; // core transfer::FREE_MARGIN
+  const PROFILE_BPS = 192000; // core preview::PROFILE_BPS
+
+  // Roughly how many more tracks fit: free space at the one profile for a
+  // 3.5-minute track, capped by the object limit. Review shows the real
+  // estimate for what was chosen.
+  const AVG_TRACK_BYTES = (210 * PROFILE_BPS) / 8;
   function roomFor(st) {
     const bySpace = Math.floor(Math.max(0, st.free_bytes - RESERVE_BYTES) / AVG_TRACK_BYTES);
-    const bySlots = Math.max(0, (st.max_objects ?? 500) - (st.music_objects ?? 0));
+    const bySlots = Math.max(0, (st.max_objects ?? MAX_OBJECTS) - (st.music_objects ?? 0));
     const n = Math.min(bySpace, bySlots);
     return n >= 50 ? Math.floor(n / 10) * 10 : n;
   }
 
   // ------------------------------------------------------------ the ink
 
-  // A bounded canvas behind the watch. The settled field is a plume of ink
-  // in black water, rendered once from domain-warped noise and lit from
-  // inside, behind the case, so the watch reads as a silhouette. Then it
-  // does nothing: no loop runs at rest. Each verified track blooms one
-  // champagne plume out from under the case; a failure sends one blood-red
-  // thread. Both settle into a faint residue. Reduced motion bakes the
-  // residue without animating; a hidden window pauses a bloom and resumes it.
+  // A bounded canvas behind the watch. The field is rendered once from
+  // domain-warped noise; the canvas animates only during a bloom (one per
+  // verified track, a red thread per failure), which then settles into a
+  // faint residue. The CSS breathe loop is separate. Reduced motion bakes
+  // the residue without animating; a hidden window pauses a bloom.
   const Ink = (() => {
     const cv = $("#ink");
     const ctx = cv.getContext("2d");
@@ -413,8 +412,7 @@
     arc.style.strokeDasharray = value;
   }
 
-  // The dive bezel turns one click (6°, anticlockwise, as a unidirectional
-  // bezel does) for each proven track, and stays where the send left it.
+  // The dive bezel turns one click (6°, counterclockwise) per proven track.
   function turnBezel(clicks = 1) {
     S.bezel += clicks;
     $("#watch").style.setProperty("--bz", `${(-6 * S.bezel) % 360}deg`);
@@ -423,7 +421,9 @@
   // ------------------------------------------------------------ IPC
 
   const TAURI = window.__TAURI__;
-  const DEMO = !TAURI;
+  // Inside the shell's webview the global must exist; its absence is a
+  // broken build, never a reason to fall back to demo data.
+  const IN_SHELL = location.protocol === "tauri:" || location.hostname === "tauri.localhost";
 
   function tauriApi() {
     const invoke = (cmd, args) => TAURI.core.invoke(cmd, args);
@@ -447,11 +447,13 @@
     return { invoke, onProgress, onBackup, onDrop };
   }
 
-  const api = DEMO ? mockApi() : tauriApi();
+  let api = null; // set in boot()
 
-  // The core's own words for a watch that stopped answering MTP (it happens
-  // after the watch restarts). Everything that can meet it says the same.
-  const REPLUG = "The watch isn't answering. Unplug it, wait five seconds, plug it back in.";
+  // A watch that stopped answering MTP (it happens after a restart). The
+  // core's own words, core error::REPLUG, used everywhere it can surface.
+  const REPLUG_WHAT = "The watch isn't answering.";
+  const REPLUG_DO = "Unplug it, wait five seconds, plug it back in.";
+  const REPLUG = `${REPLUG_WHAT} ${REPLUG_DO}`;
   const isWedged = (s) => /isn['’]t answering/i.test(String(s || ""));
 
   // What cannot be undone, said the same way everywhere it is said.
@@ -470,7 +472,7 @@
   // An error line, and what to do about it.
   function errorBlock(err, fallbackFix) {
     if (isWedged(err)) {
-      return `<strong>The watch isn't answering.</strong>Unplug it, wait five seconds, plug it back in, then check again.`;
+      return `<strong>${esc(REPLUG_WHAT)}</strong>${esc(REPLUG_DO)}`;
     }
     return `<strong>${esc(err)}</strong>${esc(fallbackFix)}`;
   }
@@ -480,13 +482,12 @@
   const S = {
     view: "watch",
     status: null,
-    root: null,
     places: null,
     place: null, // the path the explorer is rooted at
     showChosen: false, // the explorer shows the chosen list instead of a place
     tree: new Map(), // path -> { state: "loading" | "ok" | "error", l, error }
     open: new Set(), // folders shown open in the explorer
-    chosen: [], // [{ path, name, kind: "dir" | "file", count? }], in the order ticked
+    chosen: [], // [{ path, name, kind: "dir" | "file", count? }], in the order selected
     overrides: { artist: "", album: "", genre: "", year: "" },
     mix: { on: false, name: "" }, // "Playlist" in the window; `mix` in the IPC
     order: null, // explicit per-file order once a playlist is reordered
@@ -505,7 +506,7 @@
     rule: null, // udev_rule_status, read while no watch is reachable
     ruleBusy: false, // the password prompt is open
     ruleInstalled: false, // installed in this session: next step is a replug
-    ruleMsg: null, // { text, error } after a cancelled or failed install
+    ruleMsg: null, // { text, error } after a canceled or failed install
     bezel: 0, // clicks the dive bezel has turned
     roomFree: null, // free bytes as a send takes them, until status is read again
     reset: null, // the Start over walkthrough, while it is open
@@ -542,11 +543,9 @@
 
   // ------------------------------------------------------------ motion
 
-  // Title cards: the title line opens from its centre out of soft focus (a
-  // clip-path reveal, never tracking or size, so the line is laid out once
-  // at its final width and cannot re-wrap mid-motion), and the lines
-  // beneath it settle in after it. List views bring their rows in as a
-  // list. Web Animations, so a later re-render never replays an entrance.
+  // Title lines reveal with clip-path, so they are laid out once at final
+  // width and never re-wrap mid-motion. Web Animations, so a re-render
+  // does not replay an entrance.
   const EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
   function enter(sec) {
     if (reduceMotion.matches) return;
@@ -647,7 +646,7 @@
       }).join("");
       $(".steps-nav").setAttribute("aria-label", "Steps");
     }
-    // One hairline under the current step, travelling between them.
+    // One hairline under the current step, traveling between them.
     const rule = $("#steps-rule");
     const cur = $('[aria-current="step"]', ol);
     if (!cur) {
@@ -703,7 +702,7 @@
       const kind = classify(st);
       if (kind === "wedged") {
         v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">The watch isn't answering</h1>
-          <p class="lede">Unplug it, wait five seconds, plug it back in.</p>
+          <p class="lede">${esc(REPLUG_DO)}</p>
           <ol class="replug" aria-label="What to do">
             <li><span class="n">1</span>Unplug the cable from the watch</li>
             <li><span class="n">2</span>Wait five seconds</li>
@@ -797,7 +796,7 @@
     }
     const room = roomFor(st);
     const facts = [
-      `${plural(st.music_objects ?? 0, "track")} of ${st.max_objects ?? 500} on the watch`,
+      `${plural(st.music_objects ?? 0, "track")} of ${st.max_objects ?? MAX_OBJECTS} on the watch`,
       `${(st.ledger?.verified ?? 0).toLocaleString("en")} sent by Pelican${st.ledger?.resets ? " since the last reset" : ""}`,
     ];
     if (st.ledger?.failed) facts.push(`${plural(st.ledger.failed, "failed attempt")} in the ledger`);
@@ -911,7 +910,7 @@
   //
   // Places down the side (Home, Music, the library, network shares,
   // drives, the whole computer), a folder tree that opens in place and
-  // loads each folder as it opens, and a tick on every folder and song.
+  // loads each folder as it opens, and a checkbox on every folder and song.
   // Nobody types a path.
 
   const PLACE_MARK = { home: "home", music: "music", network: "network", drive: "drive", library: "library", computer: "computer" };
@@ -952,7 +951,7 @@
     if (!S.showChosen) await loadDir(S.place);
   }
 
-  // Tick state. A ticked folder covers everything inside it.
+  // A selected folder covers everything inside it.
   function coveredBy(path) {
     const c = S.chosen.find((x) => x.kind === "dir" && under(path, x.path));
     return c ? c.path : null;
@@ -967,7 +966,7 @@
     const path = el.dataset.path;
     if (el.checked) {
       const entry = el.dataset.kind === "dir" ? dirEntry({ path, name: el.dataset.name, audio_files: Number(el.dataset.count) }) : fileEntry({ path, name: el.dataset.name });
-      // A folder takes the place of anything already ticked inside it.
+      // A folder takes the place of anything already selected inside it.
       const at = S.chosen.findIndex((c) => under(c.path, path));
       S.chosen = S.chosen.filter((c) => !under(c.path, path));
       if (at >= 0) S.chosen.splice(Math.min(at, S.chosen.length), 0, entry);
@@ -984,9 +983,9 @@
     syncChrome();
   }
 
-  // Untick something inside a ticked folder: the folder gives way to
+  // Clear something inside a selected folder: the folder gives way to
   // everything in it except that one, level by level. Every level is
-  // loaded already, since the row was on screen to be unticked.
+  // loaded already, since the row was on screen to be cleared.
   function uncover(path, anc) {
     const idx = S.chosen.findIndex((c) => c.path === anc);
     const inserts = [];
@@ -1007,7 +1006,7 @@
   function chosenSummary() {
     const dirs = S.chosen.filter((c) => c.kind === "dir").length;
     const files = S.chosen.length - dirs;
-    if (!S.chosen.length) return "Tick folders or songs. Open a folder with its arrow.";
+    if (!S.chosen.length) return "Select folders or songs. Open a folder with its arrow.";
     const bits = [];
     if (dirs) bits.push(plural(dirs, "folder"));
     if (files) bits.push(plural(files, "song"));
@@ -1015,7 +1014,7 @@
   }
 
   function placeHead() {
-    if (S.showChosen) return `<p class="where">Chosen for this send, in the order you ticked them.</p>`;
+    if (S.showChosen) return `<p class="where">Chosen for this send, in the order you selected them.</p>`;
     const p = (S.places || []).find((x) => x.path === S.place);
     return `<p class="where">${p ? `${esc(p.label)} · ` : ""}<span class="path">${esc(S.place || "")}</span></p>`;
   }
@@ -1055,10 +1054,20 @@
     const bar = $("#lib-bar");
     if (!bar) return;
     const have = S.chosen.length > 0;
-    bar.innerHTML = `<span class="count" aria-live="polite">${esc(chosenSummary())}</span>
-      ${have ? `<button type="button" class="text-btn" data-act="clear-chosen">Clear</button>` : ""}
+    // The live region stays in place so each change is announced.
+    let count = $(".count", bar);
+    if (!count) {
+      bar.innerHTML = `<span class="count" aria-live="polite"></span>`;
+      count = $(".count", bar);
+    }
+    count.textContent = chosenSummary();
+    while (count.nextSibling) count.nextSibling.remove();
+    count.insertAdjacentHTML(
+      "afterend",
+      `${have ? `<button type="button" class="text-btn" data-act="clear-chosen">Clear</button>` : ""}
       <button type="button" class="act" data-act="make-playlist"${have ? "" : " disabled"}>Make a playlist</button>
-      <button type="button" class="act" data-act="review-album"${have ? "" : " disabled"}>Review</button>`;
+      <button type="button" class="act" data-act="review-album"${have ? "" : " disabled"}>Review</button>`,
+    );
     const n = $("#chosen-n");
     if (n) n.textContent = have ? S.chosen.length.toLocaleString("en") : "";
   }
@@ -1145,7 +1154,7 @@
 
   function chosenRows() {
     if (!S.chosen.length) {
-      return `<li class="empty-row"><p class="empty"><strong>Nothing chosen yet.</strong>Tick folders or songs in any place, or drop them on this window. Whole albums work best: each song is tagged from its file, or from its folder names when the file has none.</p></li>`;
+      return `<li class="empty-row"><p class="empty"><strong>Nothing chosen yet.</strong>Select folders or songs in any place, or drop them on this window. Whole albums work best: each song is tagged from its file, or from its folder names when the file has none.</p></li>`;
     }
     return S.chosen
       .map(
@@ -1229,12 +1238,12 @@
     const v = $("#v-playlist");
     if (!S.chosen.length) {
       v.innerHTML = `<h1 class="title" id="t-playlist" tabindex="-1">Make a playlist</h1>
-        <p class="lede">Tick songs in the library first, from as many folders as you like.</p>
+        <p class="lede">Select songs in the library first, from as many folders as you like.</p>
         <div class="actions"><button type="button" class="act" data-go="library">Open the library</button></div>`;
       return;
     }
     v.innerHTML = `<h1 class="title" id="t-playlist" tabindex="-1">Name the playlist</h1>
-      <p class="lede">${esc(songsLabel())}, in the order you ticked them. On the watch it appears under Albums, in this order.</p>
+      <p class="lede">${esc(songsLabel())}, in the order you selected them. On the watch it appears under Albums, in this order.</p>
       <form class="name-form" data-form="playlist" autocomplete="off">
         <label class="sr-only" for="pl-name">Playlist name</label>
         <input class="field-input name-input" id="pl-name" name="name" value="${esc(S.mix.name)}" placeholder="Long Run" spellcheck="false" maxlength="80">
@@ -1334,7 +1343,7 @@
     let list = `<ul class="rows" aria-busy="true">${skeletonRows(8)}</ul>`;
     if (S.previewError) {
       summary = "The preview could not be built.";
-      list = `<div class="rows"><p class="empty"><strong>Pelican could not read what was chosen.</strong>${esc(S.previewError)} Check the folders are still there (a NAS may need remounting), then try again.</p>
+      list = `<div class="rows"><p class="empty"><strong>Pelican could not read what was chosen.</strong>${esc(S.previewError)} Check the folders are still there (a network share may need remounting), then try again.</p>
         <p class="empty"><button type="button" class="act" data-act="preview">Try again</button></p></div>`;
     } else if (p) {
       const t = p.totals;
@@ -1353,7 +1362,7 @@
               </span>`
             : "";
           return `<li class="row track-row is-${esc(f.verdict)}" data-src="${esc(f.source)}">
-            <span class="num">${esc(f.track ?? "–")}</span>
+            <span class="num">${esc(f.track ?? "-")}</span>
             <span class="t">${esc(f.title)}<span class="sub">${esc(sub || "No artist or album")}</span></span>
             <span class="end">${verdictCell(f)}</span>
             ${order}
@@ -1444,7 +1453,7 @@
     if (f.ok) {
       const left = (f.free_bytes ?? st.free_bytes) - p.totals.est_bytes;
       return `<div class="fit s-verified">${mark("verified")}<span class="word">Fits</span>
-        <span class="dim">About <span class="gold">${esc(bytes(Math.max(0, left)))}</span> will remain · ${after.toLocaleString("en")} of ${st.max_objects ?? 500} tracks after</span></div>`;
+        <span class="dim">About <span class="gold">${esc(bytes(Math.max(0, left)))}</span> will remain · ${after.toLocaleString("en")} of ${st.max_objects ?? MAX_OBJECTS} tracks after</span></div>`;
     }
     return `<div class="fit s-failed">${mark("failed")}<span class="word">Does not fit</span>
       <span class="dim">${esc(f.reason || "")} Leave some songs out and review again.</span></div>`;
@@ -1546,7 +1555,7 @@
       case "sending":
         line.state = "sending";
         line.detail = line.remote
-          ? `again as ${ev.remote} — the first copy did not read back the same`
+          ? `again as ${ev.remote}. The first copy did not read back the same.`
           : `as ${ev.remote}`;
         line.remote = ev.remote;
         line.pct = 0;
@@ -1605,7 +1614,7 @@
       renderSend();
       syncChrome();
       if (isWedged(ev.message)) {
-        S.status = { connected: false, error_kind: "wedged", error: REPLUG, max_objects: 500, ledger: S.status && S.status.ledger };
+        S.status = { connected: false, error_kind: "wedged", error: REPLUG, max_objects: MAX_OBJECTS, ledger: S.status && S.status.ledger };
         syncChrome();
       }
     }
@@ -1620,6 +1629,10 @@
       }${meter}</span>`;
   }
 
+  // The active credit sits just below the roll's middle.
+  const FOLLOW_AT = 0.58;
+  // A wheel, touch or key on the roll holds off auto-follow this long.
+  const USER_SCROLL_HOLD_MS = 5000;
   let rollTouchedAt = 0;
 
   function paintLine(i, resolved) {
@@ -1637,7 +1650,7 @@
       const after = $$("li", roll).find((x) => Number(x.dataset.i) > i);
       roll.insertBefore(li, after || null);
     }
-    li.className = `credit is-${l.state}${fresh && !reduceMotion.matches ? " rise" : ""}`;
+    li.className = `credit is-${esc(l.state)}${fresh && !reduceMotion.matches ? " rise" : ""}`;
     li.innerHTML = lineHtml(l);
     const bar = li.querySelector(".meter i");
     if (bar) bar.style.transform = `scaleX(${l.pct.toFixed(3)})`;
@@ -1647,17 +1660,15 @@
 
   function follow(li) {
     const roll = $("#roll");
-    if (!roll || Date.now() - rollTouchedAt < 5000) return;
-    const top = li.offsetTop - roll.clientHeight * 0.58 + li.offsetHeight / 2;
+    if (!roll || Date.now() - rollTouchedAt < USER_SCROLL_HOLD_MS) return;
+    const top = li.offsetTop - roll.clientHeight * FOLLOW_AT + li.offsetHeight / 2;
     roll.scrollTo({ top, behavior: reduceMotion.matches ? "auto" : "smooth" });
     clearRoll();
   }
 
-  // No credit is ever shown cut in half. A credit that has begun to pass
-  // under the pinned failure (or, with none pinned, out of the roll's top
-  // edge) is hidden whole, and comes back only once it fully clears. An
-  // earlier failure under a later one is hidden the same way, so a longer
-  // reason can never peek out beneath the one that replaced it.
+  // No credit is shown cut in half: one passing under the pinned failure
+  // (or out of the roll's top) is hidden whole until it fully clears. An
+  // earlier failure under a later one is hidden the same way.
   let rollFrame = 0;
   function clearRoll() {
     if (rollFrame) return;
@@ -1710,7 +1721,7 @@
     }
     if (run.error && isWedged(run.error)) {
       v.innerHTML = `<h1 class="title" id="t-send" tabindex="-1">The watch stopped answering</h1>
-        <p class="lede">Unplug it, wait five seconds, plug it back in.</p>
+        <p class="lede">${esc(REPLUG_DO)}</p>
         <p class="quiet">${plural(run.tally.verified, "song")} arrived and ${run.tally.verified === 1 ? "was" : "were"} proven before it stopped; ${
           run.tally.verified === 1 ? "it is" : "they are"
         } on the watch and in the ledger. Once the watch is back, review again: what arrived is skipped, and the rest goes.</p>
@@ -1738,7 +1749,7 @@
     const roll = $("#roll-list");
     roll.innerHTML = run.lines
       .map((l, i) =>
-        l.shown || l.state !== "pending" ? `<li class="credit is-${l.state}" data-i="${i}">${lineHtml(l)}</li>` : "",
+        l.shown || l.state !== "pending" ? `<li class="credit is-${esc(l.state)}" data-i="${i}">${lineHtml(l)}</li>` : "",
       )
       .join("");
     run.lines.forEach((l) => {
@@ -1760,7 +1771,7 @@
     const last = roll.lastElementChild;
     if (last) {
       requestAnimationFrame(() => {
-        r.scrollTop = last.offsetTop - r.clientHeight * 0.58 + last.offsetHeight / 2;
+        r.scrollTop = last.offsetTop - r.clientHeight * FOLLOW_AT + last.offsetHeight / 2;
         clearRoll();
       });
     }
@@ -1806,7 +1817,7 @@
       <details class="every"><summary>${mark("open")}Every song in this send</summary><ol>${run.lines
         .map(
           (l) =>
-            `<li><span class="t">${esc(l.title)}</span><span class="state s-${l.state}">${mark(LINE_MARK[l.state])}${LINE_WORD[l.state]}${
+            `<li><span class="t">${esc(l.title)}</span><span class="state s-${esc(l.state)}">${mark(LINE_MARK[l.state])}${LINE_WORD[l.state]}${
               l.state === "verified" && l.sha ? ` <span class="dim">${esc(l.sha.slice(0, 8))}</span>` : ""
             }</span></li>`,
         )
@@ -1860,7 +1871,7 @@
               ? "Left by a write that never finished; it has no playable file."
               : [r.artist, r.album, r.title && r.name ? r.name : null].filter(Boolean).join(" · ");
           return `<li class="row watch-row">
-            <span class="state s-${r.status}">${mark(WATCH_MARK[r.status])}${WATCH_WORD[r.status]}</span>
+            <span class="state s-${esc(r.status)}">${mark(WATCH_MARK[r.status] || "other")}${WATCH_WORD[r.status] || esc(r.status)}</span>
             <span class="t">${esc(t)}${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</span>
             <span class="size">${r.bytes != null ? esc(bytes(r.bytes)) : ""}</span>
           </li>`;
@@ -1898,7 +1909,7 @@
   function when(at) {
     const d = new Date(at);
     if (Number.isNaN(d.getTime())) return String(at || "");
-    return d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleString("en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   }
 
   function renderLedger() {
@@ -1926,7 +1937,7 @@
               const who = [r.title, r.artist, r.album].filter(Boolean).join(" · ");
               return `<li class="row ledger-row">
                 <span class="num">${esc(String(r.counter).padStart(5, "0"))}</span>
-                <span class="state s-${r.event}">${mark(EVENT_MARK[r.event] || "other")}${EVENT_WORD[r.event] || esc(r.event)}</span>
+                <span class="state s-${esc(r.event)}">${mark(EVENT_MARK[r.event] || "other")}${EVENT_WORD[r.event] || esc(r.event)}</span>
                 <span class="t">${esc(r.remote)}<span class="sub">${esc(who)}</span>${r.reason ? `<span class="why fail">${esc(r.reason)}</span>` : ""}</span>
                 <span class="when">${esc(when(r.at))}</span>
               </li>`;
@@ -1945,7 +1956,7 @@
 
   // --- Start over: the factory-reset walkthrough -----------------------
   //
-  // Four calm title cards: what a reset erases, back up first, the steps
+  // Four title cards: what a reset erases, back up first, the steps
   // on the watch, and the check. Pelican never resets anything itself; it
   // copies the watch's files (read-only) and, at the end, reads /Music and
   // starts a fresh ledger only if the watch really is empty.
@@ -1996,7 +2007,7 @@
       return `<p class="watch-line">${mark("verified")}<span>${esc(st.model || "Watch")} is connected.</span></p>`;
     }
     if (st && classify(st) === "wedged") {
-      return `<p class="watch-line">${mark("warn")}<span>The watch isn't answering. Unplug it, wait five seconds, plug it back in.</span></p>`;
+      return `<p class="watch-line">${mark("warn")}<span>${esc(REPLUG)}</span></p>`;
     }
     return `<p class="watch-line dim">${mark("other")}<span>No watch yet. Plug it in with a data cable.</span></p>`;
   }
@@ -2013,7 +2024,7 @@
           <li><span class="what">Activities</span><span class="dim">every recorded run and its history</span></li>
           <li><span class="what">Health data</span><span class="dim">sleep, heart rate, steps, stress</span></li>
           <li><span class="what">Settings</span><span class="dim">sport profiles, workouts, your preferences</span></li>
-          <li><span class="what">Garmin Pay</span><span class="dim">the wallet; you add your cards again afterwards</span></li>
+          <li><span class="what">Garmin Pay</span><span class="dim">the wallet; you add your cards again afterward</span></li>
           <li><span class="what">Music</span><span class="dim">every song on the watch</span></li>
         </ul>
         <p class="facts">Pelican can't reset the watch. You do it on the watch, and Pelican checks the result.</p>
@@ -2025,17 +2036,17 @@
     }
     if (r.step === 2) {
       v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">Back up first</h1>
-        <p class="lede">Sync the watch with Garmin Connect so your activities upload. If you use Agoge or another fitness app, pull your activities into it first.</p>
+        <p class="lede">Sync the watch with Garmin Connect so your activities upload. If you use another fitness app, sync your activities to it first.</p>
         <div class="backup" id="backup"></div>
-        <p class="facts">To keep your settings too: on the watch face, hold UP, then choose System, Back Up &amp; Restore, Back Up Now. That saves them to Garmin Connect.</p>
+        <p class="facts">To keep your settings too, back them up to Garmin Connect from the watch. On a Forerunner 165: on the watch face, hold UP, then choose System, Back Up &amp; Restore, Back Up Now.</p>
         <div class="actions" id="backup-next"></div>`;
       paintBackup();
       return;
     }
     if (r.step === 3) {
       v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">Reset the watch</h1>
-        <p class="lede">On the watch itself. It takes a minute, and the watch does the rest.</p>
-        <ol class="howto" aria-label="Steps on the watch">
+        <p class="lede">On the watch itself. It takes a minute, and the watch does the rest. These are the steps on a Forerunner 165; for other models, see Garmin's manual for your watch.</p>
+        <ol class="howto" aria-label="Steps on a Forerunner 165">
           <li>From the watch face, hold <span class="key">UP</span>.</li>
           <li>Select <b>System</b>.</li>
           <li>Select <b>Reset</b>.</li>
@@ -2084,7 +2095,7 @@
       const o = r.outcome || {};
       v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">A clean watch</h1>
         <p class="tally"><span class="state s-verified">${mark("verified")}Verified clean · no songs in its music folder</span></p>
-        <p class="lede">${esc(o.message || "The watch is clean. Pelican has started a fresh record for it — every song can be sent again.")}</p>
+        <p class="lede">${esc(o.message || "The watch is clean. Pelican has started a fresh record for it, so every song can be sent again.")}</p>
         <p class="quiet">The ledger keeps its history; new names keep counting up from where they were.</p>
         <div class="actions">
           <button type="button" class="act" data-act="reset-done">Choose music</button>
@@ -2260,7 +2271,6 @@
   function go(view) {
     if (running() && view !== "send") return;
     clearNotice();
-    if (view === "choose") view = "library";
     if (view === "library") {
       show(view);
       openLibrary();
@@ -2529,15 +2539,25 @@
     true,
   );
 
-  // The tree's keyboard: Right opens a folder, Left closes it (or moves to
-  // its parent's row).
+  // The tree's keyboard: Right opens a folder, Left closes it, or on a
+  // closed folder or a song moves to the parent folder's row.
   document.addEventListener("keydown", (e) => {
-    const b = e.target.closest && e.target.closest(".name-btn");
-    if (!b || (e.key !== "ArrowRight" && e.key !== "ArrowLeft")) return;
-    const open = S.open.has(b.dataset.path);
-    if (e.key === "ArrowRight" && !open) toggleDir(b.dataset.path);
-    else if (e.key === "ArrowLeft" && open) toggleDir(b.dataset.path);
-    else return;
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const li = e.target.closest && e.target.closest("#tree .tree-row");
+    if (!li) return;
+    const b = e.target.closest(".name-btn");
+    const open = b && S.open.has(b.dataset.path);
+    if (e.key === "ArrowRight") {
+      if (!b || open) return;
+      toggleDir(b.dataset.path);
+    } else if (open) {
+      toggleDir(b.dataset.path);
+    } else {
+      const parent = li.dataset.parent;
+      const up = parent && parent !== S.place && document.getElementById(`x-${hashStr(parent)}`);
+      if (!up) return;
+      up.focus();
+    }
     e.preventDefault();
   });
 
@@ -2550,6 +2570,10 @@
     document.body.classList.toggle("is-hidden", document.hidden);
   });
 
+  // The extensions core transcode::is_audio accepts. A drop carries only
+  // paths, so anything else is taken for a folder.
+  const AUDIO_EXT = /\.(mp3|m4a|m4b|aac|wav|flac|ogg|oga|opus|wma|ape|aiff|aif|aifc|wv|alac)$/i;
+
   // Drops: the shell hands absolute paths; a browser (demo) cannot.
   function onDrop(kind, paths) {
     if (running()) return;
@@ -2558,7 +2582,7 @@
     else if (kind === "drop") {
       document.body.classList.remove("dragging");
       const added = addChosen(
-        paths.map((p) => ({ path: p, name: basename(p), kind: /\.[a-z0-9]{2,4}$/i.test(p) ? "file" : "dir" })),
+        paths.map((p) => ({ path: p, name: basename(p), kind: AUDIO_EXT.test(p) ? "file" : "dir" })),
       );
       S.showChosen = true;
       if (S.view !== "library") go("library");
@@ -2568,737 +2592,68 @@
     }
   }
 
-  if (api.onDrop) api.onDrop(onDrop);
-  api.onProgress(onProgress);
-  api.onBackup(onBackup);
   window.addEventListener("resize", () => renderSteps());
 
   // ------------------------------------------------------------ boot
 
+  // Opened in a plain browser, the window loads demo.js and runs on its
+  // fixtures instead of IPC. `script-src 'self'` allows it.
+  function loadDemo() {
+    return new Promise((resolve, reject) => {
+      const el = document.createElement("script");
+      el.src = "demo.js";
+      el.onload = () =>
+        resolve(
+          window.PelicanDemo({
+            S,
+            Ink,
+            MAX_OBJECTS,
+            RESERVE_BYTES,
+            REPLUG,
+            basename,
+            bytes,
+            confirmClean,
+            dirname,
+            loadLedger,
+            loadPlaces,
+            loadWatchRows,
+            newRun,
+            notice,
+            previewReq,
+            show,
+            startBackup,
+            syncChrome,
+            turnBezel,
+          }),
+        );
+      el.onerror = () => reject(new Error("demo.js did not load"));
+      document.head.append(el);
+    });
+  }
+
   async function boot() {
-    if (DEMO) {
+    let demo = null;
+    if (TAURI) {
+      api = tauriApi();
+    } else if (IN_SHELL) {
+      show("watch", { focus: false });
+      notice("The window cannot reach Pelican (window.__TAURI__ is missing). This is a broken build; please report it.", { error: true });
+      return;
+    } else {
+      demo = await loadDemo();
+      api = demo.api;
+    }
+    api.onDrop(onDrop);
+    api.onProgress(onProgress);
+    api.onBackup(onBackup);
+    if (demo) {
       $("#demo-flag").hidden = false;
-      await demoState(location.hash.slice(1) || "watch");
-      window.addEventListener("hashchange", () => demoState(location.hash.slice(1) || "watch"));
+      await demo.state(location.hash.slice(1) || "watch");
+      window.addEventListener("hashchange", () => demo.state(location.hash.slice(1) || "watch"));
       return;
     }
     show("watch", { focus: false });
-    try {
-      S.root = await api.invoke("library_root");
-    } catch (_) {
-      S.root = null;
-    }
     await refreshStatus();
-  }
-
-  // ================================================================ demo
-  //
-  // The IPC contract, served in-file from the owner's real library layout
-  // (names, sizes and durations read off the NAS), so the window can be
-  // seen and screenshotted with no watch attached. Everything below is
-  // demonstration data and is labelled so in the window.
-
-  function mockApi() {
-    const ROOT = "/mnt/nas/Music";
-    const SOT_DIR = `${ROOT}/Sea of Thieves`;
-    const MC_ARTIST = `${ROOT}/Iva Davies, Christopher Gordon, Richard Tognetti`;
-    const MC_DIR = `${MC_ARTIST}/Master and Commander The Far Side of the World (Music from the Motion Picture)`;
-    const WR_DIR = `${ROOT}/Windrose`;
-
-    // Sea of Thieves: 25 untagged WAVs; tags come from the path.
-    const SOT = [
-      ["We Shall Sail Together", 36421736, 126.5],
-      ["Maiden Voyage", 45909490, 158.6],
-      ["Blessing of Athena's Fortune", 65849218, 227.4],
-      ["A New Dawn", 66816104, 232.0],
-      ["Shroudbroken", 48582328, 168.7],
-      ["Ballad Of The Mer", 26863262, 93.3],
-      ["Treasury Ambush", 54432104, 189.0],
-      ["A Star To Sail By", 33159294, 186.5],
-      ["Herald Of The Flame", 28966992, 100.0],
-      ["Gold Hoarder", 59692816, 207.3],
-      ["Descend Into The Reaper's Lair", 16498194, 57.0],
-      ["Sunken Depths", 59643762, 206.0],
-      ["Spectral Sails", 112194710, 389.6],
-      ["Who Shall Not Be Returning", 72093274, 249.0],
-      ["With Hammer And Hope", 50112104, 174.0],
-      ["Fated Enemies", 40709238, 140.6],
-      ["The Risen", 59964530, 207.1],
-      ["Ritual of the Flame", 68526188, 237.9],
-      ["Sirens' Lament", 34622294, 120.2],
-      ["Shores Of Plenty", 58782304, 204.1],
-      ["Strongholds Of The Sea", 92078140, 318.0],
-      ["The Shrouded Ghost", 74155588, 257.5],
-      ["Captains Of Adventure - Sunrise", 116388868, 402.0],
-      ["The Wild Rose", 62004602, 215.3],
-      ["Becalmed - Shores Of Gold", 56024722, 193.5],
-    ];
-
-    // Master and Commander: tagged FLAC. [track, file stem, bytes, seconds, title, artist]
-    const MC = [
-      [1, "Endless Ocean - Tognetti The Far Side of the World", 46255779, 559.1, "Endless Ocean Tognetti: The Far Side of the World", "Iva Davies"],
-      [2, "Ghost of Time - Tognetti Into the Fog", 11633252, 132.3, "Ghost of Time Tognetti: Into the Fog", "Iva Davies"],
-      [3, "Violin Concerto No.3 in G, K.216 - III. Andante-Allegretto (Excerpt Arr. Tognetti)", 6394811, 78.7, "Violin Concerto No.3 in G, K.216 III. Andante-Allegretto (Excerpt Arr. Tognetti)", "Richard Tognetti"],
-      [4, "The Cuckold Comes out of the Amery - The Cuckold Comes out of the Amery (Arr. Davies, Gordon and Tognetti)", 22067265, 206.2, "The Cuckold Comes out of the Amery (Arr. Davies, Gordon and Tognetti)", "Richard Tognetti"],
-      [5, "Smoke n'oakum (Master & Commander - OST) - Tognetti Smoke n'oakum", 21982350, 326.4, "Smoke n'oakum (Master & Commander - OST) Tognetti: Smoke n'oakum", "Iva Davies"],
-      [6, "Fantasia On A Theme By Thomas Tallis - Vaughan Williams Fantasia on a Theme by Thomas Tallis (Excerpt)", 27229891, 311.1, "Fantasia On A Theme By Thomas Tallis Vaughan Williams: Fantasia on a Theme by Thomas Tallis (Excerpt)", "New Queen's Hall Orchestra"],
-      [8, "The Doldrums (Master & Commander - OST) - Tognetti The Doldrums", 12515400, 165.1, "The Doldrums (Master & Commander - OST) Tognetti: The Doldrums", "Iva Davies"],
-      [9, "Suite pour violoncelle seul n° 1 en sol majeur, BWV 1007 - 1. Prélude", 12864520, 148.0, "Suite pour violoncelle seul n° 1 en sol majeur, BWV 1007 1. Prélude", "Yo-Yo Ma"],
-      [10, "The Galapagos (Master & Commander - OST) - Tognetti The Galapagos", 8355072, 98.2, "The Galapagos (Master & Commander - OST) Tognetti: The Galapagos", "Iva Davies"],
-      [11, "Nancy Dawson - Folk Medley (Arr. Davies, Gordon and Tognetti)", 30272492, 310.2, "Nancy Dawson Folk Medley (Arr. Davies, Gordon and Tognetti)", "Richard Tognetti"],
-      [12, "The Phasmid (Master & Commander - OST) - Tognetti The Phasmid", 13735957, 154.9, "The Phasmid (Master & Commander - OST) Tognetti: The Phasmid", "Iva Davies"],
-      [13, "The Battle (Master & Commander - OST) - Tognetti The Battle", 35078934, 305.6, "The Battle (Master & Commander - OST) Tognetti: The Battle", "Iva Davies"],
-      [15, "Full Circle (Master & Commander - OST) - Tognetti Full Circle", 5848065, 94.5, "Full Circle (Master & Commander - OST) Tognetti: Full Circle", "Iva Davies"],
-    ];
-    const MC_ALBUM = "Master and Commander: The Far Side of the World (Music from the Motion Picture)";
-
-    // Windrose: 33 untagged WAVs.
-    const WR = [
-      ["01_Drunken Sailor (Trailer Version).wav", 11691468], ["02_Rolling Down to Old Maui (Trailer Version).wav", 13118140],
-      ["03_Rolling Home (Trailer Version).wav", 28777708], ["04_The British Tars (Trailer Version).wav", 15357036],
-      ["05_Drunken Sailor.WAV", 14398084], ["06_Rolling Down to Old Maui.WAV", 15943916], ["07_Rolling Home.WAV", 20135352],
-      ["08_The British Tars.WAV", 14862560], ["09_Leave her Johnny.WAV", 22125744], ["10_Blow the Man Down.WAV", 19315736],
-      ["11_Bully in the Alley.WAV", 25331020], ["12_Good Morning Ladies.WAV", 17566112], ["13_Maggie May.WAV", 28742220],
-      ["14_Whiskey Johnny.WAV", 10581440], ["15_Before the Breeze.WAV", 26962712], ["16_Blackbeard's Crew.WAV", 30542556],
-      ["17_Local Threat.WAV", 35599992], ["18_Cannonade Chorus.WAV", 24643112], ["19_Steel on Timber.WAV", 44001704],
-      ["20_Discovery.WAV", 55213936], ["21_Journey's Beginning.WAV", 42860668], ["22_Duel of Sails.WAV", 32209644],
-      ["23_Holding Course.WAV", 26989936], ["24_Edge of the Abyss.WAV", 43571536], ["25_Freshwater Prelude.WAV", 38244772],
-      ["26_Lunar Adagio.WAV", 39690736], ["27_Septachord Veil.WAV", 27147096], ["28_Starlight on a Swell.WAV", 40304376],
-      ["29_Sunstone Morning.WAV", 36874976], ["30_Toccata of the Tempest.WAV", 47916448], ["31_The Hearth.WAV", 53795976],
-      ["32_Tortuga.WAV", 37332964], ["33_Windward Bound.WAV", 52946476],
-    ];
-
-    const MISMATCH =
-      "read-back mismatch: sent 4,948,096 bytes, read back 4,947,968; the retry under a new name did not match either";
-    const HOME = "/home/six";
-    const pad = (n) => String(n).padStart(2, "0");
-    const FILES = new Map();
-    SOT.forEach(([title, size, secs], i) => {
-      const source = `${SOT_DIR}/${pad(i + 1)} - ${title}.wav`;
-      FILES.set(source, { source, size, secs, tags: { title, artist: "Sea of Thieves", album: "Sea of Thieves", track: String(i + 1) } });
-    });
-    MC.forEach(([n, stem, size, secs, title, artist]) => {
-      const source = `${MC_DIR}/${pad(n)} - Iva Davies, Christopher Gordon, Richard Tognetti - ${stem}.flac`;
-      FILES.set(source, {
-        source,
-        size,
-        secs,
-        tags: { title, artist, album: MC_ALBUM, track: String(n), year: "2003", genre: "Film Soundtracks" },
-      });
-    });
-    WR.forEach(([name, size]) => {
-      const m = name.match(/^(\d+)_(.*)\.(wav)$/i);
-      const source = `${WR_DIR}/${name}`;
-      FILES.set(source, {
-        source,
-        size,
-        secs: size / 176400,
-        tags: { title: m[2], artist: "Windrose", album: "Windrose", track: String(Number(m[1])) },
-      });
-    });
-
-    const slug = (t) => t.replace(/[\\/:*?"<>|]/g, "").slice(0, 48).trim();
-    const fakeSha = (s) => {
-      let out = "";
-      let h = 0x811c9dc5;
-      for (let r = 0; out.length < 64; r += 1) {
-        for (let i = 0; i < s.length; i += 1) {
-          h ^= s.charCodeAt(i) + r;
-          h = Math.imul(h, 16777619);
-        }
-        out += (h >>> 0).toString(16).padStart(8, "0");
-      }
-      return out.slice(0, 64);
-    };
-
-    // The watch: Windrose 09–32 sent by Pelican (counters 2–25), the
-    // hand-run libmtp test file, one other app's file, and two stubs left
-    // by playlist writes the firmware rejected.
-    const onWatch = [];
-    const ledgerRows = [];
-    const verifiedKeys = new Set();
-    let counter = 1;
-    const base = Date.parse("2026-09-20T18:12:00Z");
-    WR.slice(8, 32).forEach(([name], k) => {
-      counter += 1;
-      const f = FILES.get(`${WR_DIR}/${name}`);
-      const remote = `pl${String(counter).padStart(5, "0")}-${slug(f.tags.title)}.mp3`;
-      const at = new Date(base + k * 2100).toISOString();
-      const est = Math.ceil(f.secs * 24000) + 4096;
-      onWatch.push({ status: "ledger", name: remote, bytes: est, title: f.tags.title, artist: "Windrose", album: "Windrose" });
-      ledgerRows.push({ counter, remote, event: "reserve", at, title: f.tags.title, artist: "Windrose", album: "Windrose" });
-      ledgerRows.push({ counter, remote, event: "verified", at: new Date(Date.parse(at) + 1900).toISOString(), title: f.tags.title, artist: "Windrose", album: "Windrose" });
-      verifiedKeys.add(`${f.source}|Windrose`);
-    });
-    // Same shape as the shell's watch_list: tags only on ledger rows, and a
-    // stub carries the core's synthetic name.
-    onWatch.unshift({ status: "foreign", name: "pl0001.mp3", bytes: 3810304 });
-    onWatch.push({ status: "foreign", name: "Morning Intervals.mp3", bytes: 5244012 });
-    onWatch.push({ status: "stub", name: "\u2039unreadable #6021\u203a" }, { status: "stub", name: "\u2039unreadable #6022\u203a" });
-
-    const status = {
-      connected: true,
-      model: "Forerunner 165 Music",
-      serial: "3456789012",
-      free_bytes: 2300000000,
-      capacity_bytes: 3500000000,
-      music_objects: onWatch.length,
-      max_objects: 500,
-      ledger: { verified: 24, failed: 0, unresolved: 0 },
-    };
-
-    let root = ROOT;
-    let connected = true;
-    let problem = "none"; // why the watch is unreachable: "none" | "permission" | "wedged"
-    let wiped = false; // the demo watch has been factory-reset
-    let ruleState = "current";
-    // The shipped rule, as the shell compiles it in (udev/70-garmin-mtp.rules).
-    const RULE_LINE = 'SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="091e", TAG+="uaccess"';
-    const RULE_TEXT =
-      "# Pelican: give the logged-in user direct USB access to Garmin watches.\n#\n" +
-      "# (Demo: the comments of the shipped file are abridged here.)\n\n" +
-      `${RULE_LINE}\n`;
-    const SCRIPT =
-      "install -m 644 /dev/stdin /etc/udev/rules.d/70-garmin-mtp.rules && udevadm control --reload && udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e && udevadm settle";
-    const ruleStatus = () => ({
-      state: ruleState,
-      path: ruleState === "missing" ? undefined : "/etc/udev/rules.d/70-garmin-mtp.rules",
-      can_install: true,
-      rule: RULE_TEXT,
-      command: `/usr/bin/pkexec /bin/sh -c '${SCRIPT}'`,
-      manual: `printf '%s\\n' '${RULE_LINE}' | sudo install -m 644 /dev/stdin /etc/udev/rules.d/70-garmin-mtp.rules && sudo udevadm control --reload && sudo udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e`,
-    });
-    // Places outside the library, as the demo machine has them.
-    const ELSEWHERE = {
-      "/": [["home", 0, true], ["mnt", 0, true], ["run", 0, true]],
-      "/home": [["six", 0, true]],
-      [HOME]: [["Documents", 0, true], ["Downloads", 0, false], ["Music", 0, false]],
-      [`${HOME}/Documents`]: [["Pelican", 0, false]],
-      [`${HOME}/Downloads`]: [],
-      [`${HOME}/Music`]: [],
-      "/mnt": [["nas", 0, true]],
-      "/mnt/nas": [["Backups", 0, false], ["Music", 0, true]],
-      "/run": [["media", 0, true]],
-      "/run/media": [["six", 0, true]],
-      "/run/media/six": [["SANDISK", 0, false]],
-      "/run/media/six/SANDISK": [],
-    };
-    const PLACES = [
-      { label: "Home", path: HOME, kind: "home" },
-      { label: "Music", path: `${HOME}/Music`, kind: "music" },
-      { label: "Library", path: ROOT, kind: "library" },
-      { label: "nas", path: "/mnt/nas", kind: "network" },
-      { label: "SANDISK", path: "/run/media/six/SANDISK", kind: "drive" },
-    ];
-
-    // The watch's GARMIN folder, as a backup lists it.
-    const GARMIN = [];
-    const day = (d) => `2026-${String(8 + Math.floor(d / 30)).padStart(2, "0")}-${String((d % 30) + 1).padStart(2, "0")}`;
-    for (let d = 0; d < 48; d += 1) GARMIN.push([`GARMIN/Activity/${day(d)}-07-1${d % 10}-04.fit`, 180000 + ((d * 7919) % 90000)]);
-    for (let d = 0; d < 56; d += 1) GARMIN.push([`GARMIN/Monitor/${day(d)}.fit`, 60000 + ((d * 3571) % 20000)]);
-    for (let d = 0; d < 56; d += 1) GARMIN.push([`GARMIN/Sleep/${day(d)}.fit`, 9000 + ((d * 331) % 3000)]);
-    for (let d = 0; d < 20; d += 1) GARMIN.push([`GARMIN/HRVStatus/${day(d)}.fit`, 2400]);
-    GARMIN.push(["GARMIN/Metrics/Metrics.fit", 14200], ["GARMIN/Records/Records.fit", 3100], ["GARMIN/Settings/Settings.fit", 5200], ["GARMIN/Totals/Totals.fit", 900]);
-    const backupListeners = [];
-    const emitBackup = (ev) => backupListeners.forEach((cb) => cb(ev));
-    let backupSeq = 0;
-    async function backupRun(id, dest) {
-      await wait(200);
-      emitBackup({ run_id: id, kind: "listing" });
-      await wait(500);
-      let total = 0;
-      let files = 0;
-      stopFlag = false;
-      for (let i = 0; i < GARMIN.length; i += 1) {
-        const [path, size] = GARMIN[i];
-        total += size;
-        files += 1;
-        emitBackup({ run_id: id, kind: "file", index: i, total: GARMIN.length, path, bytes: size });
-        await wait(34);
-        if (stopFlag) break;
-      }
-      const stopped = stopFlag && files < GARMIN.length;
-      stopFlag = false;
-      emitBackup({ run_id: id, kind: "finished", files, bytes: total, dest, failed: [], unreadable: 0, stopped });
-    }
-
-    const listeners = [];
-    let stopFlag = false;
-    let runSeq = 0;
-
-    function expand(paths) {
-      const out = [];
-      for (const p of paths) {
-        if (FILES.has(p)) out.push(FILES.get(p));
-        else for (const [src, f] of FILES) if (src.startsWith(`${p.replace(/\/$/, "")}/`)) out.push(f);
-      }
-      return out;
-    }
-
-    function preview(req) {
-      const files = expand(req.paths);
-      const ov = req.overrides || {};
-      const seen = new Map();
-      let pos = 0;
-      const rows = files.map((f) => {
-        const t = { ...f.tags };
-        if (ov.artist) t.artist = ov.artist;
-        if (ov.album) t.album = ov.album;
-        if (ov.genre) t.genre = ov.genre;
-        if (ov.year) t.year = ov.year;
-        if (req.mix) {
-          pos += 1;
-          t.album = req.mix.name;
-          t.track = String(pos);
-          t.year = ov.year;
-          t.genre = ov.genre;
-        }
-        const est = Math.ceil(f.secs * 24000) + 4096;
-        let verdict = "send";
-        let reason;
-        const key = `${f.source}|${t.album}`;
-        if (seen.has(f.source)) {
-          verdict = "skip";
-          reason = `same audio as ${seen.get(f.source)}`;
-        } else if (!req.resend && !(req.resend_sources || []).includes(f.source) && verifiedKeys.has(key)) {
-          verdict = "skip";
-          const row = onWatch.find((r) => r.status === "ledger" && r.title === t.title);
-          reason = `already on watch as ${row ? row.name : "an earlier send"}`;
-        }
-        seen.set(f.source, f.source);
-        return {
-          source: f.source,
-          title: t.title,
-          artist: t.artist,
-          album: t.album,
-          track: t.track,
-          year: t.year,
-          genre: t.genre,
-          source_bytes: f.size,
-          est_bytes: est,
-          verdict,
-          reason,
-        };
-      });
-      const totals = { send: 0, skip: 0, refused: 0, est_bytes: 0 };
-      for (const r of rows) {
-        totals[r.verdict] += 1;
-        if (r.verdict === "send") totals.est_bytes += r.est_bytes;
-      }
-      const objectsAfter = status.music_objects + totals.send;
-      const room = status.free_bytes - RESERVE_BYTES;
-      let fits = { ok: true, free_bytes: status.free_bytes, objects_after: objectsAfter };
-      if (totals.est_bytes > room) {
-        fits = { ok: false, free_bytes: status.free_bytes, objects_after: objectsAfter, reason: `Needs about ${bytes(totals.est_bytes)}; ${bytes(status.free_bytes)} is free.` };
-      } else if (objectsAfter > 500) {
-        fits = { ok: false, free_bytes: status.free_bytes, objects_after: objectsAfter, reason: `That would make ${objectsAfter} tracks; the watch holds 500.` };
-      }
-      return { files: rows, totals, fits };
-    }
-
-    // What a finished file leaves behind: ledger lines, and on success an
-    // entry on the watch that the next preview skips.
-    function record(r, remote, n, outcome, reason) {
-      const now = new Date().toISOString();
-      const who = { title: r.title, artist: r.artist, album: r.album };
-      ledgerRows.push({ counter: n, remote, event: "reserve", at: now, ...who });
-      ledgerRows.push({ counter: n, remote, event: outcome === "verified" ? "verified" : "failed", at: now, reason, ...who });
-      if (outcome !== "verified") {
-        status.ledger.failed += 1;
-        return;
-      }
-      onWatch.push({ status: "ledger", name: remote, bytes: r.est_bytes, ...who });
-      verifiedKeys.add(`${r.source}|${r.album}`);
-      status.music_objects += 1;
-      status.free_bytes -= r.est_bytes;
-      status.ledger.verified += 1;
-    }
-
-    function emit(ev) {
-      for (const cb of listeners) cb(ev);
-    }
-
-    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-
-    // Real pacing: about two seconds a track, as on the FR165.
-    async function drive(id, rows, from, next, so_far) {
-      stopFlag = false;
-      let counterNow = next;
-      const tally = { verified: 0, skipped: 0, failed: 0, ...so_far };
-      const total = rows.length;
-      for (let i = from; i < total; i += 1) {
-        const r = rows[i];
-        if (stopFlag) {
-          emit({ run_id: id, kind: "done", index: i, source: r.source, outcome: "skipped", reason: "stopped before it was sent" });
-          tally.skipped += 1;
-          continue;
-        }
-        if (r.verdict === "skip") {
-          await wait(260);
-          emit({ run_id: id, kind: "done", index: i, source: r.source, outcome: "skipped", reason: r.reason });
-          tally.skipped += 1;
-          continue;
-        }
-        emit({ run_id: id, kind: "transcoding", index: i, total, source: r.source });
-        await wait(620);
-        const attempts = r.title === "Spectral Sails" || r.title === "Sunken Depths" ? 2 : 1;
-        let outcome = "verified";
-        let reason;
-        let remote;
-        for (let a = 0; a < attempts; a += 1) {
-          counterNow += 1;
-          remote = `pl${String(counterNow).padStart(5, "0")}-${slug(r.title)}.mp3`;
-          emit({ run_id: id, kind: "sending", index: i, total, source: r.source, remote });
-          for (let k = 1; k <= 5; k += 1) {
-            await wait(210);
-            emit({ run_id: id, kind: "uploading", index: i, bytes: Math.round((r.est_bytes * k) / 5), total_bytes: r.est_bytes });
-          }
-          await wait(160);
-        }
-        if (r.title === "Sunken Depths") {
-          outcome = "failed";
-          reason = MISMATCH;
-        }
-        record(r, remote, counterNow, outcome, reason);
-        emit({
-          run_id: id,
-          kind: "done",
-          index: i,
-          source: r.source,
-          outcome,
-          remote: outcome === "verified" ? remote : undefined,
-          sha256: outcome === "verified" ? fakeSha(remote) : undefined,
-          reason,
-        });
-        tally[outcome] += 1;
-      }
-      emit({ run_id: id, kind: "finished", ...tally, stopped: stopFlag });
-    }
-
-    async function invoke(cmd, args = {}) {
-      await wait(cmd === "preview" ? 380 : 140);
-      switch (cmd) {
-        case "status":
-          if (connected && wiped) {
-            return { ...JSON.parse(JSON.stringify(status)), music_objects: 0, free_bytes: 3380000000, ledger: { verified: 0, failed: 0, unresolved: 0, resets: 1 } };
-          }
-          if (!connected && problem === "wedged") {
-            return { connected: false, max_objects: 500, ledger: status.ledger, error_kind: "wedged", error: REPLUG };
-          }
-          return connected
-            ? JSON.parse(JSON.stringify(status))
-            : {
-                connected: false,
-                max_objects: 500,
-                ledger: status.ledger,
-                error_kind: problem === "permission" ? "permission" : "not_found",
-                error:
-                  problem === "permission"
-                    ? "could not open the watch: Permission denied (os error 13). Pelican cannot open the watch without the udev rule: copy udev/70-garmin-mtp.rules to /etc/udev/rules.d/, run `sudo udevadm control --reload`, then unplug and replug the watch."
-                    : "No watch found. Use a data cable (a charge-only cable carries nothing); if the watch is plugged in, install udev/70-garmin-mtp.rules once, and if the file manager opened it, release it with gio mount -u mtp://Garmin/",
-              };
-        case "udev_rule_status":
-          return ruleStatus();
-        case "install_udev_rule":
-          // The real prompt is polkit's; the demo only waits as if for one.
-          await wait(1400);
-          ruleState = "current";
-          return { outcome: "installed", message: "Installed /etc/udev/rules.d/70-garmin-mtp.rules and reloaded udev." };
-        case "library_root":
-          return root;
-        case "set_library_root":
-          if (!args.path.startsWith("/")) throw new Error("Give an absolute path, such as /mnt/nas/Music.");
-          root = args.path;
-          return root;
-        case "library_list": {
-          const path = args.path.replace(/\/$/, "");
-          const dirs = new Map();
-          const files = [];
-          for (const [src, f] of FILES) {
-            if (!src.startsWith(`${path}/`)) continue;
-            const rest = src.slice(path.length + 1).split("/");
-            if (rest.length === 1) files.push({ name: rest[0], path: src, bytes: f.size });
-            else {
-              const d = dirs.get(rest[0]) || { name: rest[0], path: `${path}/${rest[0]}`, audio_files: 0, has_subdirs: false };
-              if (rest.length === 2) d.audio_files += 1;
-              else d.has_subdirs = true;
-              dirs.set(rest[0], d);
-            }
-          }
-          if (!path.startsWith(ROOT)) {
-            const other = ELSEWHERE[path];
-            if (!other) throw new Error(`${path}: no such folder.`);
-            return { path, parent: dirname(path), dirs: other.map(([n, a, sub]) => ({ name: n, path: `${path === "/" ? "" : path}/${n}`, audio_files: a, has_subdirs: sub })), files: [] };
-          }
-          return {
-            path,
-            parent: path === ROOT ? undefined : dirname(path),
-            dirs: [...dirs.values()].sort((a, b) => a.name.localeCompare(b.name)),
-            files: files.sort((a, b) => a.name.localeCompare(b.name)),
-          };
-        }
-        case "preview":
-          return preview(args.req);
-        case "push": {
-          if (!connected) throw new Error("No watch found. Connect it and try again.");
-          const p = preview(args.req);
-          runSeq += 1;
-          const id = `demo-${runSeq}`;
-          setTimeout(() => drive(id, p.files, 0, 29), 60);
-          return { run_id: id };
-        }
-        case "stop":
-          stopFlag = true;
-          return null;
-        case "watch_list":
-          if (!connected) throw new Error("No watch found. Connect it and try again.");
-          return JSON.parse(JSON.stringify(onWatch));
-        case "ledger":
-          return { path: "~/.local/share/pelican/ledger-3456789012.jsonl", rows: ledgerRows.slice() };
-        case "places":
-          return PLACES.map((p) => ({ ...p }));
-        case "default_backup_dir":
-          return `${HOME}/Documents/Pelican/${status.model} backup 2026-09-26`;
-        case "backup_watch": {
-          if (!connected) throw new Error("No watch found. Connect it and try again.");
-          backupSeq += 1;
-          const id = `demo-backup-${backupSeq}`;
-          setTimeout(() => backupRun(id, args.dest), 20);
-          return { run_id: id };
-        }
-        case "reset_check":
-          if (!connected) throw new Error("No watch found. Connect it and try again.");
-          return wiped ? { audio_objects: 0, clean: true } : { audio_objects: onWatch.length, clean: false };
-        case "reset_ledger":
-          if (!wiped) {
-            return {
-              clean: false,
-              reset: false,
-              audio_objects: onWatch.length,
-              message: `The watch still has ${onWatch.length} song files in its music folder, so it has not been factory-reset. Pelican's record was left as it is. Reset the watch, plug it back in, and check again.`,
-            };
-          }
-          if (!ledgerRows.some((r) => r.event === "reset")) {
-            ledgerRows.push({ counter: 0, remote: "", event: "reset", at: new Date().toISOString(), reason: "factory reset confirmed: /Music read back with 0 audio objects" });
-          }
-          return { clean: true, reset: true, audio_objects: 0, message: "The watch is clean. Pelican has started a fresh record for it — every song can be sent again." };
-        default:
-          throw new Error(`unknown command ${cmd}`);
-      }
-    }
-
-    return {
-      invoke,
-      onProgress: (cb) => listeners.push(cb),
-      onBackup: (cb) => backupListeners.push(cb),
-      onDrop: (cb) => {
-        document.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          cb("over");
-        });
-        document.addEventListener("dragleave", (e) => {
-          if (!e.relatedTarget) cb("leave");
-        });
-        document.addEventListener("drop", (e) => {
-          e.preventDefault();
-          cb("leave");
-          notice("In the demo a browser drop carries no file paths; the app receives them from the window.", { word: "Demo" });
-        });
-      },
-      demo: {
-        ROOT,
-        SOT_DIR,
-        MC_DIR,
-        WR_DIR,
-        FILES,
-        setConnected: (c) => {
-          connected = c;
-        },
-        setProblem: (p, rule) => {
-          problem = p;
-          ruleState = rule;
-        },
-        setWiped: (w) => {
-          wiped = w;
-        },
-        MISMATCH,
-        preview,
-        drive,
-        fakeSha,
-        slug,
-      },
-    };
-  }
-
-  // Jump to a state for screenshots: #watch, #nowatch, #permission,
-  // #wedged, #library, #chosen, #playlist, #review, #review-playlist,
-  // #send, #done, #send-wedged, #onwatch, #ledger, #reset-1 … #reset-4,
-  // #reset-refused, #reset-done.
-  async function demoState(name) {
-    const D = api.demo;
-    S.run = null;
-    S.mix = { on: false, name: "" };
-    S.order = null;
-    S.resend = false;
-    S.resendSources = new Set();
-    S.overrides = { artist: "", album: "", genre: "", year: "" };
-    S.preview = null;
-    S.reset = null;
-    S.showChosen = false;
-    S.root = await api.invoke("library_root");
-    D.setConnected(!["nowatch", "permission", "wedged"].includes(name));
-    D.setProblem(
-      name === "permission" ? "permission" : name === "wedged" ? "wedged" : "none",
-      name === "permission" ? "missing" : "current",
-    );
-    D.setWiped(name === "reset-4" || name === "reset-done");
-    S.ruleBusy = false;
-    S.ruleInstalled = false;
-    S.ruleMsg = null;
-    S.status = await api.invoke("status");
-    if (!S.status.connected) S.rule = await api.invoke("udev_rule_status");
-    const albums = [
-      { path: D.SOT_DIR, name: "Sea of Thieves", kind: "dir", count: 25 },
-      { path: D.MC_DIR, name: basename(D.MC_DIR), kind: "dir", count: 13 },
-    ];
-    const file = (p) => ({ path: p, name: basename(p), kind: "file" });
-    const tortuga = file(`${D.WR_DIR}/32_Tortuga.WAV`);
-    const hearth = file(`${D.WR_DIR}/31_The Hearth.WAV`);
-    // Songs ticked across two folders, in the order they were ticked.
-    const mixPick = [
-      `${D.SOT_DIR}/13 - Spectral Sails.wav`,
-      `${D.WR_DIR}/19_Steel on Timber.WAV`,
-      `${D.SOT_DIR}/01 - We Shall Sail Together.wav`,
-      `${D.WR_DIR}/28_Starlight on a Swell.WAV`,
-      `${D.SOT_DIR}/21 - Strongholds Of The Sea.wav`,
-      `${D.SOT_DIR}/24 - The Wild Rose.wav`,
-      `${D.WR_DIR}/10_Blow the Man Down.WAV`,
-    ];
-    S.chosen = [];
-
-    switch (name) {
-      case "nowatch":
-      case "permission":
-      case "wedged":
-      case "watch":
-        show("watch", { focus: false });
-        break;
-      case "choose":
-      case "library":
-      case "chosen": {
-        S.chosen = mixPick.map(file);
-        await loadPlaces();
-        S.place = D.ROOT;
-        S.open = new Set([D.SOT_DIR, D.WR_DIR]);
-        for (const p of [D.ROOT, D.SOT_DIR, D.WR_DIR]) {
-          S.tree.set(p, { state: "ok", l: await api.invoke("library_list", { path: p }) });
-        }
-        S.showChosen = name === "chosen";
-        show("library", { focus: false });
-        break;
-      }
-      case "playlist":
-        S.chosen = mixPick.map(file);
-        S.mix = { on: true, name: "" };
-        show("playlist", { focus: false });
-        break;
-      case "review":
-        S.chosen = [tortuga, hearth, ...albums];
-        S.resendSources = new Set([hearth.path]);
-        S.preview = D.preview(previewReq());
-        show("review", { focus: false });
-        break;
-      case "review-mix":
-      case "review-playlist":
-        S.chosen = mixPick.map(file);
-        S.mix = { on: true, name: "Long Run" };
-        S.order = mixPick;
-        S.preview = D.preview(previewReq());
-        show("review", { focus: false });
-        break;
-      case "send":
-      case "send-wedged":
-      case "done": {
-        S.chosen = [tortuga, ...albums];
-        const req = previewReq();
-        S.preview = D.preview(req);
-        const run = newRun(S.preview, req);
-        run.id = "demo-roll";
-        S.run = run;
-        const upto = name === "done" ? run.lines.length : 14;
-        let counter = 29;
-        for (let i = 0; i < upto; i += 1) {
-          const f = S.preview.files[i];
-          const l = run.lines[i];
-          l.shown = true;
-          if (f.verdict === "skip") {
-            l.state = "skipped";
-            l.detail = f.reason;
-            run.tally.skipped += 1;
-          } else if (f.title === "Sunken Depths") {
-            counter += 1;
-            l.state = "failed";
-            l.detail = D.MISMATCH;
-            run.tally.failed += 1;
-          } else {
-            counter += f.title === "Spectral Sails" ? 2 : 1;
-            const remote = `pl${String(counter).padStart(5, "0")}-${D.slug(f.title)}.mp3`;
-            l.state = "verified";
-            l.sha = D.fakeSha(remote);
-            l.detail = `sha256 ${l.sha.slice(0, 12)}`;
-            run.tally.verified += 1;
-          }
-          run.current = i;
-        }
-        turnBezel(run.tally.verified);
-        if (name === "done") {
-          run.finished = { ...run.tally, stopped: false };
-          show("done", { focus: false });
-        } else if (name === "send-wedged") {
-          run.error = REPLUG;
-          S.status = { connected: false, error_kind: "wedged", error: REPLUG, max_objects: 500, ledger: S.status.ledger };
-          show("send", { focus: false });
-        } else {
-          show("send", { focus: false });
-          D.drive(run.id, S.preview.files, upto, counter, { ...run.tally });
-        }
-        Ink.resize();
-        Ink.settle(Math.min(run.tally.verified, 5), run.tally.failed);
-        break;
-      }
-      case "onwatch":
-        show("onwatch", { focus: false });
-        loadWatchRows();
-        break;
-      case "ledger":
-        show("ledger", { focus: false });
-        loadLedger();
-        break;
-      case "reset-1":
-      case "reset-2":
-      case "reset-3":
-      case "reset-4": {
-        const n = Number(name.slice(-1));
-        S.reset = { step: n, reached: n, dest: null, backup: null, checking: false, found: null, outcome: null, error: null };
-        if (n >= 2) S.reset.dest = await api.invoke("default_backup_dir");
-        show("reset", { focus: false });
-        if (n === 2) startBackup();
-        break;
-      }
-      case "reset-refused":
-        S.reset = { step: 4, reached: 4, dest: null, backup: null, checking: false, found: null, outcome: null, error: null };
-        show("reset", { focus: false });
-        await confirmClean();
-        break;
-      case "reset-done":
-        S.reset = { step: 4, reached: 4, dest: null, backup: null, checking: false, found: null, outcome: null, error: null };
-        show("reset", { focus: false });
-        await confirmClean();
-        break;
-      default:
-        show("watch", { focus: false });
-    }
-    syncChrome();
   }
 
   boot();

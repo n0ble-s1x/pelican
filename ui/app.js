@@ -2072,8 +2072,11 @@
     }
     if (b.state === "finished") {
       const failed = b.failed && b.failed.length ? ` ${plural(b.failed.length, "file")} could not be read.` : "";
-      box.innerHTML = `<p class="backup-line">${mark("verified")}<span><span class="word">Copied</span> ${plural(b.files, "file")} · ${esc(bytes(b.bytes))}</span></p>
-        <p class="rule-why">In <span class="path">${esc(b.dest || r.dest || "")}</span>.${esc(failed)}</p>`;
+      const blank = b.unreadable ? ` ${plural(b.unreadable, "entry", "entries")} had no name to copy.` : "";
+      const cut = b.stopped ? " Stopped before the end: back up again for a full copy." : "";
+      box.innerHTML = `<p class="backup-line">${mark(b.stopped || failed ? "skipped" : "verified")}<span><span class="word">${b.stopped ? "Stopped" : "Copied"}</span> ${plural(b.files, "file")} · ${esc(bytes(b.bytes))}</span></p>
+        <p class="rule-why">In <span class="path">${esc(b.dest || r.dest || "")}</span>.${esc(failed + blank + cut)}</p>
+        ${b.failed && b.failed.length ? `<ul class="backup-failed">${b.failed.slice(0, 5).map((f) => `<li><span class="path">${esc(f.path)}</span> ${esc(f.reason)}</li>`).join("")}</ul>` : ""}`;
       return;
     }
     const pct = b.total ? (b.index + 1) / b.total : 0;
@@ -2119,7 +2122,7 @@
       b.total = ev.total;
       b.path = ev.path;
     } else if (ev.kind === "finished") {
-      Object.assign(b, { state: "finished", files: ev.files, bytes: ev.bytes, dest: ev.dest, failed: ev.failed || [] });
+      Object.assign(b, { state: "finished", files: ev.files, bytes: ev.bytes, dest: ev.dest, failed: ev.failed || [], unreadable: ev.unreadable || 0, stopped: !!ev.stopped });
       announce(`Backup finished: ${ev.files} files copied.`);
     } else if (ev.kind === "error") {
       Object.assign(b, { state: "error", message: ev.message });

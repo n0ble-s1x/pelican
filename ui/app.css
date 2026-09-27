@@ -1834,6 +1834,18 @@ details.tags .overrides {
   color: var(--bone-dim);
 }
 
+.backup-failed {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-xs);
+  color: var(--bone-dim);
+}
+
+.backup-failed li {
+  overflow-wrap: anywhere;
+}
+
 .backup .why-not {
   margin-top: 8px;
   font-size: var(--t-xs);

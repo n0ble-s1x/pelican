@@ -1,10 +1,10 @@
-//! Pelican's engine — everything that knows about Garmin watches, and
+//! Pelican's engine: everything that knows about Garmin watches, and
 //! nothing that knows about drawing.
 //!
 //! The promise, proven on hardware (`docs/garmin-library-persistence.md`
 //! § Results): transcode to one known-good profile, push under a name that
 //! has never been used, and prove each file landed intact. There is no
-//! delete anywhere in here — once a track is on the watch it stays in the
+//! delete anywhere in here. Once a track is on the watch it stays in the
 //! watch's library until a factory reset, so the only safe write is a new
 //! one.
 //!

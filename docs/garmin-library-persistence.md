@@ -122,7 +122,7 @@ reference FR165 Music, FW 2506. Experiments 1 and 2 above, and the first half of
 
 **Access.** libmtp does not list `091e:5151`; it still connects via the
 vendor-class interface probe ("UNKNOWN in libmtp", cosmetic). The node had no
-user ACL: `udev/99-garmin-music.rules` can never work on systemd, because
+user ACL: the former `99-garmin-music.rules` could never work on systemd, because
 `uaccess` is applied by `RUN{builtin}+="uaccess"` in `73-seat-late.rules` and a
 `TAG` added at 99 arrives after it. A rule at `70-` fixes it.
 

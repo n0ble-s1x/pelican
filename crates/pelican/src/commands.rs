@@ -78,7 +78,7 @@ fn push(a: PushArgs) -> Result<ExitCode> {
     let mut ledger = Ledger::open(&data_dir()?, &serial)?;
     let cache = paths::cache_dir()
         .ok_or_else(|| anyhow!("no per-user cache dir (neither XDG_CACHE_HOME nor HOME is set)"))?;
-    eprintln!("{} — ledger {}", device.label(), ledger.path().display());
+    eprintln!("{} · ledger {}", device.label(), ledger.path().display());
 
     let report = transfer::push(
         entries,
@@ -106,8 +106,8 @@ fn push(a: PushArgs) -> Result<ExitCode> {
 
 /// Print the plan. Returns false if any file would be refused.
 ///
-/// The verdicts are [`transfer::preview`]'s — the same call the run makes
-/// before it transcodes — so the plan printed is the run that would happen.
+/// The verdicts are [`transfer::preview`]'s (the same call the run makes
+/// before it transcodes), so the plan printed is the run that would happen.
 fn dry_run(
     entries: &[PlanEntry],
     ledger: Option<&Ledger>,
@@ -174,7 +174,7 @@ fn print_progress(p: Progress) {
         }
         Progress::Connecting { files, bytes } => {
             eprintln!(
-                "sending {files} file(s), {} — opening the watch",
+                "sending {files} file(s), {}; opening the watch",
                 size(bytes)
             );
         }
@@ -235,7 +235,7 @@ fn status(a: DeviceArgs) -> Result<ExitCode> {
             let l = Ledger::read(&data_dir()?, s)?;
             let t = l.totals();
             println!(
-                "ledger   {} names used: {} verified, {} failed, {} unresolved{} — {}",
+                "ledger   {} names used: {} verified, {} failed, {} unresolved{} · {}",
                 t.reserved,
                 t.verified,
                 t.failed,
@@ -314,7 +314,7 @@ fn ledger(a: DeviceArgs) -> Result<ExitCode> {
     let t = l.totals();
     writeln!(
         out,
-        "{} names used: {} verified, {} failed, {} unresolved{} — {}",
+        "{} names used: {} verified, {} failed, {} unresolved{} · {}",
         t.reserved,
         t.verified,
         t.failed,
@@ -336,7 +336,7 @@ fn backup_cmd(a: BackupArgs) -> Result<ExitCode> {
             .ok_or_else(|| anyhow!("no home directory to put the backup in; name a DEST"))?,
     };
     eprintln!(
-        "backing up {model}'s GARMIN folder to {} — read-only on the watch",
+        "backing up {model}'s GARMIN folder to {} (read-only on the watch)",
         dest.display()
     );
     let s = backup::backup(dev.as_mut(), &dest, &Stop::new(), &mut |p| match p {
@@ -364,7 +364,7 @@ fn backup_cmd(a: BackupArgs) -> Result<ExitCode> {
         if s.failed.is_empty() {
             String::new()
         } else {
-            format!(" — {} could not be copied", s.failed.len())
+            format!("; {} could not be copied", s.failed.len())
         }
     );
     Ok(exit(s.failed.is_empty() && !s.stopped))

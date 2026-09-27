@@ -2,7 +2,7 @@
 //!
 //! A front-end's "choose" step walks the owner's library (often an NFS
 //! share) folder by folder, so each call reads one directory and one level
-//! below it — never the whole tree. What counts as audio, and what is
+//! below it, never the whole tree. What counts as audio, and what is
 //! hidden, is [`crate::source`]'s rule, so a folder that shows audio here
 //! is one a push will find it in.
 

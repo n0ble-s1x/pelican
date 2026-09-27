@@ -92,8 +92,10 @@ watch only.
   read-only ones stay.
 
 ### Fixed
-- `platform::gvfs::tests::shell_quote_neutralises_embedded_quotes` asserted
-  the wrong thing (R11.1).
+- The `gio mount -u` command offered for a gvfs-held watch quoted the
+  device-controlled host in a way fish could break out of. The host is now
+  checked against udev's character set and left out of the command when it
+  fails (R11.1).
 - Folder lookups compared names byte-exact while files compared
   case-insensitively (R11.2).
 - Size-only verification, where zero counted as success, is replaced by the

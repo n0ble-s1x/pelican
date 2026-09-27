@@ -110,7 +110,8 @@ Evidence for this hypothesis:
 
 1. **Capture Garmin Express on Windows** writing a playlist to *any* music
    watch via Wireshark+USBPcap. Compare wire bytes against our attempts.
-2. **Test the same `probe_playlist` against a FR945 / FR255** if accessible:
+2. **Repeat the six-variant playlist test against a FR945 / FR255** (the
+   probe is in git history) if accessible:
    if those work and FR165 doesn't, hypothesis confirmed.
 3. **Inspect Garmin Connect mobile-app traffic** for FR165 to see how it
    delivers playlists (BLE GATT? cloud-side index?).

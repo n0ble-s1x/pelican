@@ -215,8 +215,8 @@ impl Runner for System {
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
     Installed,
-    /// The password prompt was dismissed or authorisation was refused.
-    Cancelled,
+    /// The password prompt was dismissed or authorization was refused.
+    Canceled,
     /// The window cannot install here (Flatpak, no pkexec).
     Unavailable,
     Failed,
@@ -247,13 +247,13 @@ fn summary(stderr: &str) -> String {
 }
 
 /// Map what pkexec reported. pkexec exits 126 when the dialog is dismissed
-/// and 127 when authorisation is refused or cannot be obtained; `sh` uses
+/// and 127 when authorization is refused or cannot be obtained; `sh` uses
 /// 127 too, for a command it cannot find, so a 127 whose stderr is not
 /// pkexec's own is reported as the failure it is.
 pub fn outcome(ran: &Ran) -> InstallResult {
-    let cancelled = || InstallResult {
-        outcome: Outcome::Cancelled,
-        message: "Not installed — you cancelled the password prompt.".into(),
+    let canceled = || InstallResult {
+        outcome: Outcome::Canceled,
+        message: "Not installed: you canceled the password prompt.".into(),
     };
     let err = ran.stderr.to_ascii_lowercase();
     match ran.code {
@@ -261,11 +261,11 @@ pub fn outcome(ran: &Ran) -> InstallResult {
             outcome: Outcome::Installed,
             message: format!("Installed {ETC_RULE} and reloaded udev."),
         },
-        Some(126) => cancelled(),
+        Some(126) => canceled(),
         Some(127) if err.contains("no authentication agent") => InstallResult {
             outcome: Outcome::Failed,
             message: format!(
-                "Not installed — no password prompt could be shown (no polkit agent is running). \
+                "Not installed: no password prompt could be shown (no polkit agent is running). \
                  Run this once in a terminal instead: {}",
                 manual_command()
             ),
@@ -275,7 +275,7 @@ pub fn outcome(ran: &Ran) -> InstallResult {
                 || err.contains("not authorized")
                 || err.contains("dismissed") =>
         {
-            cancelled()
+            canceled()
         }
         code => {
             let why = summary(&ran.stderr);
@@ -286,9 +286,9 @@ pub fn outcome(ran: &Ran) -> InstallResult {
             InstallResult {
                 outcome: Outcome::Failed,
                 message: if why.is_empty() {
-                    format!("Not installed — the install command failed ({how}).")
+                    format!("Not installed: the install command failed ({how}).")
                 } else {
-                    format!("Not installed — {why} ({how}).")
+                    format!("Not installed: {why} ({how}).")
                 },
             }
         }
@@ -306,7 +306,7 @@ pub fn install_with(flatpak: bool, pkexec_exists: bool, runner: &dyn Runner) -> 
         Ok(ran) => outcome(&ran),
         Err(e) => InstallResult {
             outcome: Outcome::Failed,
-            message: format!("Not installed — could not start {PKEXEC}: {e}."),
+            message: format!("Not installed: could not start {PKEXEC}: {e}."),
         },
     }
 }
@@ -418,10 +418,10 @@ mod tests {
         };
         assert_eq!(outcome(&ran(Some(0), "")).outcome, Outcome::Installed);
         let c = outcome(&ran(Some(126), ""));
-        assert_eq!(c.outcome, Outcome::Cancelled);
+        assert_eq!(c.outcome, Outcome::Canceled);
         assert_eq!(
             c.message,
-            "Not installed — you cancelled the password prompt."
+            "Not installed: you canceled the password prompt."
         );
         assert_eq!(
             outcome(&ran(
@@ -429,9 +429,9 @@ mod tests {
                 "Error executing command as another user: Not authorized\n"
             ))
             .outcome,
-            Outcome::Cancelled
+            Outcome::Canceled
         );
-        assert_eq!(outcome(&ran(Some(127), "")).outcome, Outcome::Cancelled);
+        assert_eq!(outcome(&ran(Some(127), "")).outcome, Outcome::Canceled);
         let agent = outcome(&ran(
             Some(127),
             "Error executing command as another user: No authentication agent found.",
@@ -507,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn stderr_is_summarised() {
+    fn stderr_is_summarized() {
         assert_eq!(summary("\n a \n\n b\nc\nd\n"), "b c d");
         assert!(summary(&"x".repeat(500)).ends_with('…'));
     }

@@ -32,7 +32,7 @@ use crate::Shell;
 
 type Shared<'a> = State<'a, Arc<Shell>>;
 
-/// Run `f` on a fresh OS thread — outside the async runtime — and await it.
+/// Run `f` on a fresh OS thread, outside the async runtime, and await it.
 async fn off_thread<T, F>(f: F) -> Result<T, String>
 where
     T: Send + 'static,
@@ -103,7 +103,7 @@ pub async fn status(shell: Shared<'_>) -> Result<Status, String> {
 fn read_status(gvfs_warning: Option<String>) -> Result<(Status, Room)> {
     let device = garmin::pick_device(None)?;
     // The session is closed when the backend drops, at the end of this
-    // statement — before the ledger is read.
+    // statement, before the ledger is read.
     let snap = watch::read(mtp::open(&device)?.as_mut(), &device)?;
     let counts = snap.counts();
     let (ledger, error) = match serial_of(&device) {
@@ -131,35 +131,6 @@ fn read_status(gvfs_warning: Option<String>) -> Result<(Status, Room)> {
 }
 
 // ── library ──────────────────────────────────────────────────────────────
-
-#[tauri::command]
-pub async fn library_root(shell: Shared<'_>) -> Result<String, String> {
-    let shell = shell.inner().clone();
-    off_thread(move || {
-        let cfg = crate::config::load(shell.config_file.as_deref());
-        cfg.library_root_or(crate::config::home().as_deref())
-            .map(|p| p.to_string_lossy().into_owned())
-            .ok_or_else(|| "HOME is not set, so there is no default music folder".to_string())
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn set_library_root(shell: Shared<'_>, path: String) -> Result<String, String> {
-    let shell = shell.inner().clone();
-    off_thread(move || {
-        let root = crate::config::canonical_dir(&path).map_err(err)?;
-        let file = shell
-            .config_file
-            .as_deref()
-            .ok_or("no config dir (neither XDG_CONFIG_HOME nor HOME is set)")?;
-        let mut cfg = crate::config::load(Some(file));
-        cfg.library_root = Some(root.clone());
-        crate::config::save(file, &cfg).map_err(err)?;
-        Ok(root.to_string_lossy().into_owned())
-    })
-    .await
-}
 
 #[tauri::command]
 pub async fn library_list(path: String) -> Result<ListingDto, String> {
@@ -195,7 +166,7 @@ fn plan(req: &PlanRequest) -> Result<Vec<PlanEntry>> {
 
 /// Reads files and the ledger; never the watch. Skips are marked from the
 /// ledger of the watch the last `status` saw, and the fit is against the
-/// room it reported — so call `status` first, and again after a push.
+/// room it reported, so call `status` first, and again after a push.
 #[tauri::command]
 pub async fn preview(shell: Shared<'_>, req: PlanRequest) -> Result<PreviewDto, String> {
     let shell = shell.inner().clone();
@@ -220,8 +191,8 @@ fn run_id() -> String {
     format!("run-{ms:x}-{}", N.fetch_add(1, Ordering::Relaxed))
 }
 
-/// Start a run and return its id. Everything after the lock — planning,
-/// the ffmpeg check, finding the watch — happens on the run's thread and
+/// Start a run and return its id. Everything after the lock (planning,
+/// the ffmpeg check, finding the watch) happens on the run's thread and
 /// reports failure as the run's `error` event.
 #[tauri::command]
 pub fn push(app: AppHandle, shell: Shared<'_>, req: PlanRequest) -> Result<PushStarted, String> {
@@ -454,7 +425,7 @@ pub async fn reset_check(shell: Shared<'_>) -> Result<reset::Check, String> {
     .await
 }
 
-/// Start a fresh ledger for this watch — only if the watch, read again
+/// Start a fresh ledger for this watch, only if the watch, read again
 /// here and now, holds no audio. The person's "it's clean" is never taken
 /// on its own; the core re-reads `/Music` in this call and refuses while
 /// anything is left. Append-only: a `reset` line, and the name counter

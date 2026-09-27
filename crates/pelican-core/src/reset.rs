@@ -1,13 +1,13 @@
 //! After a factory reset: prove the watch is clean, then close the
 //! ledger's epoch.
 //!
-//! Nothing Pelican sends can be deleted — the watch's music library keeps
+//! Nothing Pelican sends can be deleted: the watch's music library keeps
 //! every track until a factory reset, which erases everything on the watch,
 //! not just music. After one, this machine's ledger still lists every name
 //! and every verified song, so a push would skip songs that are no longer
 //! there. [`reset_ledger`] fixes that, and only when the watch proves it:
 //! it re-reads `/Music` itself, in the session the caller opened, and
-//! appends a `reset` line only if no audio object — readable or stub — is
+//! appends a `reset` line only if no audio object (readable or stub) is
 //! left. A person's "it's clean" is never enough on its own.
 //!
 //! Read-only on the device: a listing, nothing else.
@@ -30,7 +30,7 @@ pub struct Check {
     pub clean: bool,
 }
 
-/// List `/Music` now and count what is left. A missing `/Music` is clean —
+/// List `/Music` now and count what is left. A missing `/Music` is clean:
 /// a freshly reset watch may not have one yet.
 pub fn check(dev: &mut dyn Backend) -> Result<Check> {
     let listing = dev
@@ -75,7 +75,7 @@ pub fn reset_ledger(dev: &mut dyn Backend, ledger: &mut Ledger) -> Result<Outcom
     let reason = format!("factory reset confirmed: /{MUSIC_FOLDER} read back with 0 audio objects");
     let reset = ledger.reset(&reason)?;
     let message = if reset {
-        "The watch is clean. Pelican has started a fresh record for it — every song can be \
+        "The watch is clean. Pelican has started a fresh record for it, so every song can be \
          sent again."
             .to_string()
     } else {

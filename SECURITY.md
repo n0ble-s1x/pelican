@@ -100,7 +100,8 @@ Out of scope:
   command is ACL-gated. `capabilities/main.json` grants the app's own
   commands plus `core:event:allow-listen` and `allow-unlisten` (for progress
   events and file drops), and no `core:default`. `check.sh` fails if the
-  gated, registered and granted lists differ, or if anything else is granted.
+  gated, registered and granted lists differ from each other or from the
+  commands `ui/app.js` invokes, or if anything else is granted.
 - **CSP.** `default-src 'self'`; scripts and styles from `'self'` only, with
   no `'unsafe-inline'` or `'unsafe-eval'`; `img-src 'self' data:`; IPC is the
   only `connect-src`; no objects, frames, workers or form targets; no remote
@@ -108,9 +109,8 @@ Out of scope:
   `withGlobalTauri` exposes `window.__TAURI__` to the page's own scripts,
   which the CSP limits to the bundled files.
 - **No delete command**, as in the core. `library_list` and `preview` only
-  read local files. `set_library_root` writes one file,
-  `$XDG_CONFIG_HOME/pelican/config.json`; the current window does not call
-  it.
+  read local files. The window reads `$XDG_CONFIG_HOME/pelican/config.json`
+  for the library folder and never writes it.
 - **One device session at a time.** `status`, `watch_list`, `push`,
   `backup_watch`, `reset_check` and `reset_ledger` share one lock, and a
   second caller is refused as busy. Device work runs on its own thread, never

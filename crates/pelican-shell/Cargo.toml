@@ -30,7 +30,7 @@ tempfile.workspace = true
 [features]
 # Serve `ui/` from the binary over the `tauri://` protocol, where the CSP is
 # injected. Without it Tauri expects a dev server, and a dev server gets no
-# CSP at all — so it is on by default and there is no dev-server config.
+# CSP at all. So it is on by default and there is no dev-server config.
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 

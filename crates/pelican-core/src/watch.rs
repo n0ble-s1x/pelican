@@ -2,7 +2,7 @@
 //!
 //! `pelican status` and `pelican ls` are both one [`read`]: a single
 //! session, one `/Music` listing, one storage query. A front-end asks the
-//! same questions, so they are answered here rather than in the CLI — and
+//! same questions, so they are answered here rather than in the CLI, and
 //! [`audio_objects`] is the one count that both the status line and the
 //! push's capacity check use, so the two numbers cannot disagree.
 
@@ -67,7 +67,7 @@ pub struct Counts {
     /// Toward [`MAX_OBJECTS`]; see [`audio_objects`].
     pub audio_objects: usize,
     pub max_objects: usize,
-    /// Objects whose metadata cannot be read — the wreckage of an earlier
+    /// Objects whose metadata cannot be read: the wreckage of an earlier
     /// failed write. They hold a name nobody can see.
     pub stubs: usize,
 }

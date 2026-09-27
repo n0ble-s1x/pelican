@@ -64,9 +64,9 @@ if git grep -nE '(storage|session)\.delete\(|delete_object' -- 'crates/*.rs'; th
     fail "a device delete call is back in the tree: Pelican has no delete"
 fi
 
-# The window's IPC surface is three lists that must agree: the commands the
-# build script ACL-gates, the ones `generate_handler!` registers, and the
-# ones the capability grants. A command registered but not gated is callable
+# The window's IPC surface is four lists that must agree: the commands the
+# build script ACL-gates, the ones `generate_handler!` registers, the ones
+# the capability grants, and the ones `ui/app.js` invokes. A command registered but not gated is callable
 # by anything in the webview; one granted but not registered is a grant
 # nobody reviewed. The capability may add only event listening (never a
 # `*:default` set), and the CSP may name no remote origin and no
@@ -79,6 +79,11 @@ if [[ "$gated" != "$handled" || "$gated" != "$granted" ]]; then
     diff <(echo "$gated") <(echo "$handled") || true
     diff <(echo "$gated") <(echo "$granted") || true
     fail "pelican-shell: build.rs, generate_handler! and capabilities/main.json list different commands"
+fi
+invoked=$(grep -oE 'api\.invoke\("[a-z_]+"' ui/app.js | grep -oE '"[a-z_]+"' | tr -d '"' | sort -u)
+if [[ "$gated" != "$invoked" ]]; then
+    diff <(echo "$gated") <(echo "$invoked") || true
+    fail "pelican-shell: the commands ui/app.js invokes differ from the ones build.rs gates"
 fi
 extra=$(grep -oE '"[a-z-]+:[a-z:-]+"' "$shell/capabilities/main.json" | tr -d '"' \
     | grep -vxE 'core:event:allow-(listen|unlisten)' || true)

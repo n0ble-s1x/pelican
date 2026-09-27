@@ -49,10 +49,11 @@ To run `check.sh` on every commit (quick mode) and push (full mode):
 - `cargo deny check`
 
 It also checks invariants a compiler cannot: no HTTP or TLS crate is compiled
-in, no device delete call exists, the app's registered, ACL-gated and granted
-commands are the same three lists, the capability grants nothing beyond those
-commands and event listening, the CSP allows no inline script and no remote
-origin, and `deny.toml` and `.cargo/audit.toml` ignore the same advisories.
+in, no device delete call exists, the app's registered, ACL-gated, granted
+and invoked commands are the same four lists, the capability grants nothing
+beyond those commands and event listening, the CSP allows no inline script
+and no remote origin, and `deny.toml` and `.cargo/audit.toml` ignore the same
+advisories.
 
 If your change adds an `invoke()` in `ui/`, add the command to `build.rs`,
 `generate_handler!` in `main.rs` and `capabilities/main.json` together.

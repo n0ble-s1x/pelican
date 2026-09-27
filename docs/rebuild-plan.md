@@ -120,7 +120,7 @@ why `ID_MTP_DEVICE` is deliberately not set. Remove the 99- rule; update any
 doc or packaging file that references it.
 
 ### R11: Known bugs fixed
-1. `platform::gvfs::tests::shell_quote_neutralises_embedded_quotes` failed: fix the code or the test, whichever is wrong.
+1. The gvfs remedy's shell-quoting test failed: fix the code or the test, whichever is wrong.
 2. Folder resolution compares byte-exact while files compare case-insensitive: use one fold function.
 3. `to_ascii_lowercase` vs `to_lowercase` mismatch: gone with (2).
 4. Size-only / zero-counts-as-success verification: replaced by R6.

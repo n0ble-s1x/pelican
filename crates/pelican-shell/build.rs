@@ -1,5 +1,5 @@
 fn main() {
-    // The frontend is checked-in static files, not a build product — but the
+    // The frontend is checked-in static files, not a build product, but the
     // codegen inlines them into the binary, so a CSS edit has to invalidate
     // the crate or `cargo run` serves a stale window.
     println!("cargo:rerun-if-changed=../../ui");
@@ -14,8 +14,6 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "status",
-            "library_root",
-            "set_library_root",
             "library_list",
             "places",
             "preview",

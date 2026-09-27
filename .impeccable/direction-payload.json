@@ -1,12 +1,12 @@
 {
- "title": "Pelican — choose the visual world",
+ "title": "Pelican: choose the visual world",
  "question": "Bond register is pinned (First Light, Skyfall, Spectre: classy, elegant, simple). The roll picked which Bond world carries the guided send flow. Keep it, take an alternate, or re-roll.",
  "options": [
   {
    "id": "assigned",
    "label": "Shanghai Glass",
    "kicker": "THE ROLL",
-   "lineage": "Skyfall — the Shanghai tower at night: black glass, steel mullions, one projected light moving across the panes",
+   "lineage": "Skyfall, the Shanghai tower at night: black glass, steel mullions, one projected light moving across the panes",
    "thesis": "The send seen through a glass tower at night: each step a pane, each proven track a lit window.",
    "palette": [
     "#06080B",
@@ -21,16 +21,16 @@
     "hairline steel mullions",
     "one travelling field of projected light"
    ],
-   "viewport": "Four tall panes — Watch, Choose, Review, Send — split by hairline mullions; the current pane holds the light, the rest read as dark glass with state etched in small caps; capacity is a vertical light level in the Watch pane.",
-   "risk": "Glass tips into frosted-glassmorphism cliché the moment a pane blurs; it must stay architectural — hard mullions, no backdrop blur.",
+   "viewport": "Four tall panes (Watch, Choose, Review, Send) split by hairline mullions; the current pane holds the light, the rest read as dark glass with state etched in small caps; capacity is a vertical light level in the Watch pane.",
+   "risk": "Glass tips into frosted-glassmorphism cliché the moment a pane blurs; it must stay architectural: hard mullions, no backdrop blur.",
    "raised": [
     {
      "from": "challenger-arcade",
-     "raise": "Palette law: champagne lights only what is proven — a verified track, the send action, the capacity left. Nothing decorative is ever gold."
+     "raise": "Palette law: champagne lights only what is proven: a verified track, the send action, the capacity left. Nothing decorative is ever gold."
     },
     {
      "from": "challenger-bench",
-     "raise": "State is a mark, not a hue: every file state carries a glyph and a word — queued, encoding, sending, verified, skipped, failed."
+     "raise": "State is a mark, not a hue: every file state carries a glyph and a word: queued, encoding, sending, verified, skipped, failed."
     },
     {
      "from": "challenger-gameboy",
@@ -38,7 +38,7 @@
     },
     {
      "from": "challenger-cloud",
-     "raise": "Colour lives only on hairline edges and the light; text fields stay achromatic."
+     "raise": "Color lives only on hairline edges and the light; text fields stay achromatic."
     },
     {
      "from": "challenger-garden",
@@ -85,8 +85,8 @@
    "id": "model-pick",
    "label": "Title Sequence",
    "kicker": "IMPECCABLE’S PICK",
-   "lineage": "The modern opening titles — Skyfall, Spectre: ink in water, silhouettes, one line of widely tracked type",
-   "thesis": "Every step is a title card — black ink, one silhouette, one line of type — and the send run is the credits, tracks rising as they verify.",
+   "lineage": "The modern opening titles (Skyfall, Spectre): ink in water, silhouettes, one line of widely tracked type",
+   "thesis": "Every step is a title card (black ink, one silhouette, one line of type), and the send run is the credits, tracks rising as they verify.",
    "palette": [
     "#050506",
     "#121214",
@@ -100,8 +100,8 @@
     "thin widely-tracked capitals",
     "a single silhouette: the watch"
    ],
-   "viewport": "Full-bleed black; the watch as a silhouette in ink, left; one tracked line — 'Forerunner 165 Music · 2.3 GB free' — and one action. Choosing opens a quiet list under the line; sending turns the screen into rising credits of verified tracks.",
-   "risk": "The most familiar Bond read, and cinematic pacing fights a task UI — motion must stay under 250 ms and lists as dense as a tool's.",
+   "viewport": "Full-bleed black; the watch as a silhouette in ink, left; one tracked line ('Forerunner 165 Music · 2.3 GB free') and one action. Choosing opens a quiet list under the line; sending turns the screen into rising credits of verified tracks.",
+   "risk": "The most familiar Bond read, and cinematic pacing fights a task UI: motion must stay under 250 ms and lists as dense as a tool's.",
    "wireframe": {
     "cols": 12,
     "rows": 10,
@@ -135,7 +135,7 @@
    "id": "challenger-wayfinding",
    "label": "Terminal Wayfinding, in black tie",
    "verdict": "competitive",
-   "lineage": "International airport sign systems — overhead bands, one message per line, monumental gate numbers",
+   "lineage": "International airport sign systems: overhead bands, one message per line, monumental gate numbers",
    "thesis": "A chain of decision points: each screen shows only the next decision and its cost; the watch is the gate at the end of the concourse.",
    "palette": [
     "#07090C",
@@ -149,7 +149,7 @@
     "monumental numerals",
     "edge-locked arrows"
    ],
-   "viewport": "One band across the top — 'Choose music → 24 tracks · 112 MB · fits' — one decision below it, free space as a monumental numeral.",
+   "viewport": "One band across the top ('Choose music → 24 tracks · 112 MB · fits'), one decision below it, free space as a monumental numeral.",
    "case": "Its topology is the guided flow, so it holds product clarity; translated into the pinned black-and-champagne it loses on Bond identification.",
    "risk": "Without its yellow it can read as a plain stepper wizard.",
    "hero": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding-hero.webp",
@@ -221,7 +221,7 @@
    "viewport": "A 240-line playfield.",
    "case": "Novelty against 'classy, elegant'. Loses both axes.",
    "risk": "Reads as a toy.",
-   "kept": "Palette law: one colour, one meaning.",
+   "kept": "Palette law: one color, one meaning.",
    "hero": "https://impeccable.style/worlds/cards/medium-native-crt-arcade-pixel-glow-hero.webp"
   },
   {
@@ -251,7 +251,7 @@
    "label": "Iridescent Cloud Edge",
    "verdict": "declined",
    "lineage": "Cloud iridescence on white",
-   "thesis": "Colour confined to a hairline fringe.",
+   "thesis": "Color confined to a hairline fringe.",
    "palette": [
     "#F7F8FA",
     "#6B7480",
@@ -265,7 +265,7 @@
    "viewport": "Wide white margins.",
    "case": "Pastel white contradicts the pin. Loses both axes.",
    "risk": "Soft and generic here.",
-   "kept": "Colour only on hairline edges.",
+   "kept": "Color only on hairline edges.",
    "hero": "https://impeccable.style/worlds/cards/clouds-storms-auroras-iridescent-cloud-edge-hero.webp"
   },
   {
@@ -273,7 +273,7 @@
    "label": "Gravity-Rain Garden",
    "verdict": "declined",
    "lineage": "A surreal garden of directional rain",
-   "thesis": "Colour-coded gravities.",
+   "thesis": "Color-coded gravities.",
    "palette": [
     "#3E4A42",
     "#3F7FD1",
@@ -316,7 +316,7 @@
    "sidebar"
   ],
   "viewport": "Sidebar (Send, On the watch, Ledger), device card on top, the track table, Send bottom-right.",
-  "risk": "Indistinguishable from every sync tool — the file-manager feel you ruled out.",
+  "risk": "Indistinguishable from every sync tool: the file-manager feel you ruled out.",
   "wireframe": {
    "cols": 12,
    "rows": 10,

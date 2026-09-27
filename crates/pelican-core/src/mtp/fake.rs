@@ -2,12 +2,12 @@
 //!
 //! Agents and CI never touch the real device, so everything above the
 //! [`Backend`] trait is proven against this instead. It models the parts of
-//! the FR165's behaviour that the transfer loop's correctness depends on,
+//! the FR165's behavior that the transfer loop's correctness depends on,
 //! not just the happy path:
 //!
 //! - **Names are case-insensitive**, through the same [`fold_name`] as the
 //!   real backend.
-//! - **A second write to a taken name turns both objects into stubs** —
+//! - **A second write to a taken name turns both objects into stubs**:
 //!   libmtp #307 and `docs/garmin-mtp.md` §7. A test that reuses a name
 //!   sees exactly the wreckage the hardware would leave.
 //! - **Stubs are listed with a synthetic name and cannot be read.**
@@ -34,7 +34,7 @@ use super::{fold_name, Backend, RemoteEntry, Uploaded};
 pub enum Call {
     EnsureFolder(String),
     ListDir(String),
-    /// `(remote_dir, remote_name)` — recorded before any fault applies, so
+    /// `(remote_dir, remote_name)`, recorded before any fault applies, so
     /// a failed upload still shows up as attempted.
     Upload(String, String),
     Download(String),
@@ -60,14 +60,14 @@ pub struct FakeObject {
 pub struct Faults {
     /// Uploads that return an error without creating an object.
     pub fail_uploads: usize,
-    /// Uploads that return `Ok` but store altered bytes — the silent
+    /// Uploads that return `Ok` but store altered bytes: the silent
     /// corruption the read-back hash exists to catch.
     pub corrupt_uploads: usize,
     /// Downloads that return an error.
     pub fail_downloads: usize,
     /// Downloads that return `Ok` with one byte flipped: the object on the
     /// watch is fine, the read-back is not. The loop cannot tell the two
-    /// apart and must not try — either way the file is unproven.
+    /// apart and must not try; either way the file is unproven.
     pub corrupt_downloads: usize,
     /// Every `list_dir` errors while this is set.
     pub fail_listing: bool,
@@ -190,8 +190,8 @@ impl FakeDevice {
 
     /// Run `hook(remote_dir, remote_name)` at the start of every upload,
     /// before any byte "moves". This is how a test observes what was true
-    /// on disk at the moment of the write — the ledger's reserve line, for
-    /// one.
+    /// on disk at the moment of the write (the ledger's reserve line, for
+    /// one).
     pub fn on_upload(&self, hook: impl FnMut(&str, &str) + Send + 'static) {
         self.lock().on_upload = Some(Box::new(hook));
     }
@@ -290,7 +290,7 @@ impl Backend for FakeBackend {
         on_progress: &mut (dyn FnMut(u64, u64) + Send),
     ) -> Result<Uploaded> {
         let dir = remote_dir.trim_matches('/').to_string();
-        // Take the hook out so it can run without the lock held — it will
+        // Take the hook out so it can run without the lock held: it will
         // usually want to read files, and may call back into the device.
         let hook = {
             let mut s = self.dev.lock();
@@ -330,7 +330,7 @@ impl Backend for FakeBackend {
         on_progress(0, len);
 
         // The hardware's answer to a reused name: the object already there
-        // and the one being sent both become stubs. Modelled so a test that
+        // and the one being sent both become stubs. Modeled so a test that
         // reuses a name fails the way the watch would, not silently.
         let (want_dir, want_name) = (fold_name(&dir), fold_name(remote_name));
         let mut collided = false;

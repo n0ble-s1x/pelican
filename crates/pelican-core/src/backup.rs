@@ -8,7 +8,7 @@
 //! Metrics, Records, Totals, Settings, …) into `dest/GARMIN`, recreating
 //! the folder tree. The FIT files in there are what fitness apps import.
 //!
-//! It uses only [`Backend::list_dir`] and [`Backend::download_file`] —
+//! It uses only [`Backend::list_dir`] and [`Backend::download_file`];
 //! there is nothing else it could call that writes, and nothing on the
 //! local side is overwritten: every file is created new. It can be stopped
 //! between files, and a watch that stops answering ends it with the replug
@@ -72,7 +72,7 @@ struct Item {
 /// Copy every file under the watch's `GARMIN` folder into `dest/GARMIN`.
 ///
 /// `dest` is created if missing. Returns `Err` when the backup as a whole
-/// cannot go on — nothing under `GARMIN`, a local folder that cannot be
+/// cannot go on: nothing under `GARMIN`, a local folder that cannot be
 /// made, or a watch that stopped answering (the error carries
 /// [`crate::error::Wedged`]). A single file that will not copy is in
 /// [`Summary::failed`]; everything else is still copied.

@@ -6,3 +6,6 @@ owner pinned the Bond register; the window is now the Title Sequence build
 (code-led, no comp). History only: nothing here is approved for `ui/`.
 The matching prose is at the git tag `archive/macos-port`:
 `git show archive/macos-port:DESIGN.md`.
+
+Kept verbatim as a record. It is not shipped, and its text is not held to
+the repository's current writing standard.

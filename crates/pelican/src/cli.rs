@@ -34,7 +34,7 @@ pub enum Command {
     Ledger(DeviceArgs),
     /// Copy every file in the watch's GARMIN folder (activities, health
     /// data, settings) to DEST. Read-only on the watch. Do this before a
-    /// factory reset — the reset erases all of it.
+    /// factory reset, which erases all of it.
     Backup(BackupArgs),
     /// After a factory reset: re-read /Music and, only if no audio is left
     /// on it, start a fresh ledger epoch so every song can be sent again.
@@ -64,7 +64,7 @@ pub struct DeviceArgs {
 
 #[derive(Args, Debug)]
 pub struct PushArgs {
-    /// Print the plan — each source and its resolved tags — and stop.
+    /// Print the plan (each source and its resolved tags) and stop.
     /// Transcodes nothing and touches no device.
     #[arg(long)]
     pub dry_run: bool,

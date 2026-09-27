@@ -5,6 +5,9 @@ all-features = true
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
+# cargo-deny only reports unsound advisories in workspace crates by default.
+# cargo audit reports them for every crate, so match it.
+unsound = "all"
 
 # Informational advisories (`unmaintained` and `unsound`). There is no
 # allowlisted *vulnerability* here or anywhere in this repo.

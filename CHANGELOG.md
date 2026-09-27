@@ -305,9 +305,9 @@ afconvert) was removed or superseded by the rebuild above.
 - Garmin's indexed music library is not exposed via MTP; only the
   staging folder is browseable[^objprops]
 
-[^objprops]: Half of this is now known to be wrong, and per `docs/README.md`'s
-convention the shipped entry is left standing with the correction attached.
-Verified 2026-09-02 on FR165 / FW 2506 (`examples/probe_objprops.rs`): there
+[^objprops]: Half of this is now known to be wrong. The released entry is
+kept as released, with the correction attached. Verified 2026-09-02 on
+FR165 / FW 2506 (`crates/pelican-core/examples/probe_objprops.rs`): there
 is indeed no MTP call that *enumerates* the indexed library, but the watch
 declares operations `0x9801`-`0x9805` and answers `GetObjectPropValue` for any
 handle in `/Music` (Name, Artist, AlbumName, AlbumArtist, Duration and Track,

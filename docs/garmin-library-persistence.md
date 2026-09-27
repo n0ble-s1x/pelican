@@ -70,9 +70,10 @@ collide with a remembered name; no MTP track-metadata objects, letting the
 watch read tags from the file itself; and verifying afterwards that the object
 really is on the device at full size rather than trusting the success return.
 
-Pelican's Linux path already produces exactly the format those reports favor:
-ffmpeg, CBR 192 kbps MP3, ID3v2.3, strict tag allowlist. The macOS path
-produces AAC in M4A, which several reports specifically advise against.
+At the time, Pelican's Linux path already produced exactly the format those
+reports favor: ffmpeg, CBR 192 kbps MP3, ID3v2.3, strict tag allowlist. The
+macOS port (since removed, see `archive/macos-port.md`) produced AAC in M4A,
+which several reports specifically advise against.
 
 ## The experiments
 

@@ -253,7 +253,7 @@
       {
         "name": "step-rule",
         "value": "360ms",
-        "purpose": "The hairline travelling under the current step in the foot."
+        "purpose": "The hairline traveling under the current step in the foot."
       },
       {
         "name": "title-open",
@@ -371,7 +371,7 @@
       "name": "Notice",
       "kind": "custom",
       "refersTo": "notice",
-      "description": "One pinned band: mark, capitalised word, sentence.",
+      "description": "One pinned band: mark, capitalized word, sentence.",
       "html": "<p class=\"ds-notice ds-err\"><svg class=\"ds-mk\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M4.5 4.5l7 7M11.5 4.5l-7 7\"/></svg><span class=\"ds-word\">Problem</span><span>The watch is mounted by the desktop. Unmount it, then try again.</span></p>",
       "css": ".ds-mk{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}.ds-notice{font-family:\"Hanken Grotesk\",system-ui,sans-serif;display:flex;gap:10px;align-items:center;margin:0;padding:10px 14px;background:#0e0e10;border:1px solid rgb(237 232 222 / .2);font-size:.8125rem;color:#ede8de}.ds-notice.ds-err{border-color:#8e1b1b}.ds-err .ds-mk,.ds-err .ds-word{color:#d46a5f}.ds-word{font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:.75rem}"
     },
@@ -442,7 +442,7 @@
   ],
   "narrative": {
     "northStar": "The Title Sequence",
-    "overview": "Every step of the send is a title card from a modern Bond opening: black ink, one silhouette, one line of widely tracked capitals. The window is a split frame. On the left, a bounded field of ink holds a dive watch in silhouette (scalloped bezel, lyre lugs, a three-link bracelet), lit from behind. On the right, one title line, one or two quiet lines, and one action. Sending is the credits: track lines rise into place and resolve to a proven state, and a thread of champagne ink blooms in the field once for each verified file.\n\nThe register is classy, elegant and simple. That means the craft and restraint of title design, not a spy-gadget or terminal pastiche, and no franchise marks of any kind. Density stays low even in the list views. Rows are separated by hairlines, never boxed, and the ink field narrows to a column so the list has room. Color is almost entirely ink and bone. The two accents are permissions, not decoration. Champagne means proven. Blood means failed, and the word always goes with it.\n\nMotion belongs to the ink. Chrome settles in 150 to 250 ms and then stays still. One loop is allowed at rest: while a watch is connected and the window is visible, the lit plume behind the case breathes (a 14 s transform-only swell; the canvas is not redrawn for it), so a live watch reads as alive and a missing one as still. Beyond that the field runs a bounded bloom only when a track resolves, and it bakes to a still residue under reduced motion.",
+    "overview": "Every step of the send is a title card from a modern Bond opening: black ink, one silhouette, one line of widely tracked capitals. The window is a split frame. On the left, a bounded field of ink holds a dive watch in silhouette (scalloped bezel, lyre lugs, a three-link bracelet), lit from behind. On the right, one title line, one or two quiet lines, and one action. Sending is the credits: track lines rise into place and resolve to a proven state, and a thread of champagne ink blooms in the field once for each verified file.\n\nThe register is classy, elegant and simple. That means the craft and restraint of title design, not a spy-gadget or terminal pastiche, and no franchise marks of any kind. Density stays low even in the list views. Rows are separated by hairlines, and the ink field narrows to a column so the list has room. Color is almost entirely ink and bone. The two accents are used only as permissions: champagne means proven, blood means failed, and the word always goes with it.\n\nMotion belongs to the ink. Chrome settles in 150 to 250 ms and then stays still. One loop is allowed at rest: while a watch is connected and the window is visible, the lit plume behind the case breathes (a 14 s transform-only swell; the canvas is not redrawn for it), so a live watch reads as alive and a missing one as still. Beyond that the field runs a bounded bloom only when a track resolves, and it bakes to a still residue under reduced motion.",
     "keyCharacteristics": [
       "Ink-black ground with bone text; hairlines at bone 10% and 20%.",
       "Champagne lights only proven things: verified tracks, the room-left arc, the Send action.",

@@ -110,7 +110,7 @@ macOS is out of scope for the rebuild.
 - `transfer::preview_with(&entries, ledger, &Resend)` and
   `preview::build_with(&entries, ledger, &Resend, room)` take a per-file
   send-again; `Options { resend, resend_sources, retries }` does the same
-  for `push` (`Options` is `Clone`, no longer `Copy`).
+  for `push` (`Options` is `Clone`).
 - `backup::backup(&mut backend, dest, &stop, &mut progress)` →
   `Summary`; progress is `backup::Progress` (`listing` / `file` /
   `finished`, serde-tagged `kind`). `backup::default_dest(model)`.

@@ -55,18 +55,21 @@ let format = if lower.ends_with(".m3u8") || lower.ends_with(".m3u") {
 - Used `Text` (0x3004). Garmin firmware silently rejects playlist writes
   with non-playlist format codes. `0xBA05` is the format the firmware looks
   for.
-- Wrote a body of just filenames (`#EXTM3U\n<file>\n...`). Once the format
-  code is fixed this still might not be enough; the watch needs full
-  Garmin-style paths inside.
+- Wrote a body of just filenames (`#EXTM3U\n<file>\n...`). A correct format
+  code alone may not be enough; the watch likely needs full Garmin-style
+  paths inside.
 
 ## Open questions
 
+These are unanswered. Nobody is pursuing them: real playlists are not on the
+roadmap (see the README).
+
 - Will the watch resolve `0:/MUSIC/...` paths case-insensitively to actual
   files like `Some Track.mp3`? `better-sync` uppercases everything; this is
-  safest. We could try a case-preserving variant next.
+  safest. A case-preserving variant is untested.
 - Does Garmin support `WPL` (Windows Media Playlist) format `0xBA11`? Their
   support page lists WPL/ZPL/PLS as accepted; we haven't tested.
-- Is `#EXTINF:-1,<title>` lines required for the watch to show track titles
+- Are `#EXTINF:-1,<title>` lines required for the watch to show track titles
   in the playlist UI, or does it pull title from the referenced file's ID3?
   better-sync's default omits `#EXTINF`.
 

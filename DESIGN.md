@@ -145,7 +145,7 @@ components:
 
 Every step of the send is a title card from a modern Bond opening: black ink, one silhouette, one line of widely tracked capitals. The window is a split frame. On the left, a bounded field of ink holds a dive watch in silhouette (scalloped bezel, lyre lugs, a three-link bracelet), lit from behind. On the right, one title line, one or two quiet lines, and one action. Sending is the credits: track lines rise into place and resolve to a proven state, and a thread of champagne ink blooms in the field once for each verified file.
 
-The register is classy, elegant and simple. That means the craft and restraint of title design, not a spy-gadget or terminal pastiche, and no franchise marks of any kind. Density stays low even in the list views. Rows are separated by hairlines, never boxed, and the ink field narrows to a column so the list has room. Color is almost entirely ink and bone. The two accents are permissions, not decoration. Champagne means proven. Blood means failed, and the word always goes with it.
+The register is classy, elegant and simple. That means the craft and restraint of title design, not a spy-gadget or terminal pastiche, and no franchise marks of any kind. Density stays low even in the list views. Rows are separated by hairlines, and the ink field narrows to a column so the list has room. Color is almost entirely ink and bone. The two accents are used only as permissions: champagne means proven, blood means failed, and the word always goes with it.
 
 Motion belongs to the ink. Chrome settles in 150 to 250 ms and then stays still. One loop is allowed at rest: while a watch is connected and the window is visible, the lit plume behind the case breathes (a 14 s transform-only swell; the canvas is not redrawn for it), so a live watch reads as alive and a missing one as still. Beyond that the field runs a bounded bloom only when a track resolves, and it bakes to a still residue under reduced motion.
 
@@ -308,7 +308,7 @@ Make a playlist opens a title card, "Name the playlist": one line saying the son
 A row skipped as already on the watch offers Send again. Once chosen, it reads "Send again · another copy, under a new name" with Keep skipped beside it. A run-wide toggle, "Send every skipped song again", sits in Review's side column.
 
 ### The Permanence Statement
-One statement in two lengths, used on On the watch, Review (beside Send) and the first Start over card: nothing can be deleted from the watch one song at a time; the only way to clear it is a factory reset, and that erases everything on the watch: activities, health data, settings, Garmin Pay and music. It is set in Body Small bone, never red: it is a fact, not a failure.
+One statement in two lengths, used on On the watch, Review (beside Send) and the first Start over card: nothing can be deleted from the watch one song at a time; the only way to clear it is a factory reset, and that erases everything on the watch: activities, health data, settings, Garmin Pay and music. It is set in Body Small bone, never red, because it states a fact.
 
 ### Start Over (factory-reset walkthrough)
 Four title cards with their own step index in the foot (Erases · Back up · Reset · Confirm). Pelican never resets the watch.

@@ -199,7 +199,7 @@ Near-black ink and warm bone, with two accents: champagne (proven) and blood (fa
 - **Body** (400, 0.9375rem, 1.5): track names, rows, and quiet lines (max 60ch).
 - **Body Small** (0.8125rem): facts, row subtitles, sizes, credit status lines, and the permanence statement.
 - **Label, Action** (500, 0.8125rem, 0.16em, uppercase): button labels. Send uses weight 600.
-- **Label, Nav** (0.75rem, 0.2em, uppercase): top-right links. The step index uses 0.24em, and form legends use 0.18em in dim bone.
+- **Label, Nav** (0.75rem, 0.2em, uppercase): top-right links. The step index uses 0.24em.
 - **Caption** (0.75rem): estimates and field labels. (The no-network promise line that once sat in the foot was removed at the owner's request; the promise stands in PRODUCT.md and SECURITY.md, not as window chrome.)
 
 ### Named Rules
@@ -228,7 +228,7 @@ The system is flat. Depth comes from the ink itself, a plume of lit, domain-warp
 - None. The pinned failed credit stands on an opaque Ink ground, and rows beneath it are hidden whole rather than dissolved, so no shadow is needed.
 
 ### Named Rules
-**The Still Chrome Rule.** Ink moves; chrome does not. UI transitions use the exponential ease-out (cubic-bezier(0.16, 1, 0.3, 1)) at 180 ms, with view entrances under 520 ms, and then stop. The canvas animates only while a bloom is live, pauses when the window is hidden, and bakes to its residue under prefers-reduced-motion. The breathing plume is the one loop at rest (see Overview), and it is paused with no watch, with the window hidden, under reduced motion and under `?still`.
+**The Still Chrome Rule.** Ink moves; chrome does not. UI transitions use the exponential ease-out (cubic-bezier(0.16, 1, 0.3, 1)) at 180 ms, with entrances no longer than 520 ms, and then stop. The canvas animates only while a bloom is live, pauses when the window is hidden, and bakes to its residue under prefers-reduced-motion. The breathing plume is the one loop at rest (see Overview), and it is paused with no watch, with the window hidden, under reduced motion and under `?still`.
 
 **The Entrance Grammar.** Entrances use the Web Animations API, so a re-render never replays them, and every call is guarded by reduced motion.
 - A title card's title line opens from its centre out of a 6px blur (clip-path inset from 50% to fully open, with opacity, 520 ms). It never animates tracking, size or any layout property, so the line is laid out once at its final width and cannot re-wrap mid-motion.
@@ -324,7 +324,7 @@ Four title cards with their own step index in the foot (Erases · Back up · Res
 - **Do** keep one title line per view in the display face, tracked 0.28em in uppercase, and one action (or one Send) beneath it.
 - **Do** separate rows with hairlines (bone at 10%) and leave the rows themselves unfilled.
 - **Do** set every size, count and hash in tabular lining figures.
-- **Do** keep UI motion to 150–250 ms exponential ease-out. Let only the ink field move at length, and stop it when idle or under reduced motion.
+- **Do** keep UI transitions to 150–250 ms exponential ease-out and entrances within 520 ms. Let only the ink field move at length, and stop it when idle or under reduced motion.
 - **Do** vendor every font and asset. The window makes no network request.
 
 ### Don't:

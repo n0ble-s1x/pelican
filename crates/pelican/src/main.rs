@@ -24,6 +24,11 @@ fn main() -> ExitCode {
     match commands::run(cli.command) {
         Ok(code) => code,
         Err(e) => {
+            // A watch that stopped answering gets the one instruction that
+            // helps, on a line of its own, before the detail.
+            if pelican_core::error::is_wedged(&e) {
+                eprintln!("{}", pelican_core::error::REPLUG);
+            }
             eprintln!("error: {e:#}");
             ExitCode::FAILURE
         }

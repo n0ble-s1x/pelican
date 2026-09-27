@@ -1162,3 +1162,136 @@ fn a_mix_with_a_blank_name_is_refused_before_anything() {
     let mix = Mix { name: "  ".into() };
     assert!(transfer::plan_with(sources, &Overrides::default(), Some(&mix)).is_err());
 }
+
+#[test]
+fn send_again_resends_just_the_files_named() {
+    let h = Harness::new();
+    let one = h.source("A/01 - One.wav", None);
+    let two = h.source("A/02 - Two.wav", None);
+    h.run(&[h.music()], one_retry()).unwrap();
+
+    // The preview says so before anything is sent.
+    let resend = transfer::Resend::new(false, [two.clone()]);
+    let ledger = Ledger::read(&h.data(), SERIAL).unwrap();
+    let v = transfer::preview_with(&plan_of(&[h.music()]), Some(&ledger), &resend);
+    assert!(matches!(v[0], Verdict::Skip(Skip::AlreadyOnWatch { .. })));
+    assert!(matches!(v[1], Verdict::Send { .. }));
+    drop(ledger);
+
+    let r = h
+        .run(
+            &[h.music()],
+            Options {
+                resend_sources: vec![two.clone()],
+                ..one_retry()
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        verified(&r),
+        ["pl00003-Two.mp3"],
+        "a fresh name, never a reused one"
+    );
+    assert!(matches!(
+        r.files[0].outcome,
+        Outcome::Skipped(Skip::AlreadyOnWatch { .. })
+    ));
+    assert_eq!(
+        h.dev.files("Music").len(),
+        3,
+        "a second copy, nothing replaced"
+    );
+
+    // A path spelled differently (not canonical) still matches.
+    let odd = h.music().join("A/../A/01 - One.wav");
+    assert!(transfer::Resend::new(false, [odd]).covers(&one));
+    assert!(!transfer::Resend::none().covers(&one));
+    assert!(transfer::Resend::all().covers(&one));
+}
+
+#[test]
+fn a_watch_that_stops_answering_ends_the_run_with_the_replug_instruction() {
+    let h = Harness::new();
+    h.source("A/01 - One.wav", None);
+    h.source("A/02 - Two.wav", None);
+    h.source("A/03 - Three.wav", None);
+    let dev = h.dev.clone();
+    // Wedge the watch as the first upload starts.
+    dev.on_upload({
+        let dev = dev.clone();
+        move |_, _| {
+            dev.set_faults(Faults {
+                wedged: true,
+                ..Default::default()
+            })
+        }
+    });
+    let mut done = Vec::new();
+    let r = h.run_entries(
+        plan_of(&[h.music()]),
+        Options {
+            retries: 3,
+            ..one_retry()
+        },
+        &fake_encode,
+        &Stop::new(),
+        &mut |p| {
+            if let Progress::Done(f) = p {
+                done.push(f.clone());
+            }
+        },
+    );
+    let e = r.unwrap_err();
+    assert!(pelican_core::error::is_wedged(&e), "{e:#}");
+    assert!(
+        format!("{e:#}").contains(pelican_core::error::REPLUG),
+        "{e:#}"
+    );
+    // No retry, no next file: one upload, not four timeouts in a row.
+    assert_eq!(h.uploads(), ["pl00001-One.mp3"]);
+    assert_eq!(done.len(), 1);
+    match &done[0].outcome {
+        Outcome::Failed { reason, remotes } => {
+            assert!(reason.contains(pelican_core::error::REPLUG), "{reason}");
+            assert_eq!(remotes, &["pl00001-One.mp3".to_string()]);
+        }
+        o => panic!("{o:?}"),
+    }
+    // The name is burned, the failure is on record.
+    assert_eq!(
+        h.ledger_kinds(),
+        [
+            (Kind::Reserve, "pl00001-One.mp3".into()),
+            (Kind::Failed, "pl00001-One.mp3".into())
+        ]
+    );
+}
+
+#[test]
+fn after_a_confirmed_reset_everything_is_sent_again_and_the_counter_keeps_rising() {
+    let h = Harness::new();
+    h.source("A/01 - One.wav", None);
+    h.run(&[h.music()], one_retry()).unwrap();
+
+    // A factory reset: the watch comes back empty.
+    let clean = FakeDevice::new();
+    {
+        let mut ledger = Ledger::open(&h.data(), SERIAL).unwrap();
+        let out = pelican_core::reset::reset_ledger(clean.backend().as_mut(), &mut ledger).unwrap();
+        assert!(out.reset);
+    }
+    let h2 = Harness {
+        tmp: h.tmp,
+        dev: clean,
+        opens: Cell::new(0),
+    };
+    let r = h2.run(&[h2.music()], one_retry()).unwrap();
+    assert_eq!(
+        verified(&r),
+        ["pl00002-One.mp3"],
+        "sent again, counter continued"
+    );
+    let l = Ledger::read(&h2.data(), SERIAL).unwrap();
+    assert_eq!(l.totals().resets, 1);
+    assert_eq!(l.totals().verified, 1);
+}

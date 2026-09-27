@@ -71,6 +71,18 @@ pub struct Faults {
     pub corrupt_downloads: usize,
     /// Every `list_dir` errors while this is set.
     pub fail_listing: bool,
+    /// The watch stopped answering: every call times out while this is
+    /// set, as the FR165 does after a reboot until it is replugged.
+    pub wedged: bool,
+}
+
+/// The error a wedged watch gives: an I/O timeout, as the USB layer would.
+fn timed_out(what: &str) -> anyhow::Error {
+    anyhow::Error::new(std::io::Error::new(
+        std::io::ErrorKind::TimedOut,
+        "Operation timed out",
+    ))
+    .context(format!("{what} on the fake watch"))
 }
 
 type UploadHook = Box<dyn FnMut(&str, &str) + Send>;
@@ -134,6 +146,23 @@ impl FakeDevice {
             is_folder: false,
             broken: false,
         })
+    }
+
+    /// Create a folder path on the watch, parents included, as the
+    /// firmware would have (e.g. `GARMIN/Activity`). Not recorded as a call.
+    pub fn add_folder(&self, path: &str) {
+        let mut s = self.lock();
+        let mut acc = String::new();
+        for component in path.trim_matches('/').split('/').filter(|c| !c.is_empty()) {
+            let parent = acc.clone();
+            if !acc.is_empty() {
+                acc.push('/');
+            }
+            acc.push_str(component);
+            if !s.folder_exists(&acc) {
+                s.push_folder(&parent, component);
+            }
+        }
     }
 
     /// Put a stub on the watch: a handle whose name cannot be read.
@@ -278,6 +307,9 @@ impl Backend for FakeBackend {
             std::fs::read(local).with_context(|| format!("opening {}", local.display()))?;
         let len = data.len() as u64;
         let mut s = self.dev.lock();
+        if s.faults.wedged {
+            return Err(timed_out("uploading"));
+        }
         if !s.folder_exists(&dir) {
             bail!("no folder {dir} on the fake watch");
         }
@@ -326,6 +358,9 @@ impl Backend for FakeBackend {
         let path = path.trim_matches('/').to_string();
         let mut s = self.dev.lock();
         s.calls.push(Call::ListDir(path.clone()));
+        if s.faults.wedged {
+            return Err(timed_out("listing"));
+        }
         if s.faults.fail_listing {
             bail!("injected listing failure for {path}");
         }
@@ -368,6 +403,9 @@ impl Backend for FakeBackend {
     fn free_space(&mut self) -> Result<(u64, u64)> {
         let mut s = self.dev.lock();
         s.calls.push(Call::FreeSpace);
+        if s.faults.wedged {
+            return Err(timed_out("reading free space"));
+        }
         Ok((s.free, s.capacity))
     }
 
@@ -375,6 +413,9 @@ impl Backend for FakeBackend {
         let path = path.trim_matches('/');
         let mut s = self.dev.lock();
         s.calls.push(Call::Download(path.to_string()));
+        if s.faults.wedged {
+            return Err(timed_out("downloading"));
+        }
         if s.faults.fail_downloads > 0 {
             s.faults.fail_downloads -= 1;
             bail!("injected download failure for {path}");

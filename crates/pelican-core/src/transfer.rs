@@ -122,10 +122,15 @@ impl Stop {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Options {
-    /// Send sources the ledger already has as verified, under a new name.
+    /// Send every source the ledger already has as verified, under a new
+    /// name.
     pub resend: bool,
+    /// Send just these sources again, under a new name, even though the
+    /// ledger has them as verified — a per-track "send again". Matched
+    /// against the plan's source paths (as given, or canonical).
+    pub resend_sources: Vec<PathBuf>,
     /// Further attempts after a failed one, each under a fresh name.
     pub retries: u32,
 }
@@ -134,7 +139,75 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             resend: false,
+            resend_sources: Vec::new(),
             retries: 1,
+        }
+    }
+}
+
+impl Options {
+    /// What this run sends again.
+    pub fn resend(&self) -> Resend {
+        Resend::new(self.resend, self.resend_sources.iter().cloned())
+    }
+}
+
+/// Which files to send even though the ledger has them as verified.
+///
+/// A second copy is always safe to send: it goes under a name never used on
+/// the watch (the counter never repeats), so it lands as another entry in
+/// the library rather than touching the first. That is also how a song
+/// "joins" a playlist — a playlist is an album, and a song already on the
+/// watch in another album is sent again, automatically, because the skip
+/// key is the audio *and* the album.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Resend {
+    all: bool,
+    sources: std::collections::HashSet<PathBuf>,
+}
+
+impl Resend {
+    /// Resend nothing.
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    /// Resend every file.
+    pub fn all() -> Self {
+        Self {
+            all: true,
+            ..Self::default()
+        }
+    }
+
+    /// `all`, plus these sources one by one. Each path is kept as given and,
+    /// where it resolves, canonical, so a path from a preview row and the
+    /// plan's own path agree.
+    pub fn new(all: bool, sources: impl IntoIterator<Item = PathBuf>) -> Self {
+        let mut set = std::collections::HashSet::new();
+        for p in sources {
+            if let Ok(c) = p.canonicalize() {
+                set.insert(c);
+            }
+            set.insert(p);
+        }
+        Self { all, sources: set }
+    }
+
+    /// Does this file go again even if the ledger has it?
+    pub fn covers(&self, path: &Path) -> bool {
+        self.all
+            || self.sources.contains(path)
+            || path.canonicalize().is_ok_and(|c| self.sources.contains(&c))
+    }
+}
+
+impl From<bool> for Resend {
+    fn from(all: bool) -> Self {
+        if all {
+            Self::all()
+        } else {
+            Self::none()
         }
     }
 }
@@ -162,6 +235,17 @@ pub enum Verdict {
 /// `ledger` is `None` when there is none to ask (a dry run that has not
 /// been told which watch), and then nothing is "already on the watch".
 pub fn preview(entries: &[PlanEntry], ledger: Option<&Ledger>, resend: bool) -> Vec<Verdict> {
+    preview_with(entries, ledger, &Resend::from(resend))
+}
+
+/// [`preview`], with a per-file [`Resend`]: a file it covers is sent
+/// again under a fresh name even though the ledger has it as verified. A
+/// repeat of the same audio within this run is still sent once.
+pub fn preview_with(
+    entries: &[PlanEntry],
+    ledger: Option<&Ledger>,
+    resend: &Resend,
+) -> Vec<Verdict> {
     // Hashing reads each source once in full; it is the only identity that
     // survives a rename or a re-rip to the same bytes.
     let mut seen: HashMap<String, &Path> = HashMap::new();
@@ -189,7 +273,7 @@ pub fn preview(entries: &[PlanEntry], ledger: Option<&Ledger>, resend: bool) -> 
             // own album.
             let album = e.tags.as_ref().ok().and_then(|t| t.album.as_deref());
             let on_watch = ledger
-                .filter(|_| !resend)
+                .filter(|_| !resend.covers(path))
                 .and_then(|l| l.verified_in(&sha, album))
                 .map(|v| v.remote.clone());
             let first = seen.get(&sha).map(|p| p.to_path_buf());
@@ -433,7 +517,7 @@ pub fn push(
     };
 
     // Step 2: hash, refuse, skip.
-    let verdicts = preview(&entries, Some(ledger), opts.resend);
+    let verdicts = preview_with(&entries, Some(ledger), &opts.resend());
     let mut todo = Vec::new();
     for (idx, (e, verdict)) in entries.into_iter().zip(verdicts).enumerate() {
         let path = e.source.path;
@@ -500,7 +584,7 @@ pub fn push(
             bytes,
         });
         let mut dev = open()?;
-        send_all(dev.as_mut(), ledger, ready, opts, &env.stop, &mut out)?;
+        send_all(dev.as_mut(), ledger, ready, &opts, &env.stop, &mut out)?;
     }
     drop(staging);
 
@@ -519,7 +603,7 @@ fn send_all(
     dev: &mut dyn Backend,
     ledger: &mut Ledger,
     ready: Vec<Ready>,
-    opts: Options,
+    opts: &Options,
     stop: &Stop,
     out: &mut Out<'_>,
 ) -> Result<()> {
@@ -617,9 +701,36 @@ fn send_all(
                         sha256: r.staged_sha256.clone(),
                     };
                 }
-                Err(reason) => {
+                Err(Failure { reason, wedged }) => {
                     let failed = event(Kind::Failed, counter, &remote, &r, Some(reason.clone()));
                     ledger.append(failed)?;
+                    if wedged {
+                        // The watch stopped answering. Another attempt, or
+                        // the next file, would only wait out the same
+                        // timeout and burn another name: end the run with
+                        // the one instruction that helps.
+                        (out.progress)(Progress::AttemptFailed {
+                            index: r.idx,
+                            source: r.source.clone(),
+                            remote: remote.clone(),
+                            reason: reason.clone(),
+                            retrying: false,
+                        });
+                        let why = format!("{reason} — {}", crate::error::REPLUG);
+                        out.done(
+                            r.idx,
+                            &r.source,
+                            Outcome::Failed {
+                                reason: why,
+                                remotes,
+                            },
+                        );
+                        return Err(anyhow::Error::new(crate::error::Wedged).context(format!(
+                            "the watch stopped answering while {} was being sent; \
+                             the run ended there",
+                            r.source.display()
+                        )));
+                    }
                     let mut final_reason = reason.clone();
                     let mut retrying = attempt < opts.retries;
                     if retrying {
@@ -650,16 +761,30 @@ fn send_all(
     Ok(())
 }
 
+/// Why one attempt failed. `reason` is the ledger's, so it states what
+/// happened and nothing more; `wedged` is whether the watch stopped
+/// answering (a timeout), which ends the run.
+struct Failure {
+    reason: String,
+    wedged: bool,
+}
+
+impl Failure {
+    fn of(what: &str, e: &anyhow::Error) -> Self {
+        Self {
+            reason: format!("{what} failed: {e:#}"),
+            wedged: crate::error::is_wedged(e),
+        }
+    }
+}
+
 /// Upload one staged file under `remote` and prove it by read-back.
-///
-/// The error is the ledger's `reason`, so it states what happened and
-/// nothing more.
 fn send_one(
     dev: &mut dyn Backend,
     r: &Ready,
     remote: &str,
     progress: &mut (dyn FnMut(Progress) + Send),
-) -> std::result::Result<(), String> {
+) -> std::result::Result<(), Failure> {
     let mut on_bytes = |sent, total| {
         progress(Progress::Uploading {
             index: r.idx,
@@ -669,18 +794,21 @@ fn send_one(
         })
     };
     dev.upload(&r.staged, MUSIC_FOLDER, remote, &mut on_bytes)
-        .map_err(|e| format!("upload failed: {e:#}"))?;
+        .map_err(|e| Failure::of("upload", &e))?;
     let back = dev
         .download_file(&format!("{MUSIC_FOLDER}/{remote}"))
-        .map_err(|e| format!("read-back failed: {e:#}"))?;
+        .map_err(|e| Failure::of("read-back", &e))?;
     let got = hash::bytes(&back);
     if got != r.staged_sha256 {
-        return Err(format!(
-            "read-back mismatch: sent {} bytes (sha256 {}), read back {} bytes (sha256 {got})",
-            r.bytes,
-            r.staged_sha256,
-            back.len()
-        ));
+        return Err(Failure {
+            wedged: false,
+            reason: format!(
+                "read-back mismatch: sent {} bytes (sha256 {}), read back {} bytes (sha256 {got})",
+                r.bytes,
+                r.staged_sha256,
+                back.len()
+            ),
+        });
     }
     Ok(())
 }

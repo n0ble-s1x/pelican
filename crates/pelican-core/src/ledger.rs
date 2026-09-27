@@ -20,6 +20,14 @@
 //! - **Corruption is fatal.** A line that does not parse is an error naming
 //!   the file and line. Starting empty would forget burned names, which is
 //!   exactly the failure the ledger exists to prevent.
+//!
+//! A factory reset is the one thing that empties the watch's library, and
+//! the ledger records it rather than forgetting: a `reset` line (appended
+//! and fsync'd like any other, written only after `/Music` was read back
+//! with no audio objects in it — see [`crate::reset`]) closes an *epoch*.
+//! Names, verified sources and totals are answered from the current epoch
+//! only; [`Ledger::max_counter`] still spans every epoch, so no counter is
+//! ever handed out twice. Nothing before the reset line is rewritten.
 
 use std::fs::{File, OpenOptions, TryLockError};
 use std::io::{ErrorKind, Read, Write};
@@ -43,6 +51,11 @@ pub enum Kind {
     Verified,
     /// The upload or its proof failed. The name stays burned.
     Failed,
+    /// The watch was factory-reset and Pelican saw `/Music` empty: every
+    /// event before this one describes a library that no longer exists.
+    /// Written only by [`Ledger::reset`]; `counter` is the highest counter
+    /// ever used, so the numbering keeps rising across it.
+    Reset,
 }
 
 /// One line of the ledger. Field order is the on-disk order.
@@ -100,6 +113,9 @@ pub struct Totals {
     /// Reserved names with neither outcome: the run died mid-upload. The
     /// name is burned and whatever landed under it is unproven.
     pub unresolved: usize,
+    /// Factory resets recorded before the current epoch. The other counts
+    /// cover only the events since the last one.
+    pub resets: usize,
 }
 
 pub struct Ledger {
@@ -242,48 +258,85 @@ impl Ledger {
         Ok(())
     }
 
-    /// Highest counter ever reserved, 0 for an empty ledger.
+    /// Highest counter ever used, across every epoch, 0 for an empty
+    /// ledger. A reset does not lower it: the numbering only rises.
     pub fn max_counter(&self) -> u64 {
         self.events.iter().map(|e| e.counter).max().unwrap_or(0)
     }
 
-    /// Every remote name in the ledger, whatever its status, folded.
+    /// The events since the last [`Kind::Reset`] (all of them if the
+    /// watch was never reset here), without the reset line itself. This is
+    /// what describes the watch as it is now.
+    pub fn current(&self) -> &[Event] {
+        match self.events.iter().rposition(|e| e.event == Kind::Reset) {
+            Some(i) => &self.events[i + 1..],
+            None => &self.events,
+        }
+    }
+
+    /// The newest reset line, if the watch was ever reset from here.
+    pub fn last_reset(&self) -> Option<&Event> {
+        self.events.iter().rev().find(|e| e.event == Kind::Reset)
+    }
+
+    /// Record that the watch was factory-reset: append a `reset` line,
+    /// fsync'd, after which no earlier name, verified source or total
+    /// counts. `reason` says what was checked.
+    ///
+    /// The caller proves the watch is clean first; [`crate::reset::reset_ledger`]
+    /// is the only caller that should exist, and it re-reads `/Music`.
+    /// Returns `false`, writing nothing, when the current epoch is already
+    /// empty — there is nothing to close.
+    pub fn reset(&mut self, reason: &str) -> Result<bool> {
+        if self.current().is_empty() {
+            return Ok(false);
+        }
+        let mut e = Event::new(Kind::Reset, self.max_counter(), "");
+        e.reason = Some(reason.to_string());
+        self.append(e)?;
+        Ok(true)
+    }
+
+    /// Every remote name in the current epoch, whatever its status, folded.
     pub fn names(&self) -> impl Iterator<Item = String> + '_ {
-        self.events.iter().map(|e| fold_name(&e.remote))
+        self.current().iter().map(|e| fold_name(&e.remote))
     }
 
     pub fn has_name(&self, name: &str) -> bool {
         let want = fold_name(name);
-        self.events.iter().any(|e| fold_name(&e.remote) == want)
+        self.current().iter().any(|e| fold_name(&e.remote) == want)
     }
 
-    /// The newest `verified` event for a source with this hash.
+    /// The newest `verified` event in the current epoch for a source with
+    /// this hash.
     pub fn verified(&self, source_sha256: &str) -> Option<&Event> {
-        self.events
+        self.current()
             .iter()
             .rev()
             .find(|e| e.event == Kind::Verified && e.source_sha256 == source_sha256)
     }
 
-    /// The newest `verified` event for this audio *in this album*.
+    /// The newest `verified` event in the current epoch for this audio
+    /// *in this album*.
     ///
     /// The same song on its own album and inside a mix are two different
     /// library entries on the watch, so "already there" has to mean the
     /// pair: a song sent with its album is still sent inside a mix, and
     /// the other way round.
     pub fn verified_in(&self, source_sha256: &str, album: Option<&str>) -> Option<&Event> {
-        self.events.iter().rev().find(|e| {
+        self.current().iter().rev().find(|e| {
             e.event == Kind::Verified
                 && e.source_sha256 == source_sha256
                 && e.album.as_deref() == album
         })
     }
 
-    /// Names, folded, whose last event is `failed` or a bare `reserve`:
-    /// writes that may have left an unreadable object on the watch.
+    /// Names, folded, in the current epoch whose last event is `failed` or
+    /// a bare `reserve`: writes that may have left an unreadable object on
+    /// the watch.
     pub fn unproven_names(&self) -> impl Iterator<Item = String> {
         let mut last: std::collections::HashMap<String, Kind> = std::collections::HashMap::new();
-        for e in &self.events {
+        for e in self.current() {
             last.insert(fold_name(&e.remote), e.event);
         }
         last.into_iter()
@@ -291,10 +344,18 @@ impl Ledger {
             .map(|(n, _)| n)
     }
 
+    /// Counts for the current epoch, plus how many resets came before it.
     pub fn totals(&self) -> Totals {
-        let mut t = Totals::default();
+        let mut t = Totals {
+            resets: self
+                .events
+                .iter()
+                .filter(|e| e.event == Kind::Reset)
+                .count(),
+            ..Totals::default()
+        };
         let mut open = std::collections::HashSet::new();
-        for e in &self.events {
+        for e in self.current() {
             match e.event {
                 Kind::Reserve => {
                     t.reserved += 1;
@@ -308,6 +369,7 @@ impl Ledger {
                     t.failed += 1;
                     open.remove(&fold_name(&e.remote));
                 }
+                Kind::Reset => unreachable!("current() starts after the last reset"),
             }
         }
         t.unresolved = open.len();
@@ -541,9 +603,69 @@ mod tests {
                 reserved: 3,
                 verified: 1,
                 failed: 1,
-                unresolved: 1
+                unresolved: 1,
+                resets: 0,
             }
         );
+    }
+
+    #[test]
+    fn a_reset_closes_the_epoch_but_the_counter_keeps_rising() {
+        let tmp = tempfile::tempdir().unwrap();
+        {
+            let mut l = Ledger::open(tmp.path(), "1").unwrap();
+            l.append(event(Kind::Reserve, 1, "pl00001-A.mp3")).unwrap();
+            l.append(event(Kind::Verified, 1, "pl00001-A.mp3")).unwrap();
+            l.append(event(Kind::Reserve, 2, "pl00002-A.mp3")).unwrap();
+            assert!(l.reset("test").unwrap());
+            // An empty epoch has nothing to close.
+            assert!(!l.reset("again").unwrap());
+            l.append(event(Kind::Reserve, 3, "pl00003-A.mp3")).unwrap();
+        }
+        // Survives a reopen: the line is on disk, not just in memory.
+        let l = Ledger::read(tmp.path(), "1").unwrap();
+        assert_eq!(l.events().len(), 5, "append-only: nothing was removed");
+        let reset = l.last_reset().unwrap();
+        assert_eq!(reset.counter, 2, "the reset carries the highest counter");
+        assert_eq!(reset.remote, "");
+        assert_eq!(l.max_counter(), 3);
+        assert!(!l.has_name("pl00001-A.mp3"), "pre-reset names are free");
+        assert!(l.has_name("pl00003-A.mp3"));
+        assert!(
+            l.verified("aa").is_none(),
+            "pre-reset verified no longer skips"
+        );
+        assert!(l.verified_in("aa", None).is_none());
+        assert_eq!(l.names().count(), 1);
+        assert_eq!(l.unproven_names().collect::<Vec<_>>(), ["pl00003-a.mp3"]);
+        assert_eq!(
+            l.totals(),
+            Totals {
+                reserved: 1,
+                verified: 0,
+                failed: 0,
+                unresolved: 1,
+                resets: 1,
+            }
+        );
+        let text = std::fs::read_to_string(tmp.path().join("ledger-1.jsonl")).unwrap();
+        let line = text.lines().nth(3).unwrap();
+        assert!(
+            line.contains(r#""event":"reset","counter":2,"remote":"""#),
+            "{line}"
+        );
+        assert!(line.contains(r#""reason":"test""#), "{line}");
+    }
+
+    #[test]
+    fn a_ledger_without_a_reset_reads_as_before() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut l = Ledger::open(tmp.path(), "1").unwrap();
+        assert!(!l.reset("nothing yet").unwrap());
+        l.append(event(Kind::Verified, 4, "pl00004-A.mp3")).unwrap();
+        assert!(l.last_reset().is_none());
+        assert_eq!(l.current().len(), l.events().len());
+        assert!(l.verified("aa").is_some());
     }
 
     #[test]

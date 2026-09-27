@@ -138,6 +138,9 @@ pub trait Backend: Send {
 pub fn open(device: &Device) -> Result<Box<dyn Backend>> {
     match mtp_rs_impl::MtpRsBackend::open(device) {
         Ok(b) => Ok(Box::new(b)),
+        // A timeout on open is the watch not answering — typically right
+        // after it rebooted. Only a replug clears it, and the error says so.
+        Err(e) if crate::error::is_wedged(&e) => Err(e.context(crate::error::Wedged)),
         // "could not open interface for exclusive access" tells the user
         // nothing they can act on. Attach the platform's list of likely
         // causes, led by the one that is almost always right: a session we

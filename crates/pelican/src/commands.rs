@@ -17,9 +17,9 @@ use pelican_core::transfer::{
     self, Env, Mix, Options, Outcome, PlanEntry, Progress, Skip, Stop, Verdict,
 };
 use pelican_core::watch::{self, Origin, Row};
-use pelican_core::{paths, platform, source};
+use pelican_core::{backup, paths, platform, reset, source};
 
-use crate::cli::{Command, DeviceArgs, PushArgs};
+use crate::cli::{BackupArgs, Command, DeviceArgs, PushArgs};
 
 pub fn run(cmd: Command) -> Result<ExitCode> {
     match cmd {
@@ -27,6 +27,8 @@ pub fn run(cmd: Command) -> Result<ExitCode> {
         Command::Status(a) => status(a),
         Command::Ls(a) => ls(a),
         Command::Ledger(a) => ledger(a),
+        Command::Backup(a) => backup_cmd(a),
+        Command::ResetLedger(a) => reset_ledger(a),
     }
 }
 
@@ -85,6 +87,7 @@ fn push(a: PushArgs) -> Result<ExitCode> {
         Options {
             resend: a.resend,
             retries: a.retries,
+            ..Options::default()
         },
         Env {
             staging_base: &cache,
@@ -232,11 +235,12 @@ fn status(a: DeviceArgs) -> Result<ExitCode> {
             let l = Ledger::read(&data_dir()?, s)?;
             let t = l.totals();
             println!(
-                "ledger   {} names used: {} verified, {} failed, {} unresolved — {}",
+                "ledger   {} names used: {} verified, {} failed, {} unresolved{} — {}",
                 t.reserved,
                 t.verified,
                 t.failed,
                 t.unresolved,
+                since_reset(t.resets),
                 l.path().display()
             );
         }
@@ -293,6 +297,7 @@ fn ledger(a: DeviceArgs) -> Result<ExitCode> {
             Kind::Reserve => "reserve",
             Kind::Verified => "verified",
             Kind::Failed => "failed",
+            Kind::Reset => "reset",
         };
         let mut line = format!(
             "{}  {kind:<8} {:>6}  {}  {}",
@@ -309,14 +314,82 @@ fn ledger(a: DeviceArgs) -> Result<ExitCode> {
     let t = l.totals();
     writeln!(
         out,
-        "{} names used: {} verified, {} failed, {} unresolved — {}",
+        "{} names used: {} verified, {} failed, {} unresolved{} — {}",
         t.reserved,
         t.verified,
         t.failed,
         t.unresolved,
+        since_reset(t.resets),
         l.path().display()
     )?;
     Ok(ExitCode::SUCCESS)
+}
+
+fn backup_cmd(a: BackupArgs) -> Result<ExitCode> {
+    warn_if_held();
+    let device = garmin::pick_device(a.serial.as_deref())?;
+    let mut dev = mtp::open(&device)?;
+    let model = dev.model().unwrap_or_else(|| device.label());
+    let dest = match a.dest {
+        Some(d) => d,
+        None => backup::default_dest(&model)
+            .ok_or_else(|| anyhow!("no home directory to put the backup in; name a DEST"))?,
+    };
+    eprintln!(
+        "backing up {model}'s GARMIN folder to {} — read-only on the watch",
+        dest.display()
+    );
+    let s = backup::backup(dev.as_mut(), &dest, &Stop::new(), &mut |p| match p {
+        backup::Progress::Listing => eprintln!("listing the watch's files…"),
+        backup::Progress::File {
+            index, total, path, ..
+        } => eprintln!("{:>5}/{total}  {}", index + 1, strip_control(&path)),
+        backup::Progress::Finished(_) => {}
+    })?;
+    for f in &s.failed {
+        println!(
+            "not copied  {}: {}",
+            strip_control(&f.path),
+            strip_control(&f.reason)
+        );
+    }
+    if s.unreadable > 0 {
+        println!("{} unreadable object(s) had nothing to copy", s.unreadable);
+    }
+    println!(
+        "{} files, {} copied to {}{}",
+        s.files,
+        size(s.bytes),
+        s.dest.display(),
+        if s.failed.is_empty() {
+            String::new()
+        } else {
+            format!(" — {} could not be copied", s.failed.len())
+        }
+    );
+    Ok(exit(s.failed.is_empty() && !s.stopped))
+}
+
+fn reset_ledger(a: DeviceArgs) -> Result<ExitCode> {
+    warn_if_held();
+    let device = garmin::pick_device(a.serial.as_deref())?;
+    let serial = serial_of(&device)?;
+    let mut ledger = Ledger::open(&data_dir()?, &serial)?;
+    let mut dev = mtp::open(&device)?;
+    let out = reset::reset_ledger(dev.as_mut(), &mut ledger)?;
+    println!(
+        "checked  /{MUSIC_FOLDER} on {}: {} audio object(s)",
+        device.label(),
+        out.audio_objects
+    );
+    println!("{}", out.message);
+    if out.reset {
+        println!(
+            "ledger   reset line appended to {}",
+            ledger.path().display()
+        );
+    }
+    Ok(exit(out.clean))
 }
 
 /// A warning, not a refusal: gvfs may let go by the time the session
@@ -340,6 +413,15 @@ fn serial_of(device: &Device) -> Result<String> {
 fn data_dir() -> Result<PathBuf> {
     paths::data_dir()
         .ok_or_else(|| anyhow!("no per-user data dir (neither XDG_DATA_HOME nor HOME is set)"))
+}
+
+/// Totals count only the events since the last factory reset.
+fn since_reset(resets: usize) -> String {
+    if resets == 0 {
+        String::new()
+    } else {
+        format!(" since the last factory reset ({resets} recorded)")
+    }
 }
 
 fn exit(ok: bool) -> ExitCode {

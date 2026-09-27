@@ -3,6 +3,11 @@ use nusb::MaybeFuture;
 
 pub const GARMIN_VENDOR_ID: u16 = 0x091E;
 
+/// The product id a Garmin watch shows while it is not speaking MTP — seen
+/// on a Forerunner 165 right after a reboot, as "Garmin GPS usb/tty
+/// converter". A watch stuck there answers no MTP request until replugged.
+pub const SERIAL_MODE_PRODUCT_ID: u16 = 0x0003;
+
 /// Top-level folder on the watch where playable music lives.
 pub const MUSIC_FOLDER: &str = "Music";
 
@@ -58,7 +63,20 @@ pub fn list_devices() -> Result<Vec<Device>> {
 }
 
 pub fn pick_device(serial: Option<&str>) -> Result<Device> {
-    let devices = list_devices()?;
+    choose(list_devices()?, serial)
+}
+
+/// [`pick_device`]'s decision, on a given list. Pure, for tests.
+pub fn choose(devices: Vec<Device>, serial: Option<&str>) -> Result<Device> {
+    let (devices, stuck): (Vec<Device>, Vec<Device>) = devices
+        .into_iter()
+        .partition(|d| d.product_id != SERIAL_MODE_PRODUCT_ID);
+    if devices.is_empty() && !stuck.is_empty() {
+        return Err(anyhow::Error::new(crate::error::Wedged).context(
+            "a Garmin watch is on USB but not in MTP mode (it shows up as a serial converter, \
+             which happens after the watch reboots)",
+        ));
+    }
     if devices.is_empty() {
         return Err(anyhow!(
             "no Garmin device found on USB (vendor 0x{GARMIN_VENDOR_ID:04x}). \
@@ -66,6 +84,12 @@ pub fn pick_device(serial: Option<&str>) -> Result<Device> {
         ));
     }
     if let Some(want) = serial {
+        if stuck.iter().any(|d| d.serial.as_deref() == Some(want))
+            && !devices.iter().any(|d| d.serial.as_deref() == Some(want))
+        {
+            return Err(anyhow::Error::new(crate::error::Wedged)
+                .context(format!("watch {want} is on USB but not in MTP mode")));
+        }
         return devices
             .into_iter()
             .find(|d| d.serial.as_deref() == Some(want))
@@ -84,6 +108,34 @@ pub fn pick_device(serial: Option<&str>) -> Result<Device> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn dev(pid: u16, serial: &str) -> Device {
+        Device {
+            vendor_id: GARMIN_VENDOR_ID,
+            product_id: pid,
+            serial: Some(serial.into()),
+            product: None,
+        }
+    }
+
+    #[test]
+    fn a_watch_stuck_in_serial_mode_is_a_wedge() {
+        let e = choose(vec![dev(SERIAL_MODE_PRODUCT_ID, "1")], None).unwrap_err();
+        assert!(crate::error::is_wedged(&e), "{e:#}");
+        assert!(format!("{e:#}").contains(crate::error::REPLUG));
+        // An MTP-mode watch beside it is still picked.
+        let d = choose(
+            vec![dev(SERIAL_MODE_PRODUCT_ID, "1"), dev(0x4f0b, "2")],
+            None,
+        )
+        .unwrap();
+        assert_eq!(d.serial.as_deref(), Some("2"));
+        let e = choose(Vec::new(), None).unwrap_err();
+        assert_eq!(
+            crate::error::classify(&e),
+            crate::error::DeviceErrorKind::NotFound
+        );
+    }
 
     #[test]
     fn label_strips_escape_sequences_from_descriptor_strings() {

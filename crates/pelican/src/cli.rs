@@ -32,6 +32,26 @@ pub enum Command {
     Ls(DeviceArgs),
     /// Print this machine's ledger of every name sent to the watch.
     Ledger(DeviceArgs),
+    /// Copy every file in the watch's GARMIN folder (activities, health
+    /// data, settings) to DEST. Read-only on the watch. Do this before a
+    /// factory reset — the reset erases all of it.
+    Backup(BackupArgs),
+    /// After a factory reset: re-read /Music and, only if no audio is left
+    /// on it, start a fresh ledger epoch so every song can be sent again.
+    /// The ledger is appended to, never rewritten; the name counter keeps
+    /// rising.
+    ResetLedger(DeviceArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct BackupArgs {
+    /// Which watch, by USB serial, when more than one is plugged in.
+    #[arg(long, value_name = "S")]
+    pub serial: Option<String>,
+    /// Folder to copy into (the GARMIN tree goes inside it). Defaults to
+    /// ~/Documents/Pelican/<model> backup <date>.
+    #[arg(value_name = "DEST")]
+    pub dest: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -156,6 +176,21 @@ mod tests {
     }
 
     #[test]
+    fn backup_takes_an_optional_dest() {
+        let cli = Cli::try_parse_from(["pelican", "backup"]).unwrap();
+        let Command::Backup(b) = cli.command else {
+            panic!("not backup")
+        };
+        assert!(b.dest.is_none());
+        let cli = Cli::try_parse_from(["pelican", "backup", "/tmp/x"]).unwrap();
+        let Command::Backup(b) = cli.command else {
+            panic!("not backup")
+        };
+        assert_eq!(b.dest, Some(PathBuf::from("/tmp/x")));
+        assert!(Cli::try_parse_from(["pelican", "reset-ledger"]).is_ok());
+    }
+
+    #[test]
     fn push_needs_a_path() {
         assert!(Cli::try_parse_from(["pelican", "push"]).is_err());
     }
@@ -168,7 +203,10 @@ mod tests {
             .get_subcommands()
             .map(|c| c.get_name().to_string())
             .collect();
-        assert_eq!(names, ["push", "status", "ls", "ledger"]);
+        assert_eq!(
+            names,
+            ["push", "status", "ls", "ledger", "backup", "reset-ledger"]
+        );
         for bad in ["delete", "rm", "remove", "wipe", "playlist"] {
             assert!(Cli::try_parse_from(["pelican", bad]).is_err(), "{bad}");
         }

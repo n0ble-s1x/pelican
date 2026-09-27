@@ -30,14 +30,19 @@ macOS is out of scope for the rebuild.
 | One output profile | Every source, whatever its format, is re-encoded by ffmpeg to CBR 192 kbps, 44.1 kHz, stereo MP3 with an ID3v2.3 tag and no ID3v1; art and source metadata are dropped. No passthrough. A missing ffmpeg is refused before any device work, with the fix named. | R1 |
 | Tags that are always there | title, artist, album_artist, album, track, date, genre. Each resolves override → source tag → path; a file whose title resolves empty is refused, not sent to be invisible. | R2 |
 | Names never reused | `pl{counter:05}-{slug}.mp3`, counter strictly monotonic per watch. Every name on the device, every stub, and every name in the ledger is taken; one case fold (`mtp::fold_name`) is used for every comparison. Each stub moves the counter one further, since its name cannot be seen. No overwrite path, no rename-on-collision branch. | R3 |
-| The ledger | `$XDG_DATA_HOME/pelican/ledger-<serial>.jsonl`, append-only, never pruned or rewritten. The `reserve` line is fsync'd before the upload starts. Exclusive lock per run; a second run fails fast. An unparsable line is a hard error naming file and line. | R4 |
+| The ledger | `$XDG_DATA_HOME/pelican/ledger-<serial>.jsonl`, append-only, never pruned or rewritten. A `reset` line (see below) closes an epoch; lookups answer from the current one. The `reserve` line is fsync'd before the upload starts. Exclusive lock per run; a second run fails fast. An unparsable line is a hard error naming file and line. | R4 |
 | Skip what is there | A source whose SHA-256 the ledger has as `verified` **in the same resolved album** is skipped as "already on watch"; `--resend` sends it again under a new name. The album is part of the key because a song on its own album and the same song inside a mix are two library entries. A repeat of the same audio within one run is sent once. | R5 |
 | Mixes (playlist as album) | **Implemented, not yet hardware-tested.** The watch rejects MTP playlists, so `--mix NAME` sends the files in the order given as one album: album = NAME, album artist "Various Artists", track = 1..n in that order, each song keeping its own title and artist; year and genre only from `--year` / `--genre`. A song in two mixes is two files. | — |
 | Stop between files | A `transfer::Stop` handle passed in `Env` is checked before each transcode and before each send, never inside a file (a retry of the file in flight still runs). Unsent files end as `skipped` (`stopped`), the tally is flagged `stopped`, staging is removed, and no stopped file has a ledger line. The CLI does not expose it; Ctrl-C still ends a CLI run. | — |
 | Upload, then prove it | One MTP session per run, split-header transfers, streamed upload into flat `/Music`. Each upload is read back and hashed against the local transcode. Mismatch or error → `failed` in the ledger, the name stays burned, one retry under a fresh name (`--retries N`). | R6 |
 | Capacity before any write | Refused before the first write if planned bytes + 2 MiB exceed free space, or audio objects on `/Music` + planned files exceed 500. A retry is checked the same way, with the room promised to files still queued held back. | R7 |
 | Temp files never outlive the run | Everything is transcoded into `$XDG_CACHE_HOME/pelican/staging/<run-id>/` before the session opens; the dir is removed on success, failure and error, and a dir left by Ctrl-C is swept at next start. Sources are only read. | R8 |
-| CLI | `pelican push [--dry-run] [--resend] [--retries N] [--artist/--album/--genre/--year] [--mix NAME] [--serial S] PATHS…`, `pelican status`, `pelican ls` (rows marked `ledger`/`foreign`/`stub`), `pelican ledger`. A dry run prints the plan through the same decision code the run uses, and touches no device. | R9 |
+| CLI | `pelican push [--dry-run] [--resend] [--retries N] [--artist/--album/--genre/--year] [--mix NAME] [--serial S] PATHS…`, `pelican status`, `pelican ls` (rows marked `ledger`/`foreign`/`stub`), `pelican ledger`, `pelican backup [DEST]`, `pelican reset-ledger`. A dry run prints the plan through the same decision code the run uses, and touches no device. | R9 |
+| Send again | Besides the run-wide `--resend`, a front-end can name single files to send again (`Options::resend_sources`, `transfer::Resend`): each goes under a fresh name — the counter never repeats — as another copy in the library. Adding a song already on the watch to a playlist needs no flag at all: the skip key is audio + album, so it is sent as a new copy automatically. | R5 |
+| A watch that stops answering | After a reboot the FR165 can come back wedged — seen 2026-09-26 enumerating as `091e:0003` "Garmin GPS usb/tty converter", every MTP open then timing out after 30 s until a physical replug. `error::classify` sorts any device error into `not_found` / `permission` / `busy` / `gvfs` / `wedged` / `other`; a timeout (mtp-rs `Error::Timeout`, an I/O `TimedOut`, or the text) is `wedged` and carries `error::REPLUG`: "The watch isn't answering. Unplug it, wait five seconds, plug it back in." `garmin::pick_device` reports a watch seen only as `091e:0003` the same way. A push whose upload or read-back times out records the attempt as `failed`, does not retry, and ends the run with that instruction instead of waiting out a timeout per file. The CLI prints the instruction on its own line. | — |
+| Back up the watch | `backup::backup` walks the watch's `GARMIN` folder with `list_dir` and copies every file with `download_file` into `DEST/GARMIN/…` — the only two calls it makes, so it cannot write to the watch. Local files are created new, never replaced; device names that could climb out of DEST are refused. Stoppable between files; a file that will not copy is reported and the rest are still copied; a wedge ends it with the replug instruction. `backup::default_dest(model)` is `~/Documents/Pelican/<model> backup <YYYY-MM-DD>` (XDG documents dir, UTC date, ` (2)` if taken). CLI: `pelican backup [DEST]`. | — |
+| Start over after a factory reset | `reset::reset_ledger` re-reads `/Music` itself and, only if it holds no audio objects (stubs count), appends a `reset` line to the ledger. After it, names and verified sources from before no longer count; `max_counter` still spans everything, so the numbering keeps rising. Refuses with an explanation while audio remains. CLI: `pelican reset-ledger`. | R4 |
+| Places | `places::places(library_root)`: Home, the XDG Music dir, the configured library, mounted network shares (nfs/nfs4/cifs/smb3/smbfs/sshfs from `/proc/self/mounts`, plus an `autofs` trigger that `/etc/fstab` says mounts a network filesystem — a systemd automount NAS), and drives under `/run/media/$USER` or `/media/$USER`. Mount points are not `stat`ed (an NFS mount with its server gone can hang); the fixed folders are. Parsing is pure and tested on fixture text. | — |
 | gvfs warning | Every device-touching command warns, with the `gio mount -u` fix, if gvfs-mtp holds the watch. | R9 |
 | udev | `udev/70-garmin-mtp.rules` — sorts before `73-seat-late.rules`, so `uaccess` actually grants the ACL. | R10 |
 
@@ -66,8 +71,8 @@ macOS is out of scope for the rebuild.
   in flight is finished and proven (or failed) first. The CLI is stopped
   with Ctrl-C (staging is swept at next start; a reserved name stays
   burned).
-- **A UI.** The egui GUI and the macOS Tauri shell were removed; the UI is
-  to be rebuilt against the API below.
+- **Reset the ledger on someone's word.** `reset-ledger` reads `/Music`
+  itself; "the watch is clean" is never taken on trust.
 
 ## The API a front-end calls
 
@@ -97,22 +102,60 @@ macOS is out of scope for the rebuild.
   what `status` and `ls` print.
 - `garmin::list_devices` / `pick_device`, `ledger::Ledger::{open, read}`,
   and `platform::detect` for the gvfs warning.
+- `error::classify(&err)` / `classify_with(&err, gvfs_holds_it)` →
+  `DeviceErrorKind` (serializes `not_found` … `wedged`); `error::REPLUG` is
+  the wedge instruction, `error::Wedged` the marker in the chain.
+- `transfer::preview_with(&entries, ledger, &Resend)` and
+  `preview::build_with(&entries, ledger, &Resend, room)` take a per-file
+  send-again; `Options { resend, resend_sources, retries }` does the same
+  for `push` (`Options` is `Clone`, no longer `Copy`).
+- `backup::backup(&mut backend, dest, &stop, &mut progress)` →
+  `Summary`; progress is `backup::Progress` (`listing` / `file` /
+  `finished`, serde-tagged `kind`). `backup::default_dest(model)`.
+- `reset::check(&mut backend)` → `{ audio_objects, clean }`;
+  `reset::reset_ledger(&mut backend, &mut ledger)` → `{ clean, reset,
+  audio_objects, message }` (the ledger opened with `Ledger::open`).
+- `places::places(library_root)` → `[Place { label, path, kind }]`.
+
+## Ledger format change: the `reset` event (2026-09-26)
+
+Still `"v":1`; every existing ledger reads exactly as before. One new
+event kind:
+
+```json
+{"v":1,"at":"…","event":"reset","counter":<highest counter so far>,"remote":"","source":"","source_sha256":"","title":"","artist":null,"album":null,"reason":"factory reset confirmed: /Music read back with 0 audio objects"}
+```
+
+- Written only by `reset::reset_ledger`, after a fresh listing of `/Music`
+  shows no audio objects; appended and fsync'd like every line. Nothing
+  before it is rewritten.
+- After it: `names`, `has_name`, `verified`, `verified_in`,
+  `unproven_names` and `totals` see only later events (`Ledger::current`);
+  `Totals.resets` counts the reset lines. `max_counter` spans every event,
+  so a counter is never handed out twice.
+- **Older Pelican builds refuse a ledger that holds a `reset` line** — the
+  unknown event is reported as damage at that line and nothing runs. That
+  is the safe direction (fail closed; no name can be reused), but it means
+  a machine must not go back to a pre-reset build after using
+  `reset-ledger`.
 
 ## Tests
 
-`cargo test --workspace --all-features` on Linux, 2026-09-26: **150 pass**.
+`cargo test --workspace --all-features` on Linux, 2026-09-26: **207 pass**.
 
 | Target | Count |
 |---|---|
-| `pelican-core` unit tests (`src/`) | 102 |
-| `crates/pelican-core/tests/transfer.rs` — the run end to end on the fake watch | 27 |
+| `pelican-core` unit tests (`src/`) | 127 |
+| `crates/pelican-core/tests/transfer.rs` — the run end to end on the fake watch | 30 |
 | `crates/pelican-core/tests/ffmpeg_profile.rs` — real ffmpeg; skipped with a message if absent | 6 |
 | `crates/pelican-core/tests/sanitization.rs` | 3 |
 | `crates/pelican-core/tests/tag_notice_repro.rs` | 1 |
-| `pelican` CLI unit tests (`src/`) | 11 |
+| `pelican` CLI unit tests (`src/`) | 12 |
+| `pelican-shell` unit tests (`src/`) | 28 |
 
-The fake backend records every call, injects upload/download failures and
-silent corruption, and models stubs and free space. What it cannot test:
+The fake backend records every call, injects upload/download failures,
+silent corruption and a wedged watch (every call times out), and models
+stubs, nested folders and free space. What it cannot test:
 
 - `mtp.rs`'s mtp-rs backend — needs the watch. The read-only examples
   (`diagnose`, `verify_roundtrip`, `dump_file`, `usb_inspect`,

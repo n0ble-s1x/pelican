@@ -144,7 +144,18 @@ pub fn build(
     resend: bool,
     room: Option<Room>,
 ) -> Preview {
-    let verdicts = transfer::preview(entries, ledger, resend);
+    build_with(entries, ledger, &transfer::Resend::from(resend), room)
+}
+
+/// [`build`] with a per-file [`transfer::Resend`] — what a review's
+/// per-track "send again" asks for.
+pub fn build_with(
+    entries: &[PlanEntry],
+    ledger: Option<&Ledger>,
+    resend: &transfer::Resend,
+    room: Option<Room>,
+) -> Preview {
+    let verdicts = transfer::preview_with(entries, ledger, resend);
     let mut totals = Totals::default();
     let files: Vec<PreviewFile> = entries
         .iter()

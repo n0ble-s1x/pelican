@@ -19,8 +19,9 @@ crates/pelican-shell/gen/schemas/acl-manifests.json
 crates/pelican-shell/gen/schemas/*-schema.json
 
 # Impeccable working artifacts.
-# Kept: mocks/ (the comps and their approval sidecars are the design record),
-# build/spec.json + regions.json, surfaces/, config.json.
+# Kept: surfaces/ (the direction contract), config.json, direction-payload.json,
+# and archive/fjord/ (the retired Fjord comps, build state and design.json --
+# history only; nothing there is an approved comp for the current window).
 # Ignored: everything regenerable from those by re-running the scripts.
 .impeccable/review/
 .impeccable/questions/

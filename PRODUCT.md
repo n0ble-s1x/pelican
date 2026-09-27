@@ -82,12 +82,12 @@ available as an alternative way into "choose".
   `foreign`, or `stub` (broken).
 - The ledger itself, viewable.
 
-**Planned, owner-requested — "Mixes" (playlist as album):** the watch rejects
-MTP playlists, so a user-ordered mix is sent as an **album**: album tag = mix
-name, track numbers = mix order, each song keeping its own artist. It appears
-on the watch under Albums and plays in order. A song in two mixes is two
-files. Needs a small core addition (per-file track override, album-artist
-distinct from artist). Not yet built or hardware-tested.
+**Owner-requested — "Mixes" (playlist as album):** built in the core and the
+window, **not yet hardware-tested**. The watch rejects MTP playlists, so a
+user-ordered mix is sent as an **album**: album tag = mix name, album artist
+"Various Artists", track numbers = mix order, each song keeping its own
+artist. It appears on the watch under Albums and plays in order. A song in two
+mixes is two files. In the window it is "Send as a mix" on Review.
 
 **Hard constraints the design must respect:**
 
@@ -98,7 +98,8 @@ distinct from artist). Not yet built or hardware-tested.
   and each attempt leaves an undeletable stub. Never imply otherwise.
 - One MTP connection at a time; a desktop auto-mount (gvfs) blocks Pelican.
 - `/Music` is flat; no folders on the watch. Cover art is not sent.
-- No cancel mid-file; a run can stop between files (core work pending).
+- No cancel mid-file. A run can stop between files: the window offers "Stop
+  after this track", and the file in flight is finished and proven first.
 
 ## Brand Commitments
 

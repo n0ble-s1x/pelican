@@ -27,8 +27,8 @@ will happen (tags, size, room left, permanence), send, watch every file verify.
 ## Constraints
 
 Only proven capabilities (PRODUCT.md). No delete, no playlists, no playback,
-no knobs. Mixes (a playlist sent as an album) is planned and ships only once
-the core supports it. No network: every font and asset vendored. No Bond or
+no knobs. Mixes (a playlist sent as an album) ships as "Send as a mix" on
+Review, over the core's `--mix` path (82fc311); not yet hardware-tested. No network: every font and asset vendored. No Bond or
 Omega marks. Plain HTML/CSS/JS, no npm.
 
 ## Direction contract
@@ -66,7 +66,9 @@ empty ink, title "CONNECT YOUR WATCH", and the fix (cable, udev rule, gvfs)
 in one plain line.
 
 FORM: Title Sequence — my list position 1 (Impeccable's pick; the roll
-assigned position 5, Shanghai Glass). Seed key a89ed0a8. Signature
+assigned position 5, Shanghai Glass, as `direction-payload.json` records).
+The roll's seed key was not persisted with its output, so none is claimed
+here. Signature
 interaction: the credits roll — during Send, each track line rises into
 place and resolves to "Verified" in champagne with its hash prefix, and a
 thread of champagne ink blooms in the field once per verified track; at rest
@@ -76,7 +78,16 @@ prefers-reduced-motion.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 
+## Decisions after the build
+
+- The dial carries no counter. The verified count lives in the credits'
+  meta line; the watch stays a silhouette with only the champagne room arc.
+- Failed credits keep full contrast for as long as they are in the roll; the
+  roll fades only at its very edges, never over a row's reading position.
+- A failure sends one blood-red thread through the ink, beside the credit
+  that names it — the only place red enters the field.
+
 ## Unresolved
 
-- Mixes UI waits on core support (per-file track order, album artist).
-- Cancel-between-files needs core support before the Send view can offer Stop.
+- Mixes and stop-between-files are built (82fc311) and shipped in the window;
+  neither is hardware-tested yet.

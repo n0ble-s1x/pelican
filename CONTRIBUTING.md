@@ -5,10 +5,15 @@ area is well-defined; getting a PR through review is usually quick.
 
 ## Quickstart
 
+Two crates: `pelican-core` (the library) and `pelican` (the CLI). The UI is
+being rebuilt against the core and is not in the tree yet.
+
 ```sh
 git clone https://github.com/n0ble-s1x/pelican
 cd pelican
-cargo build --release
+
+# Linux — Rust 1.89+, libudev, and ffmpeg (every file is transcoded).
+cargo build --release -p pelican
 
 # Run the full local QA gate (same checks the maintainer runs before merge):
 ./scripts/check.sh --full
@@ -33,7 +38,16 @@ Optionally, install the git hooks so `check.sh` runs on every commit/push:
   invaluable.
 - **Packaging** for distros that don't have us yet — Flatpak manifest,
   Debian packaging, NixOS module, etc.
-- **macOS port.** Mostly a build-system / udev-equivalent problem.
+- **macOS distribution.** The port itself is done and verified on hardware
+  (`docs/macos-port.md`); what is missing is everything after the build.
+  Notarization needs a Developer ID certificate, which needs the paid Apple
+  Developer Program — free accounts are refused — so a bundle moved between
+  machines is Gatekeeper-quarantined. There is also no universal binary:
+  `x86_64-apple-darwin` is not installed here.
+- **Hardware reports from non-FR165 models.** Every device claim in this repo
+  was measured on one Forerunner 165 Music on firmware 2506. A second watch
+  would settle the playlist question in about thirty minutes
+  (`docs/playlists.md` has the recipe).
 - **Bug fixes & tests.** Always welcome. Real-hardware test reports doubly so.
 
 ## What we don't want

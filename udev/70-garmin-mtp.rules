@@ -1,0 +1,28 @@
+# Pelican: give the logged-in user direct USB access to Garmin watches.
+#
+# Install with:
+#   sudo install -m 644 udev/70-garmin-mtp.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload && sudo udevadm trigger
+#
+# Why 70-, and why it must sort before 73-seat-late.rules:
+#   TAG+="uaccess" does nothing by itself. systemd-logind's ACL is applied by
+#   RUN{builtin}+="uaccess" in 73-seat-late.rules, which grants the active
+#   seat user access only to devices that already carry the "uaccess" tag
+#   when that rule runs. A tag added by a file that sorts later (the old
+#   99-garmin-music.rules) arrives after the grant has been decided, so the
+#   device node never got a user ACL and Pelican could not open it without
+#   root. Verified on systemd 262, 2026-09-26
+#   (docs/garmin-library-persistence.md, Results — Linux).
+#
+# Why ENV{ID_MTP_DEVICE} is deliberately NOT set:
+#   ID_MTP_DEVICE=1 is the flag gvfs-mtp and KDE's kio-mtp watch for to
+#   auto-mount a device. A mounted watch is held by that daemon, and
+#   Pelican's own session then fails with "busy". Leaving it unset keeps
+#   the desktop from grabbing the watch. (libmtp's own rules may still set
+#   it for models they list; Pelican detects a gvfs mount and prints the
+#   exact command that releases it.)
+#
+# No MODE/GROUP: the uaccess ACL is the whole grant, scoped to whoever is
+# at the seat, rather than a group anyone could be added to.
+
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="091e", TAG+="uaccess"

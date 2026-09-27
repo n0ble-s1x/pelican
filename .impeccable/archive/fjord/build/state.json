@@ -1,0 +1,246 @@
+{
+  "tool": "build-phase",
+  "version": 2,
+  "startedAt": "2026-09-01T20:43:16.533Z",
+  "comp": ".impeccable/mocks/comp-f.png",
+  "direction": "66b5bd86",
+  "breakpoint": "730x467",
+  "artifact": null,
+  "phase": "review",
+  "phases": {
+    "comps": {
+      "status": "closed",
+      "openedAt": "2026-09-01T20:43:16.532Z",
+      "closedAt": "2026-09-01T21:16:00.008Z",
+      "attempts": 2,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "3 comps, 1 approved",
+        "approved": ".impeccable/mocks/comp-f.png",
+        "at": "2026-09-01T21:16:00.007Z"
+      },
+      "forced": null
+    },
+    "spec": {
+      "status": "closed",
+      "openedAt": "2026-09-01T21:16:00.019Z",
+      "closedAt": "2026-09-01T21:17:42.218Z",
+      "attempts": 2,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "10 regions, 0 plates, 4 text regions measured",
+        "at": "2026-09-01T21:17:42.217Z"
+      },
+      "forced": null
+    },
+    "plates": {
+      "status": "closed",
+      "openedAt": "2026-09-01T21:17:42.218Z",
+      "closedAt": "2026-09-01T21:17:49.062Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no plates owed",
+        "at": "2026-09-01T21:17:49.061Z"
+      },
+      "forced": null
+    },
+    "hero": {
+      "status": "closed",
+      "openedAt": "2026-09-01T21:17:49.062Z",
+      "closedAt": "2026-09-01T21:21:58.036Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": false,
+        "reasons": [
+          "the build carries ink in 4 grid cells where the comp is calm (A3, C6, D6, H8); nothing exists on the page that the comp does not show (a kicker, an extra nav item, a divider, a second row of controls); remove it or name it in a stated decision after the hero passes"
+        ],
+        "summary": "hero 80% (match)",
+        "score": 0.8006,
+        "verdict": "match",
+        "report": ".impeccable/review/diff/hero/report.json",
+        "sideBySide": ".impeccable/review/diff/hero/side-by-side.png",
+        "worst": [
+          "watch-wall drift 63%",
+          "track-list drift 65%",
+          "hero-actions drift 73%"
+        ],
+        "worstIds": [
+          "watch-wall",
+          "track-list",
+          "hero-actions"
+        ],
+        "worstCrops": [
+          {
+            "id": "watch-wall",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.6308,
+              "structure": 0.6852,
+              "color": 0.9478,
+              "colorIntersection": 0.883,
+              "paletteMatch": 0.9827,
+              "detail": 0.2388,
+              "detailRaw": 0.2805,
+              "detailAdded": 0.0833,
+              "bands": 0.1545
+            },
+            "file": ".impeccable/review/diff/hero/regions/watch-wall.png"
+          },
+          {
+            "id": "track-list",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.6487,
+              "structure": 0.7413,
+              "color": 0.8727,
+              "colorIntersection": 0.7476,
+              "paletteMatch": 0.9401,
+              "detail": 0.1324,
+              "detailRaw": 0.273,
+              "detailAdded": 0.2813,
+              "bands": 0.4
+            },
+            "file": ".impeccable/review/diff/hero/regions/track-list.png"
+          },
+          {
+            "id": "hero-actions",
+            "verdict": "drift",
+            "score": {
+              "overall": 0.7305,
+              "structure": 0.7432,
+              "color": 0.8624,
+              "colorIntersection": 0.7736,
+              "paletteMatch": 0.9102,
+              "detail": 0.4712,
+              "detailRaw": 0.5649,
+              "detailAdded": 0.1875,
+              "bands": 1
+            },
+            "file": ".impeccable/review/diff/hero/regions/hero-actions.png"
+          }
+        ],
+        "advisories": [
+          "(advisory, above the 72% bar; fix in the polish pass before responsive) 1 reading:",
+          "  text album-hero: its first line starts 13px lower than in the comp (21px vs 8px into the region box); the spacing above it is too large"
+        ],
+        "regionVerdicts": {
+          "titlebar": "match",
+          "sources-rail": "match",
+          "cover-frame": "match",
+          "album-hero": "match",
+          "hero-actions": "drift",
+          "track-list": "drift",
+          "watch-wall": "drift",
+          "waterline": "match",
+          "capacity": "drift",
+          "player": "match"
+        },
+        "at": "2026-09-01T22:01:59.946Z"
+      },
+      "forced": null,
+      "readingsSeen": {
+        "text album-hero: its first line starts 13px lower than in the comp (21px vs 8px into the region box); the spacing above it is too large": 1
+      },
+      "records": 6,
+      "history": [
+        {
+          "at": "2026-09-01T21:21:58.036Z",
+          "score": 0.8991,
+          "worstIds": [
+            "hero-actions",
+            "watch-wall",
+            "capacity"
+          ],
+          "regionVerdicts": {
+            "titlebar": "match",
+            "sources-rail": "match",
+            "cover-frame": "match",
+            "album-hero": "match",
+            "hero-actions": "drift",
+            "track-list": "match",
+            "watch-wall": "drift",
+            "waterline": "match",
+            "capacity": "drift",
+            "player": "match"
+          },
+          "artifactHash": null
+        }
+      ]
+    },
+    "sections": {
+      "status": "closed",
+      "openedAt": "2026-09-01T21:21:58.036Z",
+      "closedAt": "2026-09-01T21:28:50.777Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no mechanical gate",
+        "at": "2026-09-01T21:28:50.776Z"
+      },
+      "forced": null
+    },
+    "motion": {
+      "status": "closed",
+      "openedAt": "2026-09-01T21:28:50.777Z",
+      "closedAt": "2026-09-01T21:33:40.910Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no mechanical gate",
+        "at": "2026-09-01T21:33:40.909Z"
+      },
+      "forced": null
+    },
+    "responsive": {
+      "status": "closed",
+      "openedAt": "2026-09-01T21:33:40.910Z",
+      "closedAt": "2026-09-01T21:43:55.398Z",
+      "attempts": 9,
+      "notes": [],
+      "gate": {
+        "ok": false,
+        "reasons": [
+          "at desktop width, region player is missing"
+        ],
+        "summary": "desktop 77% (drift)",
+        "score": 0.7699,
+        "sideBySide": ".impeccable/review/diff/desktop/side-by-side.png",
+        "at": "2026-09-01T21:43:55.397Z"
+      },
+      "forced": {
+        "at": "2026-09-01T21:43:55.398Z",
+        "reason": "User downgraded the comp on this region. Asked directly whether he accepts a fluid player bar knowing the comp's exact scrubber position is not held at wider widths, he answered: 'I think thats fine, I'm not sure I understand the trade offs.' The trade-off was then explained to him in full (fluid = scrubber absorbs leftover width, as Music.app/Spotify/VLC do, so its start percentage shifts with window width; pinned = gate passes but the now-playing block becomes ~540px of empty space at 2560 wide), and he was told it is one CSS line to reverse. Everything else at desktop matches: structure 83%, colour 98%, all ten regions present. Two genuine improvements were made chasing this first: now-playing widened to clamp(220px,21%,340px), and the scrubber thumb hidden at rest, appearing on hover and keyboard focus.",
+        "reasons": [
+          "at desktop width, region player is missing"
+        ]
+      }
+    },
+    "review": {
+      "status": "closed",
+      "openedAt": "2026-09-01T21:43:55.398Z",
+      "closedAt": "2026-09-01T22:02:23.428Z",
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    }
+  },
+  "finish": {
+    "disposition": "fix",
+    "at": "2026-09-01T22:02:23.427Z",
+    "phaseAtFinish": "review"
+  },
+  "plates": {}
+}

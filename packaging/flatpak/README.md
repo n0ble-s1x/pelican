@@ -1,7 +1,7 @@
 # Flatpak / Cosmic Store packaging
 
-Pelican is distributed via [Flathub](https://flathub.org/), which means it
-appears automatically in:
+Pelican is **not on Flathub yet** — submission is planned (see "When ready",
+below, and `README.md`). Once it is, it appears automatically in:
 
 - **Cosmic Store** (Pop!_OS 24.04+)
 - GNOME Software
@@ -51,4 +51,7 @@ When ready (post v0.1.0 release):
 - Sandboxing limits what a compromised dep can do (USB-only, no network)
 - Updates happen via Flathub regardless of distro release cycle
 - Cosmic Store specifically prefers Flathub apps
-- Native `.deb`/AUR are also offered for users who avoid Flatpak — see `packaging/debian/` and `packaging/aur/`
+- Native `.deb`/AUR are also offered for users who avoid Flatpak — the AUR
+  `PKGBUILD` is in `packaging/aur/`, and the Debian package is configured in
+  `[package.metadata.deb]` in `crates/pelican/Cargo.toml` (build it with
+  `cargo deb --release -p pelican`; there is no `packaging/debian/` directory)

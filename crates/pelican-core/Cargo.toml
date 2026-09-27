@@ -1,0 +1,67 @@
+[package]
+name = "pelican-core"
+description = "Pelican's engine — Garmin USB/MTP transport and the transcode pipeline. No UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords = ["garmin", "mtp", "music", "sync"]
+categories = ["multimedia", "hardware-support"]
+exclude = ["/examples"]
+
+[dependencies]
+anyhow.workspace = true
+lofty.workspace = true
+nusb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tracing.workspace = true
+
+# POSIX geteuid() for the Linux GVFS-contention detector.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+
+[dependencies.mtp]
+workspace = true
+optional = true
+
+[dependencies.tokio]
+workspace = true
+optional = true
+
+[dependencies.futures]
+workspace = true
+optional = true
+
+[dependencies.bytes]
+workspace = true
+optional = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+
+[features]
+default = ["mtp-backend"]
+mtp-backend = ["dep:mtp", "dep:tokio", "dep:futures", "dep:bytes"]
+
+[lints]
+workspace = true
+
+# These talk to mtp-rs directly rather than through `Backend`, so they only
+# exist in a build that has it.
+[[example]]
+name = "diagnose"
+required-features = ["mtp-backend"]
+
+[[example]]
+name = "dump_file"
+required-features = ["mtp-backend"]
+
+[[example]]
+name = "probe_objprops"
+required-features = ["mtp-backend"]

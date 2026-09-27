@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reset-ledger"
+description = "Enables the reset_ledger command without any pre-configured scope."
+commands.allow = ["reset_ledger"]
+
+[[permission]]
+identifier = "deny-reset-ledger"
+description = "Denies the reset_ledger command without any pre-configured scope."
+commands.deny = ["reset_ledger"]

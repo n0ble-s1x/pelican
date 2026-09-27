@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-udev-rule-status"
+description = "Enables the udev_rule_status command without any pre-configured scope."
+commands.allow = ["udev_rule_status"]
+
+[[permission]]
+identifier = "deny-udev-rule-status"
+description = "Denies the udev_rule_status command without any pre-configured scope."
+commands.deny = ["udev_rule_status"]

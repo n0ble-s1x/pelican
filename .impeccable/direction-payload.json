@@ -1,0 +1,357 @@
+{
+ "title": "Pelican — choose the visual world",
+ "question": "Bond register is pinned (First Light, Skyfall, Spectre: classy, elegant, simple). The roll picked which Bond world carries the guided send flow. Keep it, take an alternate, or re-roll.",
+ "options": [
+  {
+   "id": "assigned",
+   "label": "Shanghai Glass",
+   "kicker": "THE ROLL",
+   "lineage": "Skyfall — the Shanghai tower at night: black glass, steel mullions, one projected light moving across the panes",
+   "thesis": "The send seen through a glass tower at night: each step a pane, each proven track a lit window.",
+   "palette": [
+    "#06080B",
+    "#0E1319",
+    "#1B222B",
+    "#E8E3D8",
+    "#C8A764",
+    "#6E9FC4"
+   ],
+   "materials": [
+    "smoked glass without frost",
+    "hairline steel mullions",
+    "one travelling field of projected light"
+   ],
+   "viewport": "Four tall panes — Watch, Choose, Review, Send — split by hairline mullions; the current pane holds the light, the rest read as dark glass with state etched in small caps; capacity is a vertical light level in the Watch pane.",
+   "risk": "Glass tips into frosted-glassmorphism cliché the moment a pane blurs; it must stay architectural — hard mullions, no backdrop blur.",
+   "raised": [
+    {
+     "from": "challenger-arcade",
+     "raise": "Palette law: champagne lights only what is proven — a verified track, the send action, the capacity left. Nothing decorative is ever gold."
+    },
+    {
+     "from": "challenger-bench",
+     "raise": "State is a mark, not a hue: every file state carries a glyph and a word — queued, encoding, sending, verified, skipped, failed."
+    },
+    {
+     "from": "challenger-gameboy",
+     "raise": "One persistent next-step marker always shows where to go."
+    },
+    {
+     "from": "challenger-cloud",
+     "raise": "Colour lives only on hairline edges and the light; text fields stay achromatic."
+    },
+    {
+     "from": "challenger-garden",
+     "raise": "One luminous field per screen; everything else recedes to glass."
+    }
+   ],
+   "wireframe": {
+    "cols": 12,
+    "rows": 10,
+    "regions": [
+     {
+      "label": "Watch pane · capacity",
+      "x": 0,
+      "y": 0,
+      "w": 2,
+      "h": 10
+     },
+     {
+      "label": "Choose pane (lit)",
+      "x": 2,
+      "y": 0,
+      "w": 5,
+      "h": 10,
+      "accent": true
+     },
+     {
+      "label": "Review pane",
+      "x": 7,
+      "y": 0,
+      "w": 3,
+      "h": 10
+     },
+     {
+      "label": "Send pane",
+      "x": 10,
+      "y": 0,
+      "w": 2,
+      "h": 10
+     }
+    ]
+   }
+  },
+  {
+   "id": "model-pick",
+   "label": "Title Sequence",
+   "kicker": "IMPECCABLE’S PICK",
+   "lineage": "The modern opening titles — Skyfall, Spectre: ink in water, silhouettes, one line of widely tracked type",
+   "thesis": "Every step is a title card — black ink, one silhouette, one line of type — and the send run is the credits, tracks rising as they verify.",
+   "palette": [
+    "#050506",
+    "#121214",
+    "#2A2A2E",
+    "#EDE8DE",
+    "#C9A45C",
+    "#8E1B1B"
+   ],
+   "materials": [
+    "ink bleeding in black water",
+    "thin widely-tracked capitals",
+    "a single silhouette: the watch"
+   ],
+   "viewport": "Full-bleed black; the watch as a silhouette in ink, left; one tracked line — 'Forerunner 165 Music · 2.3 GB free' — and one action. Choosing opens a quiet list under the line; sending turns the screen into rising credits of verified tracks.",
+   "risk": "The most familiar Bond read, and cinematic pacing fights a task UI — motion must stay under 250 ms and lists as dense as a tool's.",
+   "wireframe": {
+    "cols": 12,
+    "rows": 10,
+    "regions": [
+     {
+      "label": "Ink field + watch silhouette",
+      "x": 0,
+      "y": 0,
+      "w": 7,
+      "h": 10,
+      "accent": true
+     },
+     {
+      "label": "Title line + action",
+      "x": 7,
+      "y": 3,
+      "w": 5,
+      "h": 2
+     },
+     {
+      "label": "Tracks / credits",
+      "x": 7,
+      "y": 5,
+      "w": 5,
+      "h": 5
+     }
+    ]
+   }
+  },
+  {
+   "id": "challenger-wayfinding",
+   "label": "Terminal Wayfinding, in black tie",
+   "verdict": "competitive",
+   "lineage": "International airport sign systems — overhead bands, one message per line, monumental gate numbers",
+   "thesis": "A chain of decision points: each screen shows only the next decision and its cost; the watch is the gate at the end of the concourse.",
+   "palette": [
+    "#07090C",
+    "#12161C",
+    "#E8E3D8",
+    "#C8A764",
+    "#2B323B"
+   ],
+   "materials": [
+    "overhead sign bands",
+    "monumental numerals",
+    "edge-locked arrows"
+   ],
+   "viewport": "One band across the top — 'Choose music → 24 tracks · 112 MB · fits' — one decision below it, free space as a monumental numeral.",
+   "case": "Its topology is the guided flow, so it holds product clarity; translated into the pinned black-and-champagne it loses on Bond identification.",
+   "risk": "Without its yellow it can read as a plain stepper wizard.",
+   "hero": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding-hero.webp",
+   "wireframe": {
+    "cols": 12,
+    "rows": 10,
+    "regions": [
+     {
+      "label": "Decision band",
+      "x": 0,
+      "y": 0,
+      "w": 12,
+      "h": 2,
+      "accent": true
+     },
+     {
+      "label": "The one decision",
+      "x": 0,
+      "y": 2,
+      "w": 8,
+      "h": 8
+     },
+     {
+      "label": "Free-space numeral",
+      "x": 8,
+      "y": 2,
+      "w": 4,
+      "h": 8
+     }
+    ]
+   }
+  },
+  {
+   "id": "challenger-bench",
+   "label": "Cutting Bench Select Rail",
+   "verdict": "declined",
+   "lineage": "A film editor's bench: work print on pins, grease-pencil crosses",
+   "thesis": "Tracks as frames on a perforated rail; done frames crossed.",
+   "palette": [
+    "#0A0A0A",
+    "#E4632A",
+    "#F2EFE8"
+   ],
+   "materials": [
+    "film grain",
+    "perforation"
+   ],
+   "viewport": "A rail crossing the screen, the album as frames.",
+   "case": "Orange-grain world contradicts the pin; not the Bond world. Loses both axes.",
+   "risk": "Orange owning a third of the screen breaks the brief.",
+   "kept": "State as a mark, not a hue.",
+   "hero": "https://impeccable.style/worlds/cards/operate-a-cutting-bench-select-rail-hero.webp"
+  },
+  {
+   "id": "challenger-arcade",
+   "label": "CRT Arcade Glow",
+   "verdict": "declined",
+   "lineage": "Pixel cabinet screens, scanlines, phosphor bloom",
+   "thesis": "The send as a phosphor stage.",
+   "palette": [
+    "#000000",
+    "#F8D84A",
+    "#3AB0FF"
+   ],
+   "materials": [
+    "scanlines",
+    "bloom"
+   ],
+   "viewport": "A 240-line playfield.",
+   "case": "Novelty against 'classy, elegant'. Loses both axes.",
+   "risk": "Reads as a toy.",
+   "kept": "Palette law: one colour, one meaning.",
+   "hero": "https://impeccable.style/worlds/cards/medium-native-crt-arcade-pixel-glow-hero.webp"
+  },
+  {
+   "id": "challenger-gameboy",
+   "label": "Four-Shade Field",
+   "verdict": "declined",
+   "lineage": "The original handheld's four greens",
+   "thesis": "Four shades and a blinking cursor.",
+   "palette": [
+    "#9BBC0F",
+    "#8BAC0F",
+    "#306230",
+    "#0F380F"
+   ],
+   "materials": [
+    "8×8 tiles",
+    "dither"
+   ],
+   "viewport": "A bordered menu box.",
+   "case": "Pastiche against the pin. Loses both axes.",
+   "risk": "Pastiche.",
+   "kept": "A persistent marker for where to go next.",
+   "hero": "https://impeccable.style/worlds/cards/digital-design-canon-gameboy-four-shade-field-hero.webp"
+  },
+  {
+   "id": "challenger-cloud",
+   "label": "Iridescent Cloud Edge",
+   "verdict": "declined",
+   "lineage": "Cloud iridescence on white",
+   "thesis": "Colour confined to a hairline fringe.",
+   "palette": [
+    "#F7F8FA",
+    "#6B7480",
+    "#9FE3C9",
+    "#E7A6C1"
+   ],
+   "materials": [
+    "white field",
+    "spectral hairlines"
+   ],
+   "viewport": "Wide white margins.",
+   "case": "Pastel white contradicts the pin. Loses both axes.",
+   "risk": "Soft and generic here.",
+   "kept": "Colour only on hairline edges.",
+   "hero": "https://impeccable.style/worlds/cards/clouds-storms-auroras-iridescent-cloud-edge-hero.webp"
+  },
+  {
+   "id": "challenger-garden",
+   "label": "Gravity-Rain Garden",
+   "verdict": "declined",
+   "lineage": "A surreal garden of directional rain",
+   "thesis": "Colour-coded gravities.",
+   "palette": [
+    "#3E4A42",
+    "#3F7FD1",
+    "#C8453A",
+    "#111111"
+   ],
+   "materials": [
+    "vector rain"
+   ],
+   "viewport": "A dusk garden.",
+   "case": "No purchase on product or pin. Loses both axes.",
+   "risk": "Whimsy.",
+   "kept": "One dominant field per screen.",
+   "hero": "https://impeccable.style/worlds/cards/dream-surreal-impossible-worlds-gravity-rain-garden-hero.webp"
+  }
+ ],
+ "reroll": {
+  "registers": [
+   "safer",
+   "bolder"
+  ]
+ },
+ "buildPath": {
+  "value": "code",
+  "toggle": false
+ },
+ "canon": true,
+ "canonCard": {
+  "label": "The category standard",
+  "thesis": "A refined dark desktop sync app: sidebar, device card, track table, one gold button.",
+  "palette": [
+   "#0B0E12",
+   "#151A21",
+   "#E6E8EB",
+   "#C8A764"
+  ],
+  "materials": [
+   "system sans",
+   "table rows",
+   "sidebar"
+  ],
+  "viewport": "Sidebar (Send, On the watch, Ledger), device card on top, the track table, Send bottom-right.",
+  "risk": "Indistinguishable from every sync tool — the file-manager feel you ruled out.",
+  "wireframe": {
+   "cols": 12,
+   "rows": 10,
+   "regions": [
+    {
+     "label": "Sidebar",
+     "x": 0,
+     "y": 0,
+     "w": 2,
+     "h": 10
+    },
+    {
+     "label": "Device card",
+     "x": 2,
+     "y": 0,
+     "w": 10,
+     "h": 2
+    },
+    {
+     "label": "Track table",
+     "x": 2,
+     "y": 2,
+     "w": 10,
+     "h": 7
+    },
+    {
+     "label": "Send",
+     "x": 9,
+     "y": 9,
+     "w": 3,
+     "h": 1,
+     "accent": true
+    }
+   ]
+  }
+ },
+ "steer": true
+}

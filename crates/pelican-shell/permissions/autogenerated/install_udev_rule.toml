@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-install-udev-rule"
+description = "Enables the install_udev_rule command without any pre-configured scope."
+commands.allow = ["install_udev_rule"]
+
+[[permission]]
+identifier = "deny-install-udev-rule"
+description = "Denies the install_udev_rule command without any pre-configured scope."
+commands.deny = ["install_udev_rule"]

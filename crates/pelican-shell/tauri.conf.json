@@ -1,0 +1,44 @@
+{
+  "productName": "Pelican",
+  "version": "0.1.0",
+  "identifier": "com.krypteia.pelican",
+  "mainBinaryName": "pelican-app",
+  "build": {
+    "frontendDist": "../../ui",
+    "removeUnusedCommands": true
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pelican",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 940,
+        "minHeight": 600,
+        "resizable": true,
+        "theme": "Dark",
+        "backgroundColor": "#050506",
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "freezePrototype": true,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'none'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; worker-src 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "appimage"],
+    "icon": ["icons/icon.png"],
+    "category": "Audio",
+    "shortDescription": "Put music on a Garmin watch, and prove it arrived.",
+    "longDescription": "Pelican sends music from this computer to a Garmin watch over USB and reads every file back to prove it arrived intact. No account, no network, no telemetry.",
+    "linux": {
+      "deb": {
+        "depends": ["ffmpeg"]
+      }
+    }
+  }
+}

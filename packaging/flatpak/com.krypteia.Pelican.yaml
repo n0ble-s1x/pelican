@@ -9,6 +9,10 @@
 
 app-id: com.krypteia.Pelican
 runtime: org.freedesktop.Platform
+# TODO before submission: 23.08 is past Flathub's supported window and will be
+# rejected. Pin the current supported org.freedesktop.Platform release and
+# re-run the local test build above — the version is not guessed here because
+# nobody has built this manifest since the workspace split.
 runtime-version: "23.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
@@ -57,11 +61,18 @@ modules:
       env:
         CARGO_HOME: /run/build/pelican/cargo
     build-commands:
-      - cargo build --release --all-features --offline
+      - cargo build --release -p pelican --offline
       - install -Dm755 target/release/pelican /app/bin/pelican
-      - install -Dm644 packaging/desktop/pelican.desktop /app/share/applications/com.krypteia.Pelican.desktop
+      # No desktop entry: pelican is CLI-only until the UI is rebuilt, and a
+      # launcher with no terminal would run it with no subcommand and show
+      # nothing. packaging/desktop/pelican.desktop comes back with the UI.
       - install -Dm644 packaging/flatpak/com.krypteia.Pelican.metainfo.xml /app/share/metainfo/com.krypteia.Pelican.metainfo.xml
-      - install -Dm644 packaging/flatpak/com.krypteia.Pelican.svg /app/share/icons/hicolor/scalable/apps/com.krypteia.Pelican.svg
+      # No icon install line. packaging/flatpak/com.krypteia.Pelican.svg does
+      # not exist yet (see packaging/flatpak/README.md), and `install -Dm644`
+      # on a missing source is a hard build failure — which is why this
+      # manifest has never built as committed. Restore the line with the icon,
+      # not before:
+      #   - install -Dm644 packaging/flatpak/com.krypteia.Pelican.svg /app/share/icons/hicolor/scalable/apps/com.krypteia.Pelican.svg
     sources:
       - type: dir
         path: ../..

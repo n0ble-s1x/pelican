@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Krypteia · Pelican
 GenericName=Garmin Music Sync
-Comment=Pelican — sync music to a Garmin watch over USB
-Exec=pelican
+Comment=Sync music to a Garmin watch over USB
+Exec=pelican-app
 Icon=pelican
 Terminal=false
 Type=Application

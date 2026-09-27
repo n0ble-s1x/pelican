@@ -22,7 +22,11 @@
   const mark = (kind) =>
     `<svg class="mk" aria-hidden="true" focusable="false"><use href="#m-${kind}"/></svg>`;
 
-  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  // `?still` settles every entrance and bloom, as reduced motion does, so a
+  // headless capture shows each state at rest.
+  const STILL = new URLSearchParams(location.search).has("still");
+  if (STILL) document.documentElement.classList.add("still");
+  const reduceMotion = STILL ? { matches: true } : matchMedia("(prefers-reduced-motion: reduce)");
 
   // SI units, as GNOME shows them. One decimal below 100 of a unit.
   function bytes(n) {
@@ -1680,9 +1684,11 @@
       ledgerRows.push({ counter, remote, event: "verified", at: new Date(Date.parse(at) + 1900).toISOString(), title: f.tags.title, artist: "Windrose", album: "Windrose" });
       verifiedKeys.add(`${f.source}|Windrose`);
     });
-    onWatch.unshift({ status: "foreign", name: "pl0001.mp3", bytes: 3810304, title: "Maiden Voyage", artist: "Sea of Thieves", album: "Sea of Thieves" });
-    onWatch.push({ status: "foreign", name: "Morning Intervals.mp3", bytes: 5244012, title: "Morning Intervals" });
-    onWatch.push({ status: "stub" }, { status: "stub" });
+    // Same shape as the shell's watch_list: tags only on ledger rows, and a
+    // stub carries the core's synthetic name.
+    onWatch.unshift({ status: "foreign", name: "pl0001.mp3", bytes: 3810304 });
+    onWatch.push({ status: "foreign", name: "Morning Intervals.mp3", bytes: 5244012 });
+    onWatch.push({ status: "stub", name: "\u2039unreadable #6021\u203a" }, { status: "stub", name: "\u2039unreadable #6022\u203a" });
 
     const status = {
       connected: true,

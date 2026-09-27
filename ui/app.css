@@ -1529,6 +1529,16 @@ details.every li .t {
   }
 }
 
+/* `?still` (screenshots): the same settling, on demand. */
+.still *,
+.still *::before,
+.still *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* ------------------------------------------------------- loading + roll */
 
 .skel {

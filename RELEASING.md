@@ -8,7 +8,8 @@ tag.
 
 ```sh
 # Bump version
-$EDITOR Cargo.toml          # version = "0.X.Y"
+$EDITOR Cargo.toml          # [workspace.package] version = "0.X.Y"
+                            # All three crates inherit it via version.workspace
 $EDITOR CHANGELOG.md        # add the [0.X.Y] section, move stuff out of [Unreleased]
 
 # Sanity gate — same checks the local QA runs
@@ -25,17 +26,18 @@ git tag -s v0.X.Y -m "v0.X.Y"   # signed tag (or unsigned with `git tag -a`)
 git push origin main v0.X.Y
 
 # Build artifacts
-cargo build --release
-cargo install cargo-deb           # one-time
-cargo deb --release               # → target/debian/pelican_0.X.Y_amd64.deb
+cargo build --release -p pelican        # the Linux binary; -p is required
+cargo install cargo-deb                 # one-time
+cargo deb --release -p pelican          # → target/debian/pelican_0.X.Y_amd64.deb
 
 # Stripped + tarball'd binary for direct download
 strip target/release/pelican
+# Each -C is relative to the one before it. No desktop entry while pelican
+# is CLI-only.
 tar -czf pelican-0.X.Y-linux-x86_64.tar.gz \
   -C target/release pelican \
-  -C ../../udev 99-garmin-music.rules \
-  -C ../../packaging/desktop pelican.desktop \
-  -C ../.. README.md LICENSE-MIT LICENSE-APACHE
+  -C ../../udev 70-garmin-mtp.rules \
+  -C .. README.md LICENSE-MIT LICENSE-APACHE
 
 # GitHub release page
 gh release create v0.X.Y \

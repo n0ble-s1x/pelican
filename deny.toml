@@ -5,9 +5,22 @@ all-features = true
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-# RUSTSEC-2024-0436 (paste, unmaintained, transitive via wgpu) is allowlisted
-# in audit.toml — `cargo audit` flags informational advisories, `cargo deny`
-# does not by default, so the ignore lives where it actually does work.
+
+# Informational advisories — `unmaintained` and `unsound`. There is no
+# allowlisted *vulnerability* here or anywhere in this repo.
+#
+# The reasoning for every ID below lives in `.cargo/audit.toml`, crate by
+# crate, and is not duplicated here. Both tools scan the same lockfile and
+# both flag informational advisories (cargo-deny 0.18 does so by default),
+# so both need the list; only one of them needs to carry the argument.
+#
+# Keep the two in step. If you add an ID here without an entry there, you
+# have silenced something without saying why.
+ignore = [
+    "RUSTSEC-2024-0436", # paste
+    "RUSTSEC-2024-0370", # proc-macro-error — build-time only, via glib-macros
+    "RUSTSEC-2024-0429", # glib 0.18 — unsound VariantStrIter, never called
+]
 
 [licenses]
 confidence-threshold = 0.93
@@ -17,16 +30,23 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
-    "ISC",
     "Unicode-3.0",
     "Zlib",
-    "BSL-1.0",
-    # Font licenses required by epaint_default_fonts (default eframe fonts).
-    # Both are permissive free font licenses; OFL-1.1 is OSI-approved.
-    # Ubuntu-font-1.0 is the SPDX id added in 0.34 (was LicenseRef-UFL-1.0
-    # in older epaint_default_fonts).
-    "OFL-1.1",
-    "Ubuntu-font-1.0",
+    # MPL-2.0 — arrives with Tauri, and accepted deliberately.
+    #
+    #   cssparser, cssparser-macros, selectors, dtoa-short
+    #       Servo's CSS parser, via tauri-utils. It is what parses and
+    #       rewrites the CSP `tauri.conf.json` declares.
+    #   option-ext
+    #       via dirs.
+    #
+    # MPL-2.0 is file-level copyleft, not viral: it obliges publishing
+    # modifications *to those files* and permits combining them into a
+    # larger work under another licence. Pelican ships them unmodified as
+    # ordinary crates.io dependencies. OSI-approved and FSF-free. This stops
+    # being free of obligation the moment one of them is vendored and
+    # patched — the patch must then be published under MPL-2.0.
+    "MPL-2.0",
 ]
 
 [bans]

@@ -1,0 +1,124 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Comp G — Depth Gauge</title><link rel="stylesheet" href="tokens.css">
+<style>
+/* G — DEPTH GAUGE. Scandinavian restraint taken literally: one column, a lot
+   of air, nothing on screen that is not doing work. It is a music player
+   first. The watch is a permanent depth gauge down the right edge — always
+   visible, never demanding. Sending is one action against a gauge that fills. */
+.win { background:linear-gradient(180deg, var(--air-2), var(--air) 40%, var(--d3)); }
+.top { display:flex; align-items:center; gap:14px; padding:0 22px; height:46px; flex:none; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--moss); }
+.body { flex:1; display:grid; grid-template-columns:1fr 76px; min-height:0; }
+
+.col { min-height:0; display:flex; flex-direction:column; padding:0 0 0 8px; }
+.now { display:flex; gap:26px; padding:14px 34px 26px; align-items:center; }
+.cover.lg { width:184px; height:184px; }
+.nmeta .k { font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--sun); font-weight:640; }
+.nmeta h1 { font-size:32px; font-weight:660; letter-spacing:-.028em; margin:9px 0 7px; line-height:1.05; }
+.nmeta .by { font-size:14px; color:var(--ink-dim); }
+.nmeta .al { font-size:12.5px; color:var(--ink-faint); margin-top:3px; }
+.hifi { display:inline-flex; align-items:center; gap:7px; margin-top:16px;
+  padding:5px 11px; border-radius:100px; border:1px solid rgba(74,140,190,.34);
+  background:rgba(74,140,190,.10); font-size:10.5px; letter-spacing:.1em;
+  text-transform:uppercase; color:#8fc0e2; font-weight:600; }
+
+.seg { display:flex; align-items:center; gap:14px; padding:0 34px 14px; }
+.seg .label { flex:none; }
+.seg .rule { flex:1; height:1px; background:var(--hairline-2); }
+
+.list { flex:1; overflow:hidden; padding:0 22px; }
+.list .row { grid-template-columns:20px 30px 1fr 82px 16px; gap:14px; padding:7px 12px; }
+.list .row + .row { border-top:1px solid var(--hairline-2); }
+.cover.s { width:30px; height:30px; }
+.pl { color:var(--ink-faint); font-size:9px; text-align:center; }
+.row.on .pl, .row.on .t { color:var(--sun); }
+.fmt { font-size:10.5px; color:var(--ink-faint); letter-spacing:.05em; }
+.chk { width:15px; height:15px; border-radius:4px; border:1px solid var(--hairline); background:var(--surface); }
+.chk.on { background:var(--sun); border-color:var(--sun); }
+
+/* the gauge — a column of water down the right edge */
+.gauge { position:relative; border-left:1px solid var(--hairline-2); overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; padding:16px 0 14px; }
+.gauge::after { content:""; position:absolute; inset:auto 0 0 0; height:35%; z-index:0;
+  background:linear-gradient(to bottom, var(--d1), var(--d4)); }
+.gauge::before { content:""; position:absolute; left:0; right:0; bottom:35%; height:1px; z-index:2;
+  background:var(--line); box-shadow:0 0 14px rgba(74,140,190,.45); }
+.gt { position:relative; z-index:3; text-align:center; }
+.gt .big { font-size:17px; font-weight:660; letter-spacing:-.02em; }
+.gt .sm { font-size:9.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-faint); margin-top:2px; }
+.ticks { position:absolute; inset:16px 0 14px; z-index:1; display:flex;
+  flex-direction:column; justify-content:space-between; align-items:center; }
+.ticks i { width:11px; height:1px; background:rgba(226,236,247,.13); display:block; }
+.gsend { position:relative; z-index:3; margin-top:auto; width:48px; height:48px;
+  border-radius:50%; background:var(--sun); color:#160f06; border:none;
+  font:inherit; font-weight:700; font-size:16px; box-shadow:0 8px 26px rgba(216,150,63,.32); }
+.gcount { position:relative; z-index:3; font-size:10px; color:var(--ink-dim); margin-top:9px; letter-spacing:.06em; }
+
+.player { height:64px; flex:none; border-top:1px solid var(--hairline-2);
+  display:flex; align-items:center; gap:18px; padding:0 22px; background:rgba(6,14,23,.72);
+  backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); }
+.tr { display:flex; align-items:center; gap:14px; }
+.tr button { background:none; border:none; color:var(--ink-dim); font-size:12px; }
+.pp { width:32px; height:32px; border-radius:50%; background:var(--ink); color:var(--d4);
+  display:grid; place-items:center; font-size:11px; }
+.scrub { flex:1; display:flex; align-items:center; gap:12px; }
+.track { flex:1; height:3px; border-radius:2px; background:rgba(226,236,247,.10); overflow:hidden; }
+.track i { display:block; height:100%; width:31%; background:var(--line); }
+.time { font-size:11px; color:var(--ink-faint); }
+</style></head><body>
+<div class="win">
+  <div class="top">
+    <div class="tl"><i></i><i></i><i></i></div>
+    <div style="display:flex;align-items:center;gap:9px;margin-left:6px">
+      <span class="dot"></span><span style="font-weight:590">Forerunner 165 Music</span></div>
+    <div style="margin-left:auto;padding-right:84px" class="label">Pelican</div>
+  </div>
+
+  <div class="body">
+    <div class="col">
+      <div class="now">
+        <div class="cover lg"></div>
+        <div class="nmeta">
+          <div class="k">Now playing</div>
+          <h1>Ghost of Time</h1>
+          <div class="by">Iva Davies, Christopher Gordon, Richard Tognetti</div>
+          <div class="al">Master and Commander: The Far Side of the World · 2003</div>
+          <div class="hifi">FLAC 24-bit / 96 kHz · bit-perfect</div>
+        </div>
+      </div>
+
+      <div class="seg"><span class="label">Up next from this album</span><span class="rule"></span>
+        <span class="label num">3 selected</span></div>
+
+      <div class="list">
+        <div class="row on"><span class="pl">▶</span><div class="cover s"></div>
+          <div><div class="t">Ghost of Time</div><div class="s">5:42</div></div>
+          <div class="fmt">FLAC 24/96</div><div class="chk on"></div></div>
+        <div class="row"><span class="pl">·</span><div class="cover s"></div>
+          <div><div class="t">The Far Side of the World</div><div class="s">4:18</div></div>
+          <div class="fmt">FLAC 24/96</div><div class="chk on"></div></div>
+        <div class="row"><span class="pl">·</span><div class="cover s"></div>
+          <div><div class="t">Into the Fog</div><div class="s">3:07</div></div>
+          <div class="fmt">FLAC 24/96</div><div class="chk on"></div></div>
+        <div class="row"><span class="pl">·</span><div class="cover s"></div>
+          <div><div class="t">Adagio from Concerto Grosso</div><div class="s">6:31</div></div>
+          <div class="fmt">FLAC 16/44</div><div class="chk"></div></div>
+      </div>
+    </div>
+
+    <div class="gauge">
+      <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="gt"><div class="big num">2.41</div><div class="sm">GB free</div></div>
+      <button class="gsend">↓</button>
+      <div class="gcount num">3 · 81 MB</div>
+    </div>
+  </div>
+
+  <div class="player">
+    <div class="tr"><button>⏮</button><button class="pp">❚❚</button><button>⏭</button></div>
+    <div class="scrub"><span class="time num">1:47</span><div class="track"><i></i></div><span class="time num">5:42</span></div>
+    <span class="label">20 tracks aboard</span>
+  </div>
+</div>
+</body></html>

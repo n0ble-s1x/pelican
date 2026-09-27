@@ -9,17 +9,17 @@ labels: device-support
 
 - Garmin model:
 - Firmware version (Settings → System → About):
-- Distro + version:
+- OS + version (e.g. "macOS 26.6.2" or "Pop!_OS 24.04"):
+- `pelican --version`:
 
 ## Result
 
-- [ ] Linked successfully (status dot turns green)
-- [ ] Folder listing in WATCH pane works
-- [ ] Single-file upload persisted (free space dropped, file shows on watch)
-- [ ] Multi-file album upload all persisted
-- [ ] Audiobook upload to `/Audiobooks` worked
-- [ ] Playback on watch confirmed
-- [ ] Delete from WATCH pane works
+- [ ] `pelican status` finds the watch and reports its free space
+- [ ] `pelican ls` lists `/Music`
+- [ ] `pelican push` of one file ends with it `verified`
+- [ ] `pelican push` of an album ends with every file `verified`
+- [ ] The pushed files show in `pelican ls` after unplugging and replugging
+- [ ] The tracks appear in the watch's music app and play
 
 ## Notes
 

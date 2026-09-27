@@ -10,6 +10,8 @@ trial-and-error against real hardware) don't have to be re-discovered.
 |-----------------------------------------------|-------------------------------------------------------------------------------------------|
 | [`status.md`](status.md)                      | What works, what doesn't, what's blocked. Read this first.                                |
 | [`garmin-mtp.md`](garmin-mtp.md)              | Definitive protocol reference — IDs, format codes, folder layout, firmware quirks         |
+| [`macos-port.md`](macos-port.md)              | The macOS port — hardware verification, the ptpcamerad finding, the three encoders, the distribution blocker |
+| [`garmin-library-persistence.md`](garmin-library-persistence.md) | **Read this before resuming.** The library that will not release a deleted track, what the community has already established, and the experiments never run |
 | [`vendor-ops.md`](vendor-ops.md)              | What we know about Garmin's vendor MTP opcodes (0x9000-0x900B + 0x9810/0x9811)            |
 | [`playlists.md`](playlists.md)                | Playlist sync recipe + 2026-05-03 FR165 probe results (all variants rejected)             |
 | [`testing.md`](testing.md)                    | How to run probes, what to expect, recovery from a wedged USB session                     |

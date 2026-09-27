@@ -37,7 +37,7 @@ mtp-rs note: `ObjectFormatCode` is a `num_enum`; use
 ## What our previous attempt got wrong
 
 ```rust
-// src/mtp.rs — old write_raw
+// crates/pelican-core/src/mtp.rs — old write_raw
 let format = if lower.ends_with(".m3u8") || lower.ends_with(".m3u") {
     ObjectFormatCode::Text   // 0x3004
 } else {

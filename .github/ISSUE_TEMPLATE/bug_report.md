@@ -12,7 +12,7 @@ labels: bug
 ## Environment
 
 - Garmin model + firmware:
-- Distro + version:
+- OS + version (e.g. "macOS 26.6.2" or "Pop!_OS 24.04"):
 - `pelican --version`:
 - ffmpeg version (`ffmpeg -version` first line):
 
@@ -30,7 +30,9 @@ labels: bug
 
 ## Logs
 
-<!-- Paste relevant lines from the in-app TRANSMISSION LOG, or `RUST_LOG=debug` output -->
+<!-- The command you ran and everything it printed. For more detail, run it
+     again with RUST_LOG=debug and paste that too. If it was a push,
+     `pelican ledger` shows what was recorded for each file. -->
 
 ```
 ```

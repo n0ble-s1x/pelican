@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-default-backup-dir"
+description = "Enables the default_backup_dir command without any pre-configured scope."
+commands.allow = ["default_backup_dir"]
+
+[[permission]]
+identifier = "deny-default-backup-dir"
+description = "Denies the default_backup_dir command without any pre-configured scope."
+commands.deny = ["default_backup_dir"]

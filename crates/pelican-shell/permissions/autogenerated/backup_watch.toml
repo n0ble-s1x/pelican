@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-backup-watch"
+description = "Enables the backup_watch command without any pre-configured scope."
+commands.allow = ["backup_watch"]
+
+[[permission]]
+identifier = "deny-backup-watch"
+description = "Denies the backup_watch command without any pre-configured scope."
+commands.deny = ["backup_watch"]

@@ -1,0 +1,687 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-06",
+  "title": "Design System: Pelican",
+  "extensions": {
+    "colorMeta": {
+      "sun": {
+        "role": "primary",
+        "displayName": "Brass",
+        "canonical": "#d8963f",
+        "purpose": "The low sun on the water. The only warm value in the system: primary action, checked checkbox, playing track, meter fill, caret, selection wash and focus ring. Measured at 0.41% frame coverage.",
+        "tonalRamp": [
+          "#402a0d",
+          "#6e4816",
+          "#9d6720",
+          "#cb8629",
+          "#dca051",
+          "#e5b980",
+          "#f0d5b3",
+          "#faf1e6"
+        ]
+      },
+      "sun-ink": {
+        "role": "primary",
+        "displayName": "Brass Ink",
+        "canonical": "#160f06",
+        "purpose": "Near-black ink on brass fills only. 7.56:1 on --sun.",
+        "tonalRamp": [
+          "#3c2910",
+          "#68471c",
+          "#946528",
+          "#c08334",
+          "#d29e5b",
+          "#deb887",
+          "#ebd4b7",
+          "#f8f1e7"
+        ]
+      },
+      "line": {
+        "role": "secondary",
+        "displayName": "Waterline Blue",
+        "canonical": "#4a8cbe",
+        "purpose": "The 1px waterline and the pending band's hatch. A rule, never an accent, never text.",
+        "tonalRamp": [
+          "#142938",
+          "#234762",
+          "#32648b",
+          "#4182b4",
+          "#659dc8",
+          "#8eb7d7",
+          "#bbd4e7",
+          "#e8f1f7"
+        ]
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "Kelp",
+        "canonical": "#5aa8a0",
+        "purpose": "The 7px connection dot when a watch is present. Never text.",
+        "tonalRamp": [
+          "#1a3230",
+          "#2e5753",
+          "#417c76",
+          "#55a099",
+          "#76b7b0",
+          "#9bcac5",
+          "#c3dfdc",
+          "#ebf4f3"
+        ]
+      },
+      "alert": {
+        "role": "tertiary",
+        "displayName": "Signal Red",
+        "canonical": "#d9634f",
+        "purpose": "Untagged-file warning, over-capacity readout, failure notice tag. 5.06:1 on --air, 4.77:1 on --notice-ground, 4.74:1 on the .07 tint, 5.08:1 on --d3. Always paired with a word. Fourth use: the delete control and its confirmation, the only irreversible action in the app. Allowed only on opaque grounds — --d3 5.08:1, --notice-ground 4.77:1 — and forbidden on a wall row, where it is 3.80:1 selected and 4.12:1 hovered.",
+        "tonalRamp": [
+          "#3f150e",
+          "#6d2418",
+          "#9b3322",
+          "#c9422b",
+          "#da6753",
+          "#e48f81",
+          "#efbcb4",
+          "#fae9e6"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Fjord Ground",
+        "canonical": "#070c13",
+        "purpose": "The body behind the app; visible only at the window's own edges.",
+        "tonalRamp": [
+          "#152338",
+          "#243d61",
+          "#33578a",
+          "#4271b3",
+          "#668ec7",
+          "#8fadd6",
+          "#bccee6",
+          "#e9eff7"
+        ]
+      },
+      "air": {
+        "role": "neutral",
+        "displayName": "Air",
+        "canonical": "#0d1622",
+        "purpose": "The surface above the waterline: the app field and the titlebar.",
+        "tonalRamp": [
+          "#152437",
+          "#253e60",
+          "#345889",
+          "#4473b1",
+          "#6890c5",
+          "#90aed5",
+          "#bdcee6",
+          "#e9eff7"
+        ]
+      },
+      "air-2": {
+        "role": "neutral",
+        "displayName": "Air Raised",
+        "canonical": "#111c2a",
+        "purpose": "Top stop of the sources rail gradient; the rail's flat ground at <=1020px.",
+        "tonalRamp": [
+          "#162436",
+          "#263f5e",
+          "#365a86",
+          "#4774ae",
+          "#6a91c3",
+          "#92afd3",
+          "#becfe5",
+          "#e9eff6"
+        ]
+      },
+      "d1": {
+        "role": "neutral",
+        "displayName": "Depth 1",
+        "canonical": "#16283a",
+        "purpose": "The top stop of the water gradient inside the gauge, and the lightest ground below the line. No text renders over it: the water used to be a full-panel fill behind the wall head, list and capacity, and the gauge confined it to a 132px band precisely so it sits behind nothing but itself.",
+        "tonalRamp": [
+          "#152637",
+          "#244260",
+          "#345e89",
+          "#437ab1",
+          "#6796c5",
+          "#90b2d5",
+          "#bcd1e6",
+          "#e9f0f7"
+        ]
+      },
+      "d2": {
+        "role": "neutral",
+        "displayName": "Depth 2",
+        "canonical": "#101f2e",
+        "purpose": "Bottom stop of the watch wall's own gradient.",
+        "tonalRamp": [
+          "#142639",
+          "#224262",
+          "#315e8c",
+          "#3f7ab6",
+          "#6496c9",
+          "#8db2d8",
+          "#bbd1e7",
+          "#e8f0f7"
+        ]
+      },
+      "d3": {
+        "role": "neutral",
+        "displayName": "Depth 3",
+        "canonical": "#0a1622",
+        "purpose": "Top stop of the wall gradient, mid stop of the water, and the opaque backing under the capacity readout.",
+        "tonalRamp": [
+          "#11263b",
+          "#1e4266",
+          "#2b5e92",
+          "#387abd",
+          "#5d96cf",
+          "#89b2dc",
+          "#b8d1ea",
+          "#e7f0f8"
+        ]
+      },
+      "d4": {
+        "role": "neutral",
+        "displayName": "Depth 4",
+        "canonical": "#060e17",
+        "purpose": "The floor of the water and the ground of the player bar. The deepest surface on screen.",
+        "tonalRamp": [
+          "#10253d",
+          "#1b4069",
+          "#275b96",
+          "#3376c2",
+          "#5993d4",
+          "#86b0df",
+          "#b6d0ec",
+          "#e7eff9"
+        ]
+      },
+      "notice-ground": {
+        "role": "neutral",
+        "displayName": "Notice Ground",
+        "canonical": "#191b25",
+        "purpose": "Opaque ground for the transfer failure headline: --air with the alert hue flattened in. Exists so --alert's 4.77:1 is a property of the rule and not of the three layers behind it.",
+        "tonalRamp": [
+          "#1f212e",
+          "#353a4f",
+          "#4c5271",
+          "#636b92",
+          "#8289ab",
+          "#a4a9c1",
+          "#c8cbda",
+          "#edeef3"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#e3eaf2",
+        "purpose": "Titles, primary text, the seek thumb. 14.99:1 on --air; 11.26:1 at its worst ground, a selected wall row (--surface-2 over --d2 = #202f3e).",
+        "tonalRamp": [
+          "#182534",
+          "#2a415b",
+          "#3c5c81",
+          "#4e77a7",
+          "#7094bd",
+          "#97b1ce",
+          "#c0d0e2",
+          "#eaeff5"
+        ]
+      },
+      "ink-dim": {
+        "role": "neutral",
+        "displayName": "Ink Dim",
+        "canonical": "#8b9bab",
+        "purpose": "Secondary lines, and the required ink on every composite ground where --ink-faint fails: rail counts, wall head, wall list, the channel's album and artist rows. 6.38:1 on --air; 4.79:1 at its worst ground, a selected wall row (#202f3e). Still AA.",
+        "tonalRamp": [
+          "#20262c",
+          "#38424d",
+          "#4f5e6d",
+          "#677a8e",
+          "#8696a7",
+          "#a6b2bf",
+          "#cad1d8",
+          "#edf0f2"
+        ]
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Ink Faint",
+        "canonical": "#7d8c9b",
+        "purpose": "The quietest legible tier: wordmark, rail heads, formats, timecodes, connection status. 5.28:1 on --air. Its floor where it ships is 4.75:1 — .tracks__fmt on a hovered library row, where --surface composites over the channel's --air to #17202c. The transfer card over bright artwork is a second data point at 4.93:1. Banned inside .wall__list and on the channel's .group rows, where hover and selection veils take it under AA. Was #5a6875 = 3.18:1.",
+        "tonalRamp": [
+          "#21262b",
+          "#3a424b",
+          "#525e6b",
+          "#6a7a8a",
+          "#8996a4",
+          "#a9b3bc",
+          "#cbd1d7",
+          "#eef0f2"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Veil 4.8%",
+        "canonical": "rgba(226,236,247,.048)",
+        "purpose": "Hover raise. Also the checkbox and seek rest ground."
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Veil 7.8%",
+        "canonical": "rgba(226,236,247,.078)",
+        "purpose": "Current/rest raise: secondary buttons, the current nav item, play/pause, the meter track."
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline 10.5%",
+        "canonical": "rgba(226,236,247,.105)",
+        "purpose": "The transfer card's firmer rim, and the border of a control that cannot be operated. Those are its only two uses in the app — structural dividers and panel edges are --hairline-2 at 5.8%, and the cover frame's rim is its own inline 9%. Not a control boundary: it measures 1.32-1.63:1 through the fills of the controls in this app and identifies nothing, which is why --edge exists. A disabled control keeps it deliberately — something that cannot be operated should not advertise a 3:1 boundary as if it could."
+      },
+      "hairline-2": {
+        "role": "neutral",
+        "displayName": "Hairline 5.8%",
+        "canonical": "rgba(226,236,247,.058)",
+        "purpose": "Every structural divider and panel edge in the app."
+      },
+      "edge": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "rgba(226,236,247,.40)",
+        "purpose": "The boundary of every control that draws a box, and nothing else: the checkbox, .chip, .btn, .btn--danger and .playpause. Not \"everything operable\" — .iconbtn, .linkbtn and .nav are operable and carry border:0 with no rest-state fill, so they draw no box for an edge to bound; their affordance is carried by what is drawn instead, and that is what clears 3:1. Worst case each, on the real composite: .iconbtn's glyph --ink-faint 4.75:1 (hovered track row, --surface over --air = #17202c), .nav's label --ink-dim 4.95:1 (.is-current #212c3a), .linkbtn's underlined label --ink-dim 6.41:1 (--d3). Range 4.75-6.41:1. Adding a border there would invent a box the design does not have. Not a hairline and not a replacement for one — the same rgba(226,236,247,x) veil family, a new alpha rather than a new hue. A 1px border-box border has two adjacencies and is painted over the control's own fill, so bare-ground figures are correct only for a transparent-background control. Transparent (.chip at rest, .btn--danger): 3.40 on --d3, 3.39 on --notice-ground. Filled, as outside/inside: .btn on --air 3.94/3.26, .btn:hover 3.72/3.35, .chip pressed on --d3 3.94/3.27, .playpause on --d4 3.91/3.35, checkbox on --air 3.72/3.35, on --d2 3.65/3.23, on a hovered wall row 3.48/3.07. Worst case 3.07:1, over 1.4.11's 3:1. A selected wall row is not in that list: .is-picked follows the checkbox's own checked state, so an --edge box never sits on #202f3e — there the box is brass, 5.43:1. The primary button is the exception: its brass fill is 7.23:1 and is its own boundary in both states.",
+        "tonalRamp": [
+          "#1b232d",
+          "#2b3540",
+          "#3c4753",
+          "#4e5967",
+          "#606c79",
+          "#78838f",
+          "#9aa3ad",
+          "#c6ccd3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display / Album Title",
+        "purpose": "The album hero title. One line, clipped with an ellipsis at desktop; wraps at <=720px. Measured cap height 18.4px app-pixels."
+      },
+      "headline": {
+        "displayName": "Headline / Capacity Figure",
+        "purpose": "The free-space number on the watch wall. The largest text in the app on purpose, because capacity governs every decision. Tabular numerals."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel headings and empty-state heads (14px); the transfer card's heading at 13.5px."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "The default. Track titles, album credits, the disconnected explanation."
+      },
+      "dense": {
+        "displayName": "Dense",
+        "purpose": "The watch wall list (12px), nav items and player now-playing (12.5px), button faces (12.5px / 590)."
+      },
+      "detail": {
+        "displayName": "Detail",
+        "purpose": "Sub-lines and metadata: durations, sizes, hero facts, timecodes, hints, notice bodies."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase 0.14em tracking: the wordmark, rail section heads, the player format badge. Notice and pre-warning tags use 0.1em at weight 640."
+      }
+    },
+    "shadows": [
+      {
+        "name": "cover-lift",
+        "value": "0 18px 44px rgba(0,0,0,.55)",
+        "purpose": "The 132px hero album cover only. The single true drop shadow in the app; it is the one object presented as a physical thing."
+      },
+      {
+        "name": "frame-highlight",
+        "value": "inset 0 1px 0 rgba(226,236,247,.05)",
+        "purpose": "A 1px top light on every cover frame at every size (.06 on the hero cover). Joinery, not elevation."
+      },
+      {
+        "name": "waterline-bloom",
+        "value": "0 6px 12px -4px rgba(74,140,190,.32)",
+        "purpose": "The glow under the 1px waterline, and the only luminous object in the app. Directional by necessity: offset 6px down with a -4px spread so the light falls into the water. A symmetrical halo washed the ground the wall list scrolls across and pushed those rows under AA."
+      },
+      {
+        "name": "glass-transfer",
+        "value": "background:rgba(13,22,34,.97); backdrop-filter:blur(24px) saturate(140%)",
+        "purpose": "The one floating surface. The near-opaque base under the blur is load-bearing: the card floats over scrolling album art, and with a 4.8% veil its inks inherited whatever was behind them (3.99:1 on the failure headline over bright art)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.22,.61,.36,1)",
+        "purpose": "The only easing curve in the system."
+      },
+      {
+        "name": "t-quick",
+        "value": "120ms",
+        "purpose": "Linear background, colour and opacity on every interactive element."
+      },
+      {
+        "name": "t-settle",
+        "value": "260ms",
+        "purpose": "State arrivals: the transfer card's @starting-style entry, the meter's scaleX, the pending band's opacity, the sink keyframe."
+      },
+      {
+        "name": "t-tide",
+        "value": "900ms",
+        "purpose": "The water's translateY. The only slow thing in the app, and it runs once per transfer."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide",
+        "value": "@container shell (min-width: 1021px)"
+      },
+      {
+        "name": "medium",
+        "value": "@container shell (max-width: 1020px)"
+      },
+      {
+        "name": "narrow",
+        "value": "@container shell (max-width: 720px)",
+        "note": "One column. The gauge drops from 132px to 84px (set on `.wall`, because a container query cannot reach `:root`) and nothing else about the water changes. This was previously a distinct behaviour — a fixed band with `transform: none` — and is now the same mechanism at a different height."
+      }
+    ],
+    "radiusExceptions": [
+      {
+        "value": "2px",
+        "where": "the 3px seek track and the 3px transfer meter",
+        "why": "A 6px radius on a 3px-tall bar is a pill, not a corner."
+      },
+      {
+        "value": "3px",
+        "where": ":focus-visible ring (2px brass outline, 2px offset)",
+        "why": "The ring hugs arbitrary geometry; it takes the smallest radius that stops the corners reading as cut."
+      },
+      {
+        "value": "4px",
+        "where": "the 15px checkbox and the icon buttons",
+        "why": "Below the scale's floor of roughly 16px in the short dimension."
+      },
+      {
+        "value": "5px",
+        "where": "the scrollbar thumb (9px wide) and the base cover frame",
+        "why": "Half the thumb's own width; the cover family scales 5px -> 8px so its corner reads constant."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The send action. The only brass fill on any screen.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Send 12 tracks</button>",
+      "css": ".ds-btn{font:590 12.5px/1.45 var(--font,-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif);padding:8px 16px;border-radius:6px;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.078);color:#e3eaf2;transition:background-color 120ms linear,color 120ms linear,opacity 120ms linear}.ds-btn-primary{background:#d8963f;border-color:#d8963f;color:#160f06}.ds-btn-primary:hover{filter:brightness(1.08)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Every non-primary action. Hover drops it to the lighter veil, so the surface recedes under the cursor rather than brightening. Border is --edge (40%), not --hairline: through the button's own 7.8% fill a hairline measured 1.35:1 against that fill and 1.63:1 against --air, and the fill itself is 1.21:1, so the control had no visible edge from either side. --edge reads 3.26:1 inside and 3.94:1 outside. Disabled drops back to --hairline.",
+      "html": "<button class=\"ds-btn2\">Eject</button> <button class=\"ds-btn2\" disabled>Send</button>",
+      "css": ".ds-btn2{font:590 12.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:8px 16px;border-radius:6px;color:#e3eaf2;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.078);transition:background-color 120ms linear,color 120ms linear,opacity 120ms linear}.ds-btn2:hover:not(:disabled){background:rgba(226,236,247,.048)}.ds-btn2:active:not(:disabled){transform:translateY(1px)}.ds-btn2:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}.ds-btn2:disabled{opacity:.45;cursor:default;border-color:rgba(226,236,247,.105)}"
+    },
+    {
+      "name": "Play / Pause",
+      "kind": "button",
+      "refersTo": "button-playpause",
+      "description": "A 31px circle on the 7.8% veil. It was a filled white disc and was demoted for outshouting the brass primary it is meant to sit beneath — which left it with no boundary at all: on --d4 the fill is 1.17:1 and a hairline border 1.56:1. The --edge border reads 3.35:1 against its fill and 3.91:1 against --d4. The library row's play button has an inoperable state, used for Ogg Vorbis, which the system webview reports as playing — readyState 4, a correct duration, a moving clock — while emitting digital silence. It is aria-disabled=\"true\" rather than disabled, because a disabled button is not focusable and the sentence explaining the refusal was reachable by pointer only. It keeps focus, points at that sentence with aria-describedby, and the click handler enforces the refusal the browser no longer does. Appearance is opacity .45, the same one .btn:disabled uses, with the hover brightening suppressed. No contrast figure is owed: WCAG 1.4.3 and 1.4.11 exempt an inactive component.",
+      "html": "<button class=\"ds-playpause\" aria-label=\"Play\"><svg class=\"ds-ic\" viewBox=\"0 0 15 14\" aria-hidden=\"true\"><path d=\"M4 2.5l8 4.5-8 4.5z\"/></svg></button>",
+      "css": ".ds-playpause{width:31px;height:31px;border-radius:50%;background:rgba(226,236,247,.078);color:#e3eaf2;border:1px solid rgba(226,236,247,.40);display:grid;place-items:center;transition:background-color 120ms linear}.ds-playpause:hover{background:rgba(226,236,247,.048)}.ds-playpause:focus-visible{outline:2px solid #d8963f;outline-offset:2px}.ds-ic{width:15px;height:14px;fill:currentColor;display:block}.ds-playpause[aria-disabled=\"true\"]{opacity:.45;cursor:default}.ds-playpause[aria-disabled=\"true\"]:hover{background:rgba(226,236,247,.078)}"
+    },
+    {
+      "name": "Rail Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Sources rail items. Emphasis is weight plus veil, never brass. The trailing count is --ink-dim, not --ink-faint: on the current item's composite ground (#212c3a) --ink-faint is 4.09:1.",
+      "html": "<div class=\"ds-rail\"><div class=\"ds-rail-head\">Library</div><a class=\"ds-nav is-current\" href=\"#\">Albums<span class=\"ds-nav-n\">184</span></a><a class=\"ds-nav\" href=\"#\">Artists<span class=\"ds-nav-n\">61</span></a></div>",
+      "css": ".ds-rail{background:linear-gradient(to bottom,#111c2a,#0d1622);padding:16px 10px;width:198px;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-rail-head{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7d8c9b;font-weight:590;margin:0 10px 6px}.ds-nav{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;color:#8b9bab;text-decoration:none;font-size:12.5px;transition:background-color 120ms linear,color 120ms linear}.ds-nav:hover{background:rgba(226,236,247,.048);color:#e3eaf2}.ds-nav.is-current{background:rgba(226,236,247,.078);color:#e3eaf2;font-weight:590}.ds-nav-n{margin-left:auto;font-size:10.5px;color:#8b9bab}"
+    },
+    {
+      "name": "Checkbox",
+      "kind": "input",
+      "refersTo": "checkbox",
+      "description": "The selection control on both sides of the window: a tick on the left sends to the watch, a tick on the right removes from it — one symmetrical idea. Border is --edge (40%), not --hairline: through this box's 4.8% fill a hairline measures 1.32-1.35:1 against that fill and 1.47-1.53:1 against the panel outside it, and identifies nothing, which was a small problem in the track table and became the wall's main affordance the moment every row on a darker ground grew one. Checked is a solid brass fill, one of the four places brass is allowed. Disabled keeps --hairline deliberately: a control that cannot be operated should not advertise a 3:1 boundary. The box itself is wrapped in a <label> that fills its cell, so the region answering a click grows while the 15px box — and therefore every --edge ratio above — is untouched. In the library that is the full 40px cell (≥24×24); in the wall the pick grid area already spans both rows of the row, so the target takes the height rather than widening a 15px column into an 11px gap. The label's cursor is turned off from JS on a disabled input rather than with :has(), which this build does not rely on.",
+      "html": "<label class=\"ds-hit\"><input class=\"ds-check\" type=\"checkbox\" checked aria-label=\"Select track\"></label> <label class=\"ds-hit\"><input class=\"ds-check\" type=\"checkbox\" aria-label=\"Select track\"></label> <label class=\"ds-hit\"><input class=\"ds-check\" type=\"checkbox\" disabled aria-label=\"Cannot send\"></label>",
+      "css": ".ds-check{appearance:none;width:15px;height:15px;border-radius:4px;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.048)}.ds-check:checked{background:#d8963f;border-color:#d8963f}.ds-check:disabled{border-color:rgba(226,236,247,.105);opacity:.45}.ds-check:focus-visible{outline:2px solid #d8963f;outline-offset:2px;border-radius:3px}.ds-hit{display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;cursor:pointer}"
+    },
+    {
+      "name": "Seek Slider",
+      "kind": "input",
+      "description": "A 3px track painted as a live gradient. The thumb is opacity:0 at rest and appears on hover and keyboard focus, because an idle player should be a quiet line rather than a bright dot.",
+      "html": "<input class=\"ds-seek\" type=\"range\" value=\"31\" aria-label=\"Seek\">",
+      "css": ".ds-seek{appearance:none;width:260px;height:3px;border-radius:2px;background:linear-gradient(90deg,#8b9bab 31%,rgba(226,236,247,.10) 31%)}.ds-seek::-webkit-slider-thumb{appearance:none;width:11px;height:11px;border-radius:50%;background:#e3eaf2;opacity:0;transition:opacity 120ms linear}.ds-seek:hover::-webkit-slider-thumb,.ds-seek:focus-visible::-webkit-slider-thumb{opacity:1}"
+    },
+    {
+      "name": "Transfer Card",
+      "kind": "card",
+      "refersTo": "card-transfer",
+      "description": "The one floating surface, docked over the channel and stopping short of the watch wall so it can never cover the capacity number. Near-opaque base under the blur: with a 4.8% veil, bright album art scrolling behind dropped its inks to 3.99:1.",
+      "html": "<div class=\"ds-transfer\"><div class=\"ds-transfer-head\"><h2>Sending to Fenix 7</h2><span class=\"ds-transfer-of\">4 of 12</span></div><div class=\"ds-meter\"><i></i></div><div class=\"ds-transfer-now\"><span>Nightswimming.flac</span><span>2.1 MB/s</span></div></div>",
+      "css": ".ds-transfer{width:420px;padding:14px 16px;border-radius:14px;background:rgba(13,22,34,.97);backdrop-filter:blur(24px) saturate(140%);-webkit-backdrop-filter:blur(24px) saturate(140%);border:1px solid rgba(226,236,247,.105);color:#e3eaf2;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-transfer-head{display:flex;align-items:baseline;gap:12px}.ds-transfer-head h2{font-size:13.5px;font-weight:640;margin:0}.ds-transfer-of{margin-left:auto;font-size:11.5px;color:#8b9bab}.ds-meter{height:3px;border-radius:2px;background:rgba(226,236,247,.078);margin:11px 0 6px;overflow:hidden}.ds-meter i{display:block;height:100%;width:100%;background:#d8963f;transform-origin:left center;transform:scaleX(.33);transition:transform 260ms linear}.ds-transfer-now{display:flex;justify-content:space-between;gap:16px;font-size:11.5px;color:#8b9bab}"
+    },
+    {
+      "name": "Notice (failure and informational)",
+      "kind": "custom",
+      "refersTo": "notice-alert",
+      "description": "A failure states its name in words; colour is never the only signal. The ground is opaque --notice-ground rather than a red tint, because nested inside the translucent transfer card a tint put --alert at 4.18:1. The second grid column is for the one notice the user can act on — today, the name-collision refusal, whose button reads “Send under a new name”. That button is the plain .btn--sm, not a new accent: its --ink label is 11.58:1 on its own fill (--surface-2 over --notice-ground = #292b35) and its --edge border is 3.88:1 against --notice-ground outside it and 3.18:1 against that fill — the new worst case for .btn, still clear of 3:1. Hover (#23252f) reads 12.58 / 3.68 / 3.28. Every other notice leaves the column collapsed. A notice is not always a failure. DESIGN.md permits Signal Red in exactly four places and none of them is good news, so an outcome the user should read but need not act on takes .notice--info: tag to --ink-dim (6.02:1 on --notice-ground — the same pairing .notice__body already ships, and the tag is 10px/640, so AA wants 4.5:1) and border to --hairline. Two notices use it: “Sent under a new name” after a rename around a collision, and “Found on your watch after all” when a file reported failed turns up in the listing. The border is a container edge, not a control affordance, so 1.4.11 does not reach it.",
+      "html": "<div class=\"ds-notice\"><span class=\"ds-notice-tag\">Name already on the watch</span><p class=\"ds-notice-body\"><strong>2 tracks</strong> were not sent, because the watch already has a file under that name. Sending under a new name leaves what is already on your watch untouched.</p><div class=\"ds-notice-acts\"><button class=\"ds-btn-sm\">Send under a new name</button></div></div><div class=\"ds-notice ds-notice-info\" style=\"margin-top:11px\"><span class=\"ds-notice-tag\">Sent under a new name</span><p class=\"ds-notice-body\"><strong>Lantern.mp3</strong> is on your watch as <strong>Lantern-2.mp3</strong>.</p></div>",
+      "css": ".ds-notice{padding:10px 12px;border-radius:6px;border:1px solid rgba(217,99,79,.34);background:#191b25;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-notice-tag{grid-column:1/-1;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:640;color:#d9634f}.ds-notice-body{font-size:11.5px;color:#8b9bab;margin:0}.ds-notice-body strong{color:#e3eaf2;font-weight:590}.ds-notice-acts{display:flex;gap:8px;align-self:center}.ds-btn-sm{font:590 11.5px/1.45 inherit;padding:5px 11px;border-radius:6px;color:#e3eaf2;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.078)}.ds-btn-sm:hover{background:rgba(226,236,247,.048)}.ds-notice-info{border-color:rgba(226,236,247,.105)}.ds-notice-info .ds-notice-tag{color:#8b9bab}"
+    },
+    {
+      "name": "Watch Wall with Waterline",
+      "kind": "custom",
+      "description": "The app's thesis made literal. The panel is a d3→d2 gradient; the water lives in a fixed 132px `.gauge` between the list and the capacity readout, translated — never scaled — to the level, so the waterline is exactly 1px at any fill and crosses no text. Every ink inside `.wall__list` is --ink or --ink-dim: --ink-faint measures 4.30:1 on a hovered row and 3.97:1 on a selected one.",
+      "html": "<div class=\"ds-wall\"><span class=\"ds-water\" style=\"transform:translateY(58%)\"></span><div class=\"ds-wall-head\"><h2>On your watch</h2><div class=\"ds-wall-count\">184 tracks aboard</div></div><div class=\"ds-capacity\"><span class=\"ds-cap-big\">4.1<span class=\"ds-cap-unit\"> GB free</span></span><span class=\"ds-cap-sm\">of 16 GB</span><span class=\"ds-cap-sel\" data-fits=\"no\">26 MB too much</span></div></div>",
+      "css": ".ds-wall{position:relative;width:300px;height:280px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;background:linear-gradient(to bottom,#0a1622,#101f2e);color:#e3eaf2;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-water{position:absolute;left:0;right:0;bottom:0;height:100%;z-index:0;background:linear-gradient(to bottom,#16283a,#0a1622 60%,#060e17);transition:transform 900ms cubic-bezier(.22,.61,.36,1)}.ds-water::before{content:\"\";position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,rgba(74,140,190,.2),#4a8cbe 25%,#4a8cbe);box-shadow:0 6px 12px -4px rgba(74,140,190,.32)}.ds-wall-head{padding:16px 18px 8px;position:relative;z-index:2}.ds-wall-head h2{font-size:14px;font-weight:640;margin:0}.ds-wall-count{font-size:11.5px;color:#8b9bab;margin-top:1px}.ds-capacity{position:relative;z-index:2;padding:12px 18px 16px;background:#0a1622}.ds-cap-big{display:block;font-size:26px;font-weight:640;letter-spacing:-.024em;line-height:1;font-variant-numeric:tabular-nums}.ds-cap-unit{font-size:12px;color:#8b9bab;font-weight:400}.ds-cap-sm{display:block;font-size:11px;color:#8b9bab;margin-top:4px}.ds-cap-sel{display:block;font-size:11px;color:#8b9bab;margin-top:5px}.ds-cap-sel[data-fits=\"no\"]{color:#d9634f}"
+    },
+    {
+      "name": "Track Row",
+      "kind": "custom",
+      "description": "A row of the album channel's track table. Hairline-separated, hover takes the 4.8% veil, and the playing row turns brass on its title and its transport glyph.",
+      "html": "<table class=\"ds-tracks\"><tbody><tr class=\"is-playing\"><td class=\"ds-t-play\"><span class=\"ds-iconbtn\">▶</span></td><td><span class=\"ds-t\">Nightswimming</span><span class=\"ds-s\">R.E.M. · 4:18</span></td><td class=\"ds-fmt\">FLAC → MP3</td></tr><tr><td class=\"ds-t-play\"><span class=\"ds-iconbtn\">▶</span></td><td><span class=\"ds-t\">Find the River</span><span class=\"ds-s\">R.E.M. · 3:49</span></td><td class=\"ds-fmt\">FLAC → MP3</td></tr></tbody></table>",
+      "css": ".ds-tracks{width:420px;border-collapse:collapse;color:#e3eaf2;font:400 13px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-tracks tbody tr{border-bottom:1px solid rgba(226,236,247,.058);transition:background-color 120ms linear}.ds-tracks tbody tr:hover{background:rgba(226,236,247,.048)}.ds-tracks td{padding:7px 10px;text-align:left}.ds-t-play{width:36px}.ds-iconbtn{color:#7d8c9b;font-size:11px}.ds-t{display:block;font-size:13px}.ds-s{display:block;font-size:11.5px;color:#8b9bab}.ds-fmt{width:96px;font-size:10.5px;color:#7d8c9b;letter-spacing:.05em}.ds-tracks .is-playing .ds-t,.ds-tracks .is-playing .ds-iconbtn{color:#d8963f}"
+    },
+    {
+      "name": "Capacity Gauge",
+      "kind": "meter",
+      "refersTo": "gauge",
+      "description": "The water's whole world. Its height IS total capacity, so --used and --pending resolve against it. overflow:hidden lets the water be translated rather than scaled without escaping the band. Nothing inside it is text, which is the point: the waterline can never cross a row again. Measured 10.6 / 46.2 / 116.2 / 132px at 8 / 35 / 88 / 100%.",
+      "html": "<div class=\"ds-gauge\" style=\"--used:35%\"><div class=\"ds-water\"></div><span class=\"ds-pending\" style=\"--pending:6%\"></span></div>",
+      "css": ".ds-gauge{position:relative;height:132px;overflow:hidden;background:#101f2e}.ds-water{position:absolute;inset:0;height:100%;transform:translateY(calc(100% - var(--used,0%)));background:linear-gradient(to bottom,#16283a,#0a1622 60%,#060e17);transition:transform 900ms cubic-bezier(.22,.61,.36,1)}.ds-water::before{content:'';position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,rgba(74,140,190,.2),#4a8cbe 25%,#4a8cbe);box-shadow:0 6px 12px -4px rgba(74,140,190,.32)}.ds-pending{position:absolute;left:0;right:0;bottom:var(--used,0%);height:max(2px,var(--pending,0%));background:repeating-linear-gradient(-45deg,rgba(74,140,190,.20) 0 4px,rgba(74,140,190,.07) 4px 8px);border-top:1px dashed rgba(74,140,190,.5)}"
+    },
+    {
+      "name": "Selection Bar",
+      "kind": "toolbar",
+      "refersTo": "wallbar",
+      "description": "Appears above the wall's list when anything is ticked. Opaque --d3, because the destructive control lives here and its ratio must be a property of this rule rather than of whatever veil a row is wearing. The readout takes its own line: the wall is 300px and the count is three clauses long. Stub sizes are skipped rather than added as zeros — the watch never reported one.",
+      "html": "<div class=\"ds-wallbar\"><p class=\"ds-wallbar-n\">3 selected · 41.2 MB (2 files) · 1 unreadable, size unknown</p><button class=\"ds-btn2 ds-sm\">Clear</button><button class=\"ds-danger ds-sm\">Delete from watch</button></div>",
+      "css": ".ds-wallbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px 10px 18px;background:#0a1622;border-top:1px solid rgba(226,236,247,.058);border-bottom:1px solid rgba(226,236,247,.058)}.ds-wallbar-n{flex:1 1 100%;font-size:11.5px;color:#8b9bab}.ds-sm{padding:5px 11px;font-size:11.5px;border-radius:6px;font:590 11.5px/1.45 -apple-system,system-ui,sans-serif}.ds-btn2{color:#e3eaf2;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078)}.ds-danger{margin-left:auto;background:transparent;border:1px solid rgba(226,236,247,.40);color:#d9634f}.ds-danger:hover{background:transparent;border-color:#8b9bab}"
+    },
+    {
+      "name": "Delete Confirmation",
+      "kind": "group",
+      "refersTo": "confirm",
+      "description": "Inline, above the list, never a modal — 'Never Cover The Number' forbids anything floating over the capacity readout, and the free-space figure is what someone deciding whether to delete wants in view. Opaque --notice-ground: --alert 4.77:1, --ink-dim 6.02:1, --ink 14.14:1. role=\"group\", NOT \"alertdialog\": being non-modal is correct here, but a dialog role with no aria-modal, no focus trap and no inert background let Tab walk straight out into the wall's checkboxes, announcing something the strip is not. Focus lands on 'Keep them'; Escape cancels and returns focus to the Delete button. The body is the part that scrolls in a short window, so the two buttons are never below the fold. Three copies, because a broken stub is not a file and a journal row with nothing behind it is not a deletion at all. The stub copy leads with the record rather than a probability — tag \"Your watch has always refused this\", button \"Ask anyway\" — because docs/garmin-mtp.md §6 has every DeleteObject against a stub handle coming back Protocol GeneralError, and \"it has refused before\" would invite the user to expect otherwise. The readable-file copy leads with the count AND the weight, both observed: with select-all it used to read \"A, B, C and 19 more\", never stating 22 and never stating the bytes at all, though the bar one line up was already showing them. It says \"your watch reports these as X\", never \"this will free X\" — the prediction belongs to the report after the fact, where the number is the device's own answer. Both buttons carry aria-describedby=\"dc-tag dc-body\": a description on a role=group container is not reliably announced, and focus opens on 'Keep them', so without it a screen-reader user could tab to Delete and commit the app's one irreversible action having never heard the count, the byte total or 'Pelican cannot undo this'. Dropping alertdialog was right on the focus-trap grounds; it removed the only role that would have spoken the body on open.",
+      "html": "<div class=\"ds-confirm\" role=\"group\" aria-labelledby=\"dc-tag\"><p class=\"ds-confirm-tag\" id=\"dc-tag\">This cannot be undone</p><p class=\"ds-confirm-body\" id=\"dc-body\"><strong>6 files</strong> — <strong>24.0 MB</strong>, including <strong>01 - Iva Davies, 02 - Great Southern Land and 4 more</strong>. They will be removed from your watch’s storage. Pelican cannot undo this, and the watch has no trash. Your copies on this Mac are not touched. Free space now: <strong>2.41 GB</strong>. Removing them frees that space — but it may not clear the tracks from the watch’s music app. The one time this was tried, the app still listed everything, and Pelican has no way to reach that list. Pelican will tell you what changed.</p><div class=\"ds-confirm-acts\"><button class=\"ds-btn2 ds-sm\" aria-describedby=\"dc-tag dc-body\">Keep them</button><button class=\"ds-danger ds-sm\" aria-describedby=\"dc-tag dc-body\">Delete</button></div></div>",
+      "css": ".ds-confirm{display:flex;flex-direction:column;padding:12px 18px 14px;background:#191b25;border-top:1px solid rgba(217,99,79,.34);border-bottom:1px solid rgba(217,99,79,.34)}.ds-confirm-tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:640;color:#d9634f}.ds-confirm-body{margin-top:5px;font-size:11.5px;color:#8b9bab;overflow-y:auto}.ds-confirm-body strong{color:#e3eaf2;font-weight:590}.ds-confirm-acts{display:flex;gap:8px;margin-top:10px}.ds-sm{padding:5px 11px;font-size:11.5px;border-radius:6px;font:590 11.5px/1.45 -apple-system,system-ui,sans-serif}.ds-btn2{color:#e3eaf2;border:1px solid rgba(226,236,247,.105);background:rgba(226,236,247,.078)}.ds-danger{background:transparent;border:1px solid rgba(226,236,247,.40);color:#d9634f}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Two rules. It never lives in a row — only on an opaque ground, so its contrast is a property of its own rule (--d3 5.08:1, --notice-ground 4.77:1; a selected row is 3.80:1 and a hovered one 4.12:1). And it never tints its own ground — an alert-hued 10% wash drops those to 4.60 and 4.28, so hover moves the border to --ink-dim (6.41:1 / 6.02:1) instead. The word carries the meaning, so 'colour never signals alone' holds without a fill.",
+      "html": "<button class=\"ds-danger2\">Delete from watch</button>",
+      "css": ".ds-danger2{font:590 11.5px/1.45 -apple-system,system-ui,sans-serif;padding:5px 11px;border-radius:6px;background:transparent;border:1px solid rgba(226,236,247,.40);color:#d9634f}.ds-danger2:hover{background:transparent;border-color:#8b9bab}.ds-danger2:focus-visible{outline:2px solid #d8963f;outline-offset:2px}"
+    },
+    {
+      "name": "Arrangement Chip",
+      "kind": "toggle",
+      "refersTo": "chip",
+      "description": "A segmented view toggle over a set that does not change: same files, differently ordered. Distinct from the rail's .nav on purpose — the rail switches WHAT the library shows you and is navigation; this switches HOW one fixed list is arranged. State lives in aria-pressed, not in a class. Files is the default and stays the default: it is the order list_dir('Music') returned, and the panel opens on the device's answer rather than on Pelican's memory of it. --ink-dim on --d3 6.41:1; pressed, --ink on the #1b2733 composite 12.51:1; --edge border 3.40 / 3.27.",
+      "html": "<div role=\"group\" aria-label=\"Arrange the list\" style=\"display:flex;gap:4px\"><button class=\"ds-chip\" aria-pressed=\"true\">Files</button><button class=\"ds-chip\" aria-pressed=\"false\">Album</button><button class=\"ds-chip\" aria-pressed=\"false\">Artist</button></div>",
+      "css": ".ds-chip{font:590 11px/1.45 -apple-system,system-ui,sans-serif;padding:4px 9px;border-radius:6px;border:1px solid rgba(226,236,247,.40);background:transparent;color:#8b9bab}.ds-chip:hover{color:#e3eaf2}.ds-chip[aria-pressed=\"true\"]{background:rgba(226,236,247,.078);color:#e3eaf2}"
+    },
+    {
+      "name": "Missing-tag Notice",
+      "kind": "status",
+      "refersTo": "prewarn",
+      "description": "Shown at selection time, before sending — never mid-transfer. It names the field that is actually absent. It used to read one boolean (title.is_some() && artist.is_some()) and expand it back into two claims — a heading saying tracks \"need a title\" and a body saying named files \"have no title or artist\" — which were false about every file with a title and no artist, false about every file Pelican could not open, and contradicted by the row four lines above, which was already showing a title. The DTO now carries readable, hasTitle and hasArtist separately. A file the parser could not open gets its own sentence and no claim about its tags at all, because Pelican has no evidence about them and \"untagged\" would send the owner to fix the wrong thing. Files are named by title where they have one and by filename only where they do not. A permanently disabled \"Add tags…\" button used to sit in the grid's second column; it had no handler and no command behind it and is gone, so the track collapses and the body takes the full width — the remedy is named in prose instead. Ground is a 7% alert tint over --air (#1b1b25): --alert tag 4.75:1, --ink-dim body 5.99:1, --ink names 14.08:1.",
+      "html": "<div class=\"ds-prewarn\" role=\"status\"><p class=\"ds-prewarn-tag\">1 track needs a title and an artist · 1 track needs an artist · 1 file could not be read</p><p class=\"ds-prewarn-body\"><strong>06_Sea of Thieves.wav</strong> has no title and no artist. <strong>Titled No Artist</strong> has no artist. They will copy across, but the watch’s music app lists only files carrying both a title and an artist. Add the missing tags in whatever tagger you use, then Rescan. <strong>07 broken.flac</strong> could not be read by Pelican — the file may be truncated or corrupt, so nothing is known about its tags.</p></div>",
+      "css": ".ds-prewarn{width:460px;padding:10px 12px;border-radius:6px;border:1px solid rgba(217,99,79,.32);background:rgba(217,99,79,.07);font:400 11.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-prewarn-tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:640;color:#d9634f;margin:0}.ds-prewarn-body{margin:4px 0 0;font-size:11.5px;color:#8b9bab}.ds-prewarn-body strong{color:#e3eaf2;font-weight:590}"
+    },
+    {
+      "name": "Delete Report",
+      "kind": "status",
+      "refersTo": "dreport",
+      "description": "What the delete actually did, in the slot the confirmation just vacated. The constructive path gets a card, a meter, a breakdown, per-file notices and a dismiss button; delete emitted Deleted { ok, failed } and the UI threw it away — 22 files gone, 78.5 MB returned, and the screen silent. Only measured quantities go in it: the engine's own tallies, and the free figure from the snapshot before and the snapshot after, never a total the app computed from the sizes it thought it was deleting. Then one caveat phrased from docs/garmin-mtp.md §8 without picking between its two open models; the single flat assertion is about this codebase, not the device. Same opaque --notice-ground as the confirmation but --hairline rims, because this reports rather than alarms and Signal Red stays spent on its three documented conditions. --ink-dim body and tag 6.02:1, --ink figures 14.14:1. It takes focus on appearing — hiding the confirm while focus was on the Delete button inside it dropped a keyboard user on <body> straight after the one irreversible action in the app — and because programmatic focus fires :focus and not :focus-visible, the brass ring is drawn explicitly. Dismissed by its button, by Escape, and by the next change to the selection.",
+      "html": "<div class=\"ds-dreport\" role=\"status\" tabindex=\"-1\"><p class=\"ds-dreport-tag\">6 files removed</p><p class=\"ds-dreport-body\"><strong>6 files</strong> removed from your watch’s storage. Free space went from <strong>2.41 GB</strong> to <strong>2.43 GB</strong>. Your watch’s music app may still list them. Pelican removed the files; it has no operation that touches the watch’s own library, and the one time this was measured the app went on listing every track.</p><button class=\"ds-btn2 ds-sm\">Dismiss</button></div>",
+      "css": ".ds-dreport{width:280px;padding:12px 18px 14px;background:#191b25;border-top:1px solid rgba(226,236,247,.105);border-bottom:1px solid rgba(226,236,247,.105);font:400 11.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-dreport-tag{margin:0;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:640;color:#8b9bab}.ds-dreport-body{margin:5px 0 0;font-size:11.5px;color:#8b9bab}.ds-dreport-body strong{color:#e3eaf2;font-weight:590}.ds-dreport .ds-btn2{margin-top:10px}.ds-dreport:focus{outline:2px solid #d8963f;outline-offset:-2px}.ds-sm{padding:5px 11px;font-size:11.5px;border-radius:6px;font:590 11.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif}.ds-btn2{color:#e3eaf2;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.078)}"
+    },
+    {
+      "name": "Select All",
+      "kind": "button",
+      "refersTo": "lib-all / wall-all",
+      "description": "One control per panel, both directions, written from the live count and scoped to what the user can see — the current view in the library, the whole listing in the wall. The library had no bulk gesture at all across up to 2000 rows while the wall, holding far fewer, had a tri-state group header that does not even exist in the default Files arrangement. The library's takes the slot a permanently disabled \"Add to playlist\" occupied, swapping a dead control for a live one rather than adding a fourth thing to the hero's action row; it is a .btn, label --ink on --air 14.99:1, --edge border 3.94:1 outside its fill and 3.26:1 inside. The wall's is a .linkbtn in .wall__head, --ink-dim on --d3 6.41:1, underlined so it is not identified by colour alone, beside the separate stubs link that selects a narrower set with a different confirmation. Both mutate the selection Set and repaint once — never by dispatching N synthetic change events, which is what made the old stubs link quadratic. Unsendable rows are excluded from the count and from the gesture.",
+      "html": "<button class=\"ds-btn\">Select all 47</button> <button class=\"ds-btn\">Select none</button><span class=\"ds-wallhead\"><span class=\"ds-count\">6 tracks aboard</span> <span class=\"ds-sep\">·</span> <button class=\"ds-linkbtn\">select all 6</button></span>",
+      "css": ".ds-btn{font:590 12.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:8px 16px;border-radius:6px;color:#e3eaf2;border:1px solid rgba(226,236,247,.40);background:rgba(226,236,247,.078)}.ds-wallhead{display:block;margin-top:14px;padding:8px 12px;background:#0a1622;border-radius:6px;font:400 11.5px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:#8b9bab}.ds-sep{color:#8b9bab}.ds-linkbtn{font:inherit;padding:0;background:none;border:0;color:#8b9bab;text-decoration:underline}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Fjord",
+    "overview": "Pelican is a cold blue-black room with one absolute horizontal in it. The ground (`#070c13`) is fjord water seen from above; every surface in the app sits at a stated depth in that water, and depth is the only spatial idea the system has. Above the waterline is `--air` — the library, where you browse your own music. The water itself is confined to a fixed 132px gauge between the watch's track list and its capacity readout, whose height *is* total capacity; it is no longer a fill behind the whole panel, because at any level below 100% its 1px line and its bloom cut horizontally through the track rows. Below it are `--d1` through `--d4`, each colder, darker and denser than the last, ending at the player bar, which is the deepest surface on screen. One warm value, brass (`#d8963f`), is the low sun on the water; it appears on the active state and the primary action and nowhere else.\n\nThe register is Scandinavian restraint: the craft lives in the joinery — a 1px waterline with a bloom that falls only downward, a hairline that is 5.8% ink and not a border-coloured line, a scrollbar drawn rather than inherited — and there is no applied ornament anywhere. Nothing is decorated to look designed. The density is a desktop utility's: 13px body, 46px titlebar, 66px player, rows at 7px vertical padding. It reads like a native Mac tool because it is built out of the same materials one is: the system type stack, no bundled asset, no raster of any kind.\n\nThe product's promises are load-bearing on the visuals. Nothing leaves the machine, which means no webfont, no remote image, no telemetry pixel; the frontend is vanilla HTML/CSS/JS with no framework and no bundler, so the system has to be expressible in one stylesheet and custom properties on `:root`. And the app ships zero rasters: album art is a code-drawn frame, filled at play time from a picture embedded in the user's own file. The fill is a data: URL because the CSP is img-src 'self' data: and asset: is in media-src only; reaching for asset: there is a silent block. A file with no picture leaves the frame a frame — nothing is substituted. The measured comp spec records 10 regions and 0 plates.",
+    "keyCharacteristics": [
+      "Depth as the only spatial metaphor; five named grounds, no shadow ladder.",
+      "One absolute horizontal — the waterline — as the only structural rule, with a stated range: it travels within the gauge and never crosses type.",
+      "Exactly one warm value, reserved; everything else is blue-black and ink.",
+      "Colour never signals alone; every state also says its name in words.",
+      "No shipped rasters, no bundled fonts, no icon font: SVG paths and CSS.",
+      "Container queries, not media queries — this is a window, not a viewport.",
+      "One thing moves with intent (the water); nothing loops or pulses at rest.",
+      "Two navigation vocabularies, deliberately distinct: `.nav` in the rail switches what the library shows you; `.chip` in the wall switches how one fixed list is arranged."
+    ],
+    "rules": [
+      {
+        "name": "The One Warm Value Rule",
+        "body": "Brass marks the active state and the primary action. It is never a hover colour, never a heading colour, never a border on something inert. If a second thing on screen wants to be brass, one of them is not actually the primary action.",
+        "section": "colors"
+      },
+      {
+        "name": "The Word With The Colour Rule",
+        "body": "No state is carried by hue alone. Red appears only alongside its sentence; the connection dot only alongside the word `connected` or `no watch found`; over-capacity turns red *and* changes its text to `… too much`. Test: convert the screen to greyscale — if a state became unreadable, the state is under-built.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ground You Actually Sit On Rule",
+        "body": "A contrast ratio is measured against the composite an element renders over, not against the token named in its parent's rule. Three failures in this build came from measuring against the wrong ground: `--alert` inside `.notice` inside a translucent `.transfer` read 5.06:1 on paper and 4.18:1 on the real three-layer composite; `--ink-faint` in the rail read 5.28:1 on `--air` and 4.09:1 on `--surface-2` over the rail gradient; the capacity readout read fine until `.water`'s `--d1` stop rose behind it at 4.18:1 (the gauge has since taken that ground away entirely). Two more were caught in review: the channel's `.group` rows were quoting the rail's `#1b2634` hover composite when `.channel` inherits `--air` and composites to `#17202c`, and `--edge` on a filled control was quoted against bare panel colour when a border-box border is painted over the control's own fill. Where a stack cannot be pinned down — the transfer card floats over scrolling album art — give the element an opaque ground and the question stops being open.",
+        "section": "colors"
+      },
+      {
+        "name": "The Deeper Is Colder Rule",
+        "body": "A surface's colour states its depth. Moving a panel down the ladder means moving it toward `#060e17`; there is no lighter- means-nearer inversion anywhere in the system.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Family Rule",
+        "body": "There is no display face and no mono face. Hierarchy is made from weight (400 / 590 / 640 / 660), size, and ink tier — never from a second family. A bundled webfont is a network promise this product does not make.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Number Rule",
+        "body": "Any numeral a user might compare against another numeral carries `font-variant-numeric: tabular-nums`. In practice that is every number in the app.",
+        "section": "typography"
+      },
+      {
+        "name": "The Measure Rule",
+        "body": "Prose blocks are capped at 34ch (album credits, the disconnected explanation). Nothing in this app is long-form; if a string needs more than 34 characters of width, it is data, not prose.",
+        "section": "typography"
+      },
+      {
+        "name": "The Window Not Viewport Rule",
+        "body": "Every breakpoint in this system is `@container shell (max-width: …)`. Adding a `@media (max-width: …)` layout rule is a defect: it makes the app answer to the display instead of to itself.",
+        "section": "layout"
+      },
+      {
+        "name": "The Nothing Unreachable Rule",
+        "body": "No breakpoint may remove a navigation target. Panels may re-flow, re-orient or scroll; they may not disappear with their contents. Content that is duplicated elsewhere (the rail's playlist note) may be dropped; content that is unique may not.",
+        "section": "layout"
+      },
+      {
+        "name": "The Tonal Depth Rule",
+        "body": "New surfaces take a depth from the ladder; they do not take a shadow. If a panel needs to read as further away, it moves toward `#060e17`, not under a blur.",
+        "section": "elevation"
+      },
+      {
+        "name": "The One Luminous Object Rule",
+        "body": "The waterline is the only thing in the app that emits light, and it lights downward only. No second glow, no accent bloom, no brass halo, and no light cast up into the air where text lives.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Floor Under The Glass Rule",
+        "body": "A translucent surface that can float over arbitrary content gets an opaque or near-opaque base beneath its blur. Glass is a look, not a contrast strategy; without a floor, every ink on the panel inherits its ratio from whatever scrolls behind it.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Never Cover The Number Rule",
+        "body": "Floating surfaces are docked with explicit insets that clear the capacity readout. A transient panel may cover the library; it may never cover the fact that is changing.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "Structural separation is a 5.8%-ink 1px line. Not a grey, not a `--border` colour, not a 2px rule, and never two lines where the tonal step already separates the panels.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Scale Has A Floor Rule",
+        "body": "6 / 10 / 14 governs anything with an interior. An element smaller than about 16px in its short dimension takes a radius from its own geometry instead, and that exception is registered rather than assumed. Adding a fifth off-scale radius means registering it too, or it is drift.",
+        "section": "shapes"
+      },
+      {
+        "name": "The No Applied Ornament Rule",
+        "body": "No borders that do not separate, no gradients that do not describe depth, no rounded corner larger than 14px, no decorative divider. If a shape is not doing structural work, remove it.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do place a new surface on the depth ladder (`--air`, `--air-2`, `--d1`–`--d4`) and let its colour state how deep it is.",
+      "Do use the two white veils (4.8% / 7.8%) for raised and current states. Edge tokens come in three and the distinction is contrast, not taste: 5.8% structural, 10.5% for the transfer card's firmer rim and a disabled control's border, and --edge at 40% for the boundary of any control that draws a box — labelled buttons included, not just tick boxes. Only the last measures over 3:1. Two things sit outside that set on purpose: the cover frame's inline rgba(226,236,247,.09) rim, which belongs to the drawn object rather than to the border system, and the borderless controls (.iconbtn, .linkbtn, .nav), whose glyph or underline carries the affordance because there is no box to put an edge on.",
+      "Do pair every colour-carried state with its word, and check the screen in greyscale before calling it done.",
+      "Do keep --ink-faint at #7d8c9b; the 5.28:1 ratio is the reason it is that value. Its shipped floor is 4.75:1 on a hovered library row (#17202c).",
+      "Do write new breakpoints as `@container shell (max-width: …)`.",
+      "Do mark comparable numerals `.num`.",
+      "Do draw new icons as inline SVG paths in the sprite, `fill/stroke: currentColor` at 15×14 (17×16 large), stroke-width 1.4, round caps.",
+      "Do keep prose blocks at or under 34ch.",
+      "Do register an off-scale radius in `.impeccable/config.json` when an element is too small for the 6/10/14 scale, rather than letting it pass unremarked.",
+      "Do animate colour and background at 120ms, state arrivals at 260ms, and reserve 900ms for the water alone."
+    ],
+    "donts": [
+      "Don't put brass on anything that is not the primary action or the active state — not on hover, not on a heading, not on a border.",
+      "Don't add a drop shadow to convey elevation; the cover lift is the only one, and depth is tonal.",
+      "Don't introduce a second font family, a webfont, or an icon font. The no-network promise and the auditable dependency surface both depend on it.",
+      "Don't ship a raster. Album art is a code-drawn frame filled from the user's own files at runtime; the build records 0 plates and should stay there.",
+      "Don't make the pending band a child of `.water`: its percentage height resolves against the water's own height, so the band shrinks as the watch empties. It is a fraction of total capacity, so it measures against the wall.",
+      "Don't animate `.water` by scaling or by compressing the gradient into a short box. It is full-height and translated; that is what keeps the waterline exactly 1px and the depth ramp truthful at low levels.",
+      "Don't claim a contrast ratio against a parent's declared colour when the element renders over a composite. Measure the stack, or make the ground opaque.",
+      "Don't put a translucent surface over content you do not control without a floor under the blur.",
+      "Don't use `pointer-events: none` to disable a control; opacity plus a stated reason.",
+      "Don't let a floating panel cover the capacity readout.",
+      "Don't remove a navigation target at a breakpoint. Re-flow it.",
+      "Don't invent placeholder numbers. Capacities, counts, sizes and formats are read from the device and the user's files; a fabricated value in this app is a lie about their hardware.",
+      "Don't add anything that loops, pulses or breathes at rest.",
+      "Don't put a reason on a control that cannot be reached to read it. A disabled button is not focusable, so a refusal explained in a title is explained to the pointer only. Inoperable AND something to say means aria-disabled plus aria-describedby, with the handler enforcing the refusal — and anything that filtered on .disabled moves with it.",
+      "Don't carry a hedge past the evidence that retires it. Understating a measured result is the same failure as overstating one. Record the observation first — device, firmware, date, and what stays out of scope — then remove the hedge everywhere it was stated.",
+      "Don't hang the sentence that justifies an irreversible action off a container. A description on a role=group is not reliably announced; put it on every button that can commit or cancel.",
+      "Don't ship a control that no code path can enable. A greyed button reads as \"available under some condition you have not met\", not as \"never implemented\". Three went by this rule: an \"Add tags…\" button hard-coded disabled with no id, no handler and no command behind it, sitting under a sentence that was itself wrong about the file, which is what made the false claim read as an accusation with a remedy attached; \"Add to playlist\", whose slot the library's select-all now holds; and the rail's \"New playlist\", which was the test of whether this is a rule or an excuse — pre-existing, not part of the change that wrote the rule, and three lines below a .rail__note already explaining that Pelican has no playlists and the watch would refuse one over USB anyway. A rule that exempts what was already there is a preference. Name the remedy in prose: it costs no pixels and promises nothing.",
+      "Don't state an unstamped device claim as a rule. The tag notice's closing sentence rests on one line of docs/garmin-mtp.md's Storage layout — the only strong device claim in that file carrying no provenance, added 2026-05-03 in a bulk docs commit with no firmware, no date and no record of what was measured, where §6, §7 and §8 each name a device, a firmware and a run. §8 then showed the music app listing 22 entries whose objects were already gone from /Music, so what the app lists is not a function of what /Music holds. The copy may not say the app \"lists only\" files carrying both tags; the word that makes it a rule is \"only\". It says the shape of the evidence instead: such a file has not been seen to appear there. A sentence may be no stronger than the strongest thing the doc it cites actually wrote down."
+    ]
+  }
+}

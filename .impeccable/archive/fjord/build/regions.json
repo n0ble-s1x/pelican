@@ -1,0 +1,65 @@
+{
+  "regions": [
+    {
+      "id": "titlebar",
+      "kind": "chrome",
+      "grid": "A0:J0",
+      "note": "traffic lights, device name with connection dot, wordmark right"
+    },
+    {
+      "id": "sources-rail",
+      "kind": "chrome",
+      "grid": "A1:A9",
+      "note": "sources and playlists navigation; hairline right edge"
+    },
+    {
+      "id": "cover-frame",
+      "kind": "chrome",
+      "grid": "B1:B2",
+      "note": "square frame with hairline border and inner highlight, drawn in CSS. Pelican ships no rasters: what fills this frame is read from the user's own audio files at runtime, so there is no plate to generate.",
+      "codeDrawn": true
+    },
+    {
+      "id": "album-hero",
+      "kind": "text",
+      "grid": "C1:F2",
+      "note": "eyebrow, album title at display size, credits, facts line with tabular figures"
+    },
+    {
+      "id": "hero-actions",
+      "kind": "control",
+      "grid": "G1:G2",
+      "note": "Add to playlist (secondary) and Send N tracks (primary, the only brass fill on screen)"
+    },
+    {
+      "id": "track-list",
+      "kind": "text",
+      "grid": "B3:G8",
+      "note": "track rows: play affordance, title, duration, format badge, selection checkbox"
+    },
+    {
+      "id": "watch-wall",
+      "kind": "text",
+      "grid": "H1:J5",
+      "note": "what is aboard the watch; heading plus rows with art thumb, title, album, size"
+    },
+    {
+      "id": "waterline",
+      "kind": "chrome",
+      "grid": "H5:J6",
+      "note": "the signature move. One value #4a8cbe, 1px, with a soft bloom; the strongest value change in the app. Below it the fill gradient d1 to d4. Height is the fraction of capacity used."
+    },
+    {
+      "id": "capacity",
+      "kind": "text",
+      "grid": "H8:J8",
+      "note": "free space at display size with tabular figures, then the plain-language line: how much more music will fit"
+    },
+    {
+      "id": "player",
+      "kind": "control",
+      "grid": "A9:J9",
+      "note": "transport, now-playing with art thumb, scrubber, format badge; full width, deepest surface"
+    }
+  ]
+}

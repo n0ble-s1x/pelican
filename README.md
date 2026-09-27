@@ -1,19 +1,25 @@
 <h1 align="center">Krypteia · Pelican</h1>
 
 <p align="center">
-  <strong>Sync your music to a Garmin watch on Linux. Without renting it from anyone.</strong>
+  <strong>Your music on your Garmin watch. No account, no cloud, no vendor app.</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/n0ble-s1x/pelican"><img src="https://img.shields.io/badge/github-n0ble--s1x%2Fpelican-0b0b0b?style=flat-square&logo=github" alt="GitHub repo" /></a>
-  <a href="https://github.com/n0ble-s1x/pelican/releases"><img src="https://img.shields.io/github/v/release/n0ble-s1x/pelican?style=flat-square&include_prereleases&color=0b0b0b" alt="Release" /></a>
-  <img src="https://img.shields.io/badge/rust-1.85%2B-0b0b0b?style=flat-square&logo=rust" alt="Rust 1.85+" />
-  <img src="https://img.shields.io/badge/platform-Linux-0b0b0b?style=flat-square&logo=linux" alt="Platform: Linux" />
+  <img src="https://img.shields.io/badge/rust-1.89%2B-0b0b0b?style=flat-square&logo=rust" alt="Rust 1.89+" />
+  <img src="https://img.shields.io/badge/platform-Linux-0b0b0b?style=flat-square" alt="Platform: Linux" />
   <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-0b0b0b?style=flat-square" alt="License: MIT OR Apache-2.0" /></a>
   <img src="https://img.shields.io/badge/telemetry-zero-16a34a?style=flat-square" alt="Zero telemetry" />
 </p>
 
-A small Rust tool — single static binary, no webview, no daemon, no telemetry — that drops music files onto a Garmin watch over USB/MTP. It exists because Garmin Express is Windows/Mac only, the Linux MTP stack is fragile, and we shouldn't have to choose between owning our media and using the platform we want.
+Pelican takes the music on your computer, converts it to a format Garmin
+watches reliably play, sends it to the watch over USB, and proves every file
+arrived intact. **No account, no daemon, no telemetry, and no network access.**
+
+It exists because every path Garmin offers runs through a Garmin account.
+Garmin Express is Windows and macOS only and wants you signed in; on Linux
+there is no vendor tool at all, and the generic MTP tools lose or corrupt
+files on these watches. Owning your music should not mean renting the cable.
 
 A [Krypteia](https://github.com/n0ble-s1x) project.
 
@@ -46,231 +52,371 @@ For the record: we're not affiliated with Garmin.
 
 ---
 
-## Features
+## What Pelican does
 
-### Music handling
+Pelican puts music on the watch, and proves it got there.
 
-- Direct upload of **MP3, M4A, M4B, AAC, WAV** — Garmin's native formats
-- Auto-transcode of **FLAC, OGG, Opus, WMA, AIFF, ALAC, APE, WV** → CBR 192 kbps MP3 via `ffmpeg`
-- Strict **ID3v2.3 tag rewrite** — only `title / artist / album / track / date / genre` (Garmin's indexer silently rejects non-standard frames)
-- **Album-artist normalization** — multi-composer albums (soundtracks, classical) group as one album in the watch's library
-- **Filename sanitization** — 56-char cap and FAT-hostile-character stripping (Garmin firmware silently drops longer/exotic names)
-- **Streaming uploads** — chunks read lazily from disk; no full-file buffer
+<p align="center">
+  <img src="docs/images/watch.png" alt="Pelican's first screen: the connected watch as a dive-watch silhouette in ink, its bezel arc showing free space, the model name in wide capitals, and one action, Choose music" width="820" />
+</p>
 
-### Watch interaction
+It is a desktop app (and a command-line tool over the same core). A send is
+four steps — **Watch → Choose → Review → Send**:
 
-- **Three-pane GUI** (egui/eframe) — LOCAL · ACTIONS · WATCH, drag-drop both intra-app and from your file manager
-- Headless **CLI** for scripting and CI
-- **Per-handle delete** including broken stubs from prior failed uploads
-- **GVFS-mount detection** — refuses to start if another MTP backend is holding the device
-- **Per-device upload journal** in `$XDG_DATA_HOME/pelican/`
+1. **Watch.** Plug the watch in. Pelican shows which watch it is, how much
+   room is left, and how many tracks it holds of Garmin's 500.
+2. **Choose.** Browse your music in a folder explorer — home, your music
+   folder, network shares (a NAS) and removable drives are listed; tick whole
+   folders or single songs. Or drop folders onto the window. No paths to type.
+3. **Review.** Every track, the tags it will carry, its size, and whether it
+   all fits — before anything touches the watch. Set artist, album, genre or
+   year for the whole send if the files lack them.
+4. **Send.** Each track is converted, sent, read back and checked. The list
+   rolls up like credits as each one is proven, or says plainly why it failed.
 
-### Privacy
+<p align="center">
+  <img src="docs/images/review.png" alt="The Review step: each track with its tags and estimated size, a Fits notice, fields to set artist, album, genre or year for every track, and the permanence line above the Send button" width="410" />
+  <img src="docs/images/send.png" alt="The Send step: tracks rising like film credits, verified ones marked with the start of their hash, a failed one pinned with its reason, and a Stop after this track button" width="410" />
+</p>
 
-- **Zero telemetry.** Pelican phones home to nothing.
-- **No internet access required** — everything runs locally.
-- **No daemon, no background service.** Runs only when you run it.
-- **Reproducible builds** via checked-in `Cargo.lock`.
-- **Dependency surface kept narrow** and audited.
+Under the hood, every send:
+
+- **Transcodes to one proven profile.** FLAC, WAV, ALAC, AAC, MP3, OGG, Opus,
+  AIFF, WMA — anything ffmpeg decodes becomes a CBR 192 kbps, 44.1 kHz stereo
+  MP3 with an ID3v2.3 tag. No passthrough: one output format, one thing to get
+  right.
+- **Tags every track.** From the file's own tags, or from your folder layout
+  (`Artist/Album/01 - Title.flac`) where there are none — untagged WAVs from a
+  game soundtrack arrive named and grouped correctly.
+- **Sends each file under a name the watch has never seen.** See
+  [the one rule](#the-one-rule-never-reuse-a-name).
+- **Reads every file back and hashes it.** A track counts as sent only when
+  the bytes on the watch match the bytes Pelican made. A mismatch is retried
+  once under a fresh name, and reported.
+- **Checks space first**, and refuses a send that would overfill the watch or
+  pass 500 tracks — before it writes anything.
+- **Cleans up.** Converted files live in a per-send staging folder under
+  `~/.cache/pelican/` and are gone when the send ends, however it ends. Your
+  source files are only ever read.
+
+### Playlists — sent as albums
+
+The watch will not accept playlist files over USB (the Forerunner 165 rejects
+every format, and each attempt leaves a broken, undeletable entry —
+[`docs/playlists.md`](docs/playlists.md)). So Pelican sends a playlist **as an
+album**: tick songs across any folders, give it a name, press Enter. On the
+watch it appears under **Albums**, in your order — track numbers follow the
+playlist, the album artist is "Various Artists", and each song keeps its own
+title and artist. A song already on the watch goes again as a new copy inside
+the playlist.
+
+<p align="center">
+  <img src="docs/images/playlist.png" alt="Naming a playlist: seven songs from two folders, a name field, and the line On the watch it appears under Albums, in this order" width="820" />
+</p>
+
+### Send again
+
+A track that is already on the watch is skipped by default. **Send again**
+(per track in Review, or for the whole send) puts another copy on the watch
+under a fresh name.
+
+### When something goes wrong
+
+Pelican says what happened and what to do, in plain words: the watch is not
+plugged in, the file manager is holding it, this computer needs the USB rule
+(one button installs it), or **the watch has stopped answering** — which
+happens after a watch reboots, and is fixed by unplugging it, waiting five
+seconds and plugging it back in.
+
+Verified on a Forerunner 165 Music (firmware 2506) on Linux, 2026-09-26: a
+24-track album sent in under a minute, every file hash-verified, confirmed
+again by an independent libmtp read-back, and played on the watch. Details in
+[`docs/status.md`](docs/status.md). Playlists-as-albums, the backup and the
+start-over flow are built and tested against a simulated watch, and are next
+in line for hardware verification.
 
 ---
 
-## Compatibility
+## Nothing comes off the watch — read this before you fill it
 
-| Model                    | Firmware | Status                                                           |
-|--------------------------|----------|------------------------------------------------------------------|
-| Forerunner 165 Music     | 2506     | ✅ Music sync verified end-to-end. Playlist write rejected (see [docs/playlists.md](docs/playlists.md)) |
-| Forerunner 245 / 255 Music | —      | 🟡 Untested but presumed working (same MTP responder family)     |
-| Forerunner 645 Music     | —        | 🟡 Untested. `better-sync` reports working                       |
-| Forerunner 945 / 955 / 965 Music | — | 🟡 Untested. `better-sync` reports working                       |
-| Forerunner 265           | —        | 🟡 Untested                                                      |
-| Venu 2 / 3               | —        | 🟡 Untested. `better-sync` reports working                       |
-| Fenix 5 Plus / 6 / 7 / 8 (music variants) | — | 🟡 Untested                                          |
-| Epix Gen 2               | —        | 🟡 Untested                                                      |
-| Tactix Delta / 7         | —        | 🟡 Untested                                                      |
-| Instinct (any)           | —        | ❌ Not applicable — no on-watch music                            |
+**Once a track is on the watch, it stays in the watch's music library until
+you factory-reset the watch — and a factory reset erases everything on the
+watch, not just music.** Pelican has no delete, on purpose.
 
-**Want a model added to the verified row?** We'll happily make it work — but we need hardware. Send a PR with model-specific quirks if you find any, or [open an issue](https://github.com/n0ble-s1x/pelican/issues) if you can lend a unit for testing.
+This is Garmin firmware behaviour, not a Pelican limitation, and it has been
+reported for years across the Forerunner 245, 265, 645, 945 and 955 and the
+fēnix 6 and 8:
+
+- Deleting a file over USB removes the file and frees the space — but the
+  watch's music library keeps listing the track. The entry survives replug
+  and reboot, and no longer plays. We measured it: 22 files deleted, 78.5 MB
+  freed, all 22 still listed.
+- That library is not reachable over USB. No one has found the file behind it.
+- Garmin Express does not reliably clear these entries either. Garmin's own
+  manual points to Garmin Express or a full reset as the only ways to remove
+  music.
+
+A delete button that frees space but leaves a dead track in your library
+would be a lie with a trash-can icon, so Pelican does not have one. Neither
+the app, the command-line tool nor the library has any delete capability.
+
+**So choose what you send.** The Review step shows exactly what will go
+across, and with which tags, before anything touches the watch.
+
+### Starting over
+
+When you do want a clean watch, **On the watch → Start over** walks you
+through it:
+
+1. **What a reset erases** — activities, sleep and health data, settings,
+   the Garmin Pay wallet, and music.
+2. **Back up first.** One button copies the watch's own `GARMIN` folder
+   (activities, monitoring, sleep, records, settings) to your Documents
+   folder. It only reads from the watch. If you use Agoge or another fitness
+   app, pull your activities into it too.
+3. **Reset the watch** — on the Forerunner 165: hold **UP** → **System** →
+   **Reset** → **Delete Data and Reset Settings**, then confirm. (Not *Reset
+   Default Settings* — that keeps your music.)
+4. **Confirm.** Plug the watch back in. Pelican checks for itself that no
+   music is left before it starts a fresh ledger for the watch; if music
+   remains, it tells you and changes nothing.
+
+<p align="center">
+  <img src="docs/images/reset-1.png" alt="Start over, step one: what a reset erases — activities, health data, settings, Garmin Pay and music — with a Back up first button" width="820" />
+</p>
+
+Also not supported:
+
+- **Real playlists** — see [Playlists — sent as albums](#playlists--sent-as-albums).
+- **Folders inside `/Music`.** The firmware mishandles them; everything goes
+  into `/Music` flat and the watch groups by tag.
+- **Cover art.** It is stripped. Large embedded art makes the watch reject files.
+- **macOS and Windows.** Linux only for now. The earlier macOS port is kept as
+  a tag ([`docs/macos-port.md`](docs/macos-port.md)).
 
 ---
 
-## Install
+## The one rule: never reuse a name
 
-### From source (any distro)
+Sending a file to a name that already exists on a Garmin music watch
+corrupts **both** copies into broken objects that cannot be deleted, and that
+name then fails for every future write — on Linux, macOS and Windows alike
+([libmtp#307](https://github.com/libmtp/libmtp/issues/307); we hit it
+independently). The watch also remembers names that no longer appear as files.
 
-```sh
-# Prerequisites: Rust 1.85+, ffmpeg, libudev
-git clone https://github.com/n0ble-s1x/pelican
-cd pelican
-cargo build --release
+Pelican therefore never reuses a name. Every file goes out as
+`pl00042-Title.mp3`, where the number comes from a per-watch **ledger** —
+`~/.local/share/pelican/ledger-<serial>.jsonl`, an append-only log of every
+name ever sent. A name is written to the ledger *before* the upload begins,
+so even a crash mid-transfer burns it. Every name the watch currently
+reports, including broken ones, is treated as taken too.
 
-# Install the udev rule so you don't need root to talk to the watch
-sudo install -m 644 udev/99-garmin-music.rules /etc/udev/rules.d/
-sudo udevadm control --reload && sudo udevadm trigger
-```
+The ledger also means a track you already sent is skipped next time (Send
+again, or `--resend`, overrides this under a new name). After a factory reset
+and the Start over check, the ledger gains a `reset` line: older names no
+longer count as taken, and the numbering keeps rising.
 
-### Debian / Ubuntu / Pop!_OS (`.deb`)
-
-```sh
-cargo install cargo-deb
-cargo deb --release
-sudo apt install ./target/debian/pelican_*.deb
-```
-
-### Arch Linux (AUR)
-
-A `PKGBUILD` is shipped at [`packaging/aur/PKGBUILD`](packaging/aur/PKGBUILD); AUR submission is planned for the first tagged release.
-
-### Flatpak
-
-A manifest is at [`packaging/flatpak/com.krypteia.Pelican.yaml`](packaging/flatpak/) for distribution-agnostic builds; Flathub submission is planned for v0.2.
+**Keep the ledger.** It is the only memory of which names are safe. It lives
+in your data directory, not on the watch, so back it up with the rest of your
+home folder. If you lose it, Pelican still refuses every name the watch can
+report, but it can no longer see names the watch only remembers.
 
 ---
 
 ## Use
 
-Plug your watch in. Put it in MTP USB mode. Run:
+### The app
 
 ```sh
-pelican
+pelican-app
 ```
 
-Drag a folder of music onto the **WATCH** pane. Watch the green dots. Done.
+Plug in the watch and follow the four steps. The app keeps no settings
+beyond the folder your library opens at.
 
-### Headless / CLI
+### The command line
+
+Everything the app does is also a command:
 
 ```sh
-# Upload an album (transcodes anything Garmin doesn't natively play)
-pelican --copy ~/Music/Album
+# What is plugged in, how full it is, how many names this machine has used
+pelican status
 
-# Upload without transcoding (sources must already be MP3/M4A/AAC/WAV)
-pelican --no-transcode --copy ~/Music/already-mp3
+# Preview: every file and the tags it will get. Converts nothing, touches no watch
+pelican push --dry-run ~/Music/Master\ and\ Commander
 
-# Refuse to upload files missing ID3 title+artist (default: warn + upload)
-pelican --require-tags --copy ~/Music/Album
+# Send it
+pelican push ~/Music/Master\ and\ Commander
+#   verified  pl00031-Ghost of Time.mp3  ← …/02 - Ghost of Time.flac
+#   …
+#   14 verified, 0 skipped, 0 failed
 
-# Delete files by remote path
-pelican --delete "Music/foo.mp3" --delete "Music/bar.mp3"
+# Set tags for a whole send (e.g. a soundtrack whose folder is the album)
+pelican push --artist "Various Artists" --genre Soundtrack "/mnt/nas/Music/Sea of Thieves"
 
-# List existing playlists in /Music
-pelican --list-playlists
+# A playlist, sent as an album, in the order given
+pelican push --mix "Long Run" song1.flac other/song2.flac more/song3.wav
 
-# Pick a specific watch when multiple are attached
-pelican --serial 0000d221c983 --copy ~/Music/Album
+# What is in /Music: each entry marked ledger (sent by Pelican), foreign, or stub (broken)
+pelican ls
+
+# Every name this machine has sent to this watch
+pelican ledger
+
+# Before a factory reset: copy the watch's GARMIN folder (read-only on the watch)
+pelican backup ~/Documents/watch-backup
+
+# After a factory reset: checks /Music is empty, then starts a fresh ledger
+pelican reset-ledger
 ```
 
----
-
-## Tech stack
-
-| Layer                 | Technology                                          |
-|-----------------------|-----------------------------------------------------|
-| Language              | Rust 2021 edition (MSRV 1.85)                       |
-| GUI shell             | [eframe](https://crates.io/crates/eframe) + [egui](https://crates.io/crates/egui) 0.34 (glow + Wayland + X11) |
-| MTP transport         | [`mtp-rs`](https://crates.io/crates/mtp-rs) 0.13 over [`nusb`](https://crates.io/crates/nusb) 0.2 (pure Rust, no libusb) |
-| Audio decode/inspect  | [`id3`](https://crates.io/crates/id3) 1.14, [`mp4ameta`](https://crates.io/crates/mp4ameta) 0.13 |
-| Audio normalization   | `ffmpeg` shell-out (system dep) — libmp3lame, ID3v2.3 |
-| CLI                   | [`clap`](https://crates.io/crates/clap) 4.5 derive  |
-| Async runtime         | [`tokio`](https://crates.io/crates/tokio) 1 (current-thread, used only for MTP transport) |
-| Logging               | [`tracing`](https://crates.io/crates/tracing) + env-filter subscriber |
-| Persistence           | `serde_json` (per-device upload journal)            |
-| Build outputs         | static-ish binary, single-file install              |
-
-`unsafe` is denied at the crate level (`#![deny(unsafe_code)]`); the only carve-out is a documented `geteuid()` POSIX wrapper in `src/gvfs.rs`.
+`push` exits non-zero if any file failed. With more than one watch plugged
+in, pick one with `--serial`.
 
 ---
 
-## Architecture
+## Compatibility
 
-```mermaid
-flowchart LR
+| Model | Firmware | Status |
+|---|---|---|
+| Forerunner 165 Music | 2506 | ✅ Verified end to end on Linux: transcode, send, hash read-back, plays |
+| Other Garmin music watches (Forerunner 245/255/265/645/945/955/965 Music, Venu, fēnix, epix, tactix) | — | 🟡 Untested. Same MTP responder family, and the library and name-reuse behaviour above is reported on many of them |
+| Watches without on-watch music | — | ❌ Not applicable |
 
-  subgraph ui["UI layer"]
-    gui["src/app.rs<br/>egui three-pane GUI"]
-    cli["src/cli.rs<br/>headless CLI"]
-  end
+**Want a model on the verified row?** Run the [test below](#verifying-a-new-watch)
+and open an issue with the output.
 
-  subgraph pipeline["Transfer pipeline"]
-    transfer["src/transfer.rs<br/>job queue + per-file session"]
-    transcode["src/transcode.rs<br/>ffmpeg normalize + tag rewrite"]
-    playlist["src/playlist.rs<br/>M3U8 serialize/parse"]
-  end
+---
 
-  subgraph backend["MTP backend"]
-    mtp["src/mtp.rs<br/>Backend trait · MtpRsBackend"]
-    garmin["src/garmin.rs<br/>USB device discovery"]
-    gvfs["src/gvfs.rs<br/>conflicting-mount guard"]
-    history["src/history.rs<br/>per-device upload journal"]
-  end
+## Install
 
-  subgraph hw["Hardware"]
-    watch["Garmin watch<br/>USB · MTP responder"]
-  end
+Linux only, built from source for now:
 
-  gui --> transfer
-  cli --> transfer
-  transfer --> transcode
-  transfer --> mtp
-  cli --> playlist
-  cli --> mtp
-  gui --> playlist
-  gui --> history
-  mtp --> garmin
-  mtp -.-> gvfs
-  mtp ==> watch
-
-  click gui "src/app.rs"
-  click cli "src/cli.rs"
-  click transfer "src/transfer.rs"
-  click transcode "src/transcode.rs"
-  click playlist "src/playlist.rs"
-  click mtp "src/mtp.rs"
-  click garmin "src/garmin.rs"
-  click gvfs "src/gvfs.rs"
-  click history "src/history.rs"
+```sh
+# Needs: Rust 1.89+, ffmpeg, libudev, and for the app webkit2gtk-4.1
+# (Arch: pacman -S --needed rustup ffmpeg webkit2gtk-4.1 base-devel)
+git clone https://github.com/n0ble-s1x/pelican
+cd pelican
+cargo build --release -p pelican -p pelican-shell
+sudo install -m 755 target/release/pelican target/release/pelican-app /usr/local/bin/
 ```
 
+On a Wayland session with the NVIDIA driver, WebKitGTK can close at start
+with `Error 71 (Protocol error)`. The app applies Tauri's documented
+workaround (`__NV_DISABLE_EXPLICIT_SYNC=1`) for itself, only in that
+combination, and never over a value you have set.
+
+### One-time USB permission (required)
+
+The watch needs a udev rule so your user can talk to it without root.
+The AUR package (and the `.deb`) install the rule themselves, to
+`/usr/lib/udev/rules.d/`; nothing to do. From a source build, the window
+offers an **Install the USB rule** button when the watch cannot be opened:
+it asks for your password once through polkit, writes this one file to
+`/etc/udev/rules.d/` and reloads udev, and shows exactly what it runs
+before you press it. (Inside a Flatpak it cannot, and shows the command
+instead.) Or do it by hand:
+
+```sh
+sudo install -m 644 udev/70-garmin-mtp.rules /etc/udev/rules.d/
+sudo udevadm control --reload
+sudo udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e
+```
+
+It has to be numbered below 73. systemd grants device access in
+`73-seat-late.rules`, and a rule sorted after that (older Pelican shipped a
+`99-` rule) is silently ignored. The rule also deliberately does not mark the
+watch as an MTP device for your desktop. The watch allows one connection at a
+time, and a file manager that auto-mounts it will block Pelican. If
+the app or `pelican status` warns that the file manager is holding the
+watch, close it or eject the watch from its side bar.
+
+### Packages
+
+An AUR `PKGBUILD` ([`packaging/aur/`](packaging/aur/)) and a Debian package
+config (`cargo deb -p pelican`) are in the tree for the command-line tool;
+neither is published yet, and neither packages the app yet. A Flatpak is
+planned — see [Roadmap](#roadmap).
+
 ---
 
-## Documentation
+## Verifying a new watch
 
-The [`docs/`](docs/) directory is the working notebook for protocol findings and audit trails.
+```sh
+pelican status                       # does it see the watch?
+pelican push --dry-run ONE_ALBUM     # are the tags right?
+pelican push ONE_ALBUM               # every line should say "verified"
+pelican ls                           # new rows marked "ledger", no new "stub"
+```
 
-| Doc                                                  | Contents                                                                  |
-|------------------------------------------------------|---------------------------------------------------------------------------|
-| [`docs/status.md`](docs/status.md)                   | What works, what doesn't, what's blocked. **Start here.**                 |
-| [`docs/garmin-mtp.md`](docs/garmin-mtp.md)           | Protocol reference — IDs, format codes, folder layout, firmware quirks    |
-| [`docs/playlists.md`](docs/playlists.md)             | Playlist sync recipe + 2026-05-03 FR165 probe results                     |
-| [`docs/vendor-ops.md`](docs/vendor-ops.md)           | Garmin vendor MTP opcodes (`0x9000-0x900B`, `0x9810`, `0x9811`)           |
-| [`docs/testing.md`](docs/testing.md)                 | Probe examples, recovery from a wedged USB session                        |
-| [`docs/audit-2026-05-03.md`](docs/audit-2026-05-03.md) | Code audit — fixes shipped, follow-ups                                  |
-| [`docs/research-log.md`](docs/research-log.md)       | Dated entries — links followed, references compared                       |
-| [`docs/references/`](docs/references/)               | Snapshots of external code/threads we relied on                           |
+Then unplug the watch and play a few tracks. Report the model, firmware and
+results in an issue.
 
 ---
 
-## Known limits / open questions
+## How it works
 
-- **MTP playlist write fails on Forerunner 165 Music** (FW 2506). All six tried variants — three path styles × two format codes plus an `#EXTINF` variant — were silently rejected. Older Garmin music watches (FR945, FR255, Venu, FR645) are reported working by upstream `better-sync`. Resolving this needs either a wire-level capture of Garmin Express writing a playlist, or a borrowed older watch to confirm the FR165 firmware delta. See [`docs/playlists.md`](docs/playlists.md). **Help wanted.**
-- **Filename collisions corrupt both files** on the watch when two source files sanitize to the same `remote_name`. Pelican should detect collisions before `SendObjectInfo`; not yet implemented (see [`docs/audit-2026-05-03.md`](docs/audit-2026-05-03.md) finding #4).
-- **Subfolders inside `/Music`** are unreliable on the watch firmware — newly-created subfolders return `Protocol GeneralError` when listed. Pelican flattens by default; `--no-flatten` is opt-in.
-- **macOS** support is possible but not planned. PRs welcome.
-- **Windows** is out of scope — use Garmin Express.
+A Rust workspace with three crates:
+
+- **`pelican-core`**: the library. Source walk and tag resolution, ffmpeg,
+  the ledger and staging folder, the watch backup, and the MTP transfer. The
+  transfer uses [`mtp-rs`](https://crates.io/crates/mtp-rs) and
+  [`nusb`](https://crates.io/crates/nusb), pure Rust with no libmtp and no
+  FFI: one session per send, split-header/data transfers (Garmin's firmware
+  hangs without them), streamed uploads, and a read-back hash per file. The
+  device interface has no delete method.
+- **`pelican-shell`**: the app, a [Tauri 2](https://tauri.app/) window over
+  the core. The interface in `ui/` is plain HTML, CSS and JavaScript — no
+  npm, no framework, no bundler — with its fonts shipped inside it. It can
+  call only the commands the interface uses, under a strict content policy
+  with no network origins.
+- **`pelican`**: the command-line tool.
+
+No daemon, no telemetry, no network access at runtime. `unsafe` is denied
+workspace-wide, with one documented exception for the gvfs ownership check.
+
+The protocol notes behind all of this, including what the watch answers,
+what wedges it and what we tried that failed, are in [`docs/`](docs/):
+
+| Doc | What's in it |
+|---|---|
+| [`status.md`](docs/status.md) | What the current build does, and what was verified on hardware |
+| [`garmin-library-persistence.md`](docs/garmin-library-persistence.md) | The ghost-library problem, community evidence, and the experiments that settled it |
+| [`garmin-mtp.md`](docs/garmin-mtp.md) | Full MTP protocol reference for Garmin music watches |
+| [`rebuild-plan.md`](docs/rebuild-plan.md) | The requirements the current build is held to |
+| [`playlists.md`](docs/playlists.md) | Why playlist writes fail on the FR165 |
+
+---
+
+## Roadmap
+
+- **Hardware verification** of playlists-as-albums, the backup and the
+  start-over flow on a real watch.
+- **Flatpak and AUR packages** for the app, so it installs on any
+  distribution.
+- **More verified watches.** This needs owners willing to run the test above.
+
+Not on the roadmap: delete, real playlists, or anything else the watch
+firmware has not been shown to support.
 
 ---
 
 ## Privacy / security
 
 - Zero telemetry, zero network access at runtime.
-- Per-device journal lives at `~/.local/share/pelican/uploads-<serial>.json`. Nothing leaves the machine.
-- Dependency surface kept narrow and audited.
+- Everything Pelican keeps is in `~/.local/share/pelican/` (the ledger),
+  `~/.config/pelican/` (the folder your library opens at) and
+  `~/.cache/pelican/` (transient staging). A backup goes where you choose,
+  by default under `~/Documents/Pelican/`. Nothing leaves the machine.
+- Dependencies are checked with `cargo deny` and `cargo audit`.
 - Vulnerability reports → [`SECURITY.md`](SECURITY.md).
 
 ---
 
 ## Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md). PRs welcome. Code review happens before merge — for security and quality, not gatekeeping. New device support, packaging help, and the playlist-protocol reverse-engineering listed above are all wanted.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md). PRs welcome, and hardware reports
+from other watch models most of all.
 
 ---
 

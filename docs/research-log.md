@@ -29,8 +29,10 @@ decision. New entries at the bottom.
 
 ### Probe results
 
-`examples/probe_vendor_ops.rs` against FR165 Music FW 2506 (log at
-`target/probe_vendor_ops.log`):
+`examples/probe_vendor_ops.rs` against FR165 Music FW 2506. The probe wrote
+`target/probe_vendor_ops.log`; that file is gone (`target/` is not committed
+and has since been cleaned), so **this table is the record**, not a summary of
+one:
 
 | Op       | Result          |
 |----------|-----------------|

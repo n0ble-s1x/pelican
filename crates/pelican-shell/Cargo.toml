@@ -1,0 +1,38 @@
+[package]
+name = "pelican-shell"
+description = "Pelican's desktop window — a Tauri shell over pelican-core, serving the plain ui/ frontend. No npm, no network."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "pelican-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+pelican-core = { path = "../pelican-core", version = "0.1.0" }
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+# Serve `ui/` from the binary over the `tauri://` protocol, where the CSP is
+# injected. Without it Tauri expects a dev server, and a dev server gets no
+# CSP at all — so it is on by default and there is no dev-server config.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[lints]
+workspace = true

@@ -9,7 +9,8 @@
 //!
 //! `commands.rs` is the IPC surface and says why no command does its work
 //! on the thread it is called on; `device.rs` is the one-session-at-a-time
-//! lock; `dto.rs` is the contract's shapes; `run.rs` is a push.
+//! lock; `dto.rs` is the contract's shapes; `run.rs` is a push; `udev.rs` is the one privileged action, installing
+//! the USB rule through polkit.
 //!
 //! Run it with `cargo run -p pelican-shell`, **not** `cargo tauri dev`: a
 //! dev server is served over http with no CSP, so developing against it
@@ -20,6 +21,7 @@ mod config;
 mod device;
 mod dto;
 mod run;
+mod udev;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -47,6 +49,8 @@ fn main() {
             commands::stop,
             commands::watch_list,
             commands::ledger,
+            commands::udev_rule_status,
+            commands::install_udev_rule,
         ])
         .setup(|app| {
             app.manage(Arc::new(Shell {

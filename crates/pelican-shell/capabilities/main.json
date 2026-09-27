@@ -14,6 +14,8 @@
     "allow-stop",
     "allow-watch-list",
     "allow-ledger",
+    "allow-udev-rule-status",
+    "allow-install-udev-rule",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

@@ -87,6 +87,24 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 - A failure sends one blood-red thread through the ink, beside the credit
   that names it — the only place red enters the field.
 
+- The title is 34px at 0.28em, as the contract says, and holds one line
+  at 1280 by narrowing the card field there rather than the type: the card
+  field is clamp(40%, 100% − 702px, 52%). Measured in headless Brave at
+  1280×800: "FORERUNNER 165 MUSIC" is 609px at 34px / 0.28em (516px at the
+  interim 30px / 0.24em); the field is 578px (45%), the case 286px, and the
+  title box 620px on one line. From about 1460px up the field is 52% again.
+  Rendered side by side with the 30px / 0.24em build, the contract size
+  reads as the title card; the smaller case is the lesser loss.
+- The watch is one opaque silhouette. The strap no longer fades: it runs
+  off the field's top and bottom edges, and the SVG is painted over the ink
+  canvas, so no ink (the red failure thread included) crosses case or strap.
+- No credit is ever half shown. The pinned failure stands on an opaque ink
+  ground (the dissolve shadow is gone), and a credit that begins to pass
+  under it, or out of the roll's top edge, is hidden whole until it clears.
+- The no-watch states offer "Install the USB rule" (a pkexec path in the
+  shell, one fixed command, rule compiled in) when the rule is missing or
+  outdated. Demo state: `#permission`.
+
 ## Unresolved
 
 - Mixes and stop-between-files are built (82fc311) and shipped in the window;

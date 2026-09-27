@@ -2,11 +2,12 @@
  *
  * Plain JS, no build. Talks to the Tauri shell through the IPC contract
  * (status, library_root, set_library_root, library_list, preview, push,
- * stop, watch_list, ledger, and "pelican://progress" events). When
+ * stop, watch_list, ledger, udev_rule_status, install_udev_rule, and
+ * "pelican://progress" events). When
  * window.__TAURI__ is absent the same contract is served by an in-file mock
  * with the owner's real library, clearly marked "Demo data", and the URL
- * hash jumps to each state (#watch, #nowatch, #choose, #library, #review,
- * #review-mix, #send, #done, #onwatch, #ledger).
+ * hash jumps to each state (#watch, #nowatch, #permission, #choose,
+ * #library, #review, #review-mix, #send, #done, #onwatch, #ledger).
  */
 (() => {
   "use strict";
@@ -454,6 +455,10 @@
     watchError: null,
     ledger: null,
     ledgerError: null,
+    rule: null, // udev_rule_status, read while no watch is reachable
+    ruleBusy: false, // the password prompt is open
+    ruleInstalled: false, // installed in this session: next step is a replug
+    ruleMsg: null, // { text, error } after a cancelled or failed install
   };
 
   const STEP_OF = { watch: 0, choose: 1, library: 1, review: 2, send: 3, done: 3 };
@@ -565,10 +570,27 @@
       const line =
         st.error ||
         "Plug the watch in with a data cable. If it is plugged in, install udev/70-garmin-mtp.rules, or release it from the file manager with gio mount -u.";
-      v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">${esc(title)}</h1>
-        <p class="lede">${withCode(line)}</p>
-        <div class="actions">
-          <button type="button" class="act" data-act="recheck">Check again</button>
+      const rule = S.rule;
+      // The USB rule is offered where it can be the fix: a permission
+      // problem, or no watch at all while the rule is not installed.
+      const offer =
+        (kind === "permission" || kind === "none") && rule && rule.state !== "current" && rule.state !== "unknown";
+      const replug = S.ruleInstalled && kind === "permission" && rule && rule.state === "current";
+      const heading = replug ? "Unplug and replug the watch" : title;
+      // With the fix on offer, the lede says what is wrong in plain words;
+      // the shell's own sentence stays beneath it as the evidence.
+      const lede = replug
+        ? "The USB rule is installed, but the watch still refuses Pelican. Unplug it, plug it back in, then check again."
+        : offer && kind === "permission"
+          ? "Pelican can see the watch but is not allowed to open it. This computer needs the USB rule, once."
+          : line;
+      const evidence = replug || (offer && kind === "permission");
+      v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">${esc(heading)}</h1>
+        <p class="lede">${withCode(lede)}</p>
+        ${evidence ? `<p class="facts">${withCode(firstSentence(line))}</p>` : ""}
+        ${offer ? ruleBlock(rule) : ""}
+        <div class="actions${offer ? " after-rule" : ""}">
+          <button type="button" class="${offer ? "text-btn" : "act"}" data-act="recheck"${S.ruleBusy ? " disabled" : ""}>Check again</button>
           <button type="button" class="text-btn" data-go="choose">Choose music meanwhile</button>
         </div>`;
       return;
@@ -598,8 +620,89 @@
     } catch (e) {
       S.status = { connected: false, error: errText(e) };
     }
+    if (!S.status.connected) await refreshRule();
     if (S.view === "watch") renderWatch();
     syncChrome();
+  }
+
+  // "could not open the watch: Permission denied (os error 13)." — the
+  // shell's sentences after the first are its own copy of the fix.
+  const firstSentence = (t) => {
+    const m = /^.*?\.(?=\s|$)/.exec(String(t));
+    return m ? m[0] : String(t);
+  };
+
+  // --- The USB rule ----------------------------------------------------
+  //
+  // The shell installs udev/70-garmin-mtp.rules through polkit: one fixed
+  // command, the rule compiled in. The window only asks, shows exactly
+  // what runs, and says what to do next.
+
+  async function refreshRule() {
+    try {
+      S.rule = await api.invoke("udev_rule_status");
+    } catch (_) {
+      S.rule = null;
+    }
+  }
+
+  function ruleBlock(rule) {
+    const busy = S.ruleBusy;
+    const older =
+      rule.state === "outdated" ? `<p class="rule-note">An older rule is installed at ${esc(rule.path)}; this replaces it.</p>` : "";
+    const action = rule.can_install
+      ? `<button type="button" class="act" data-act="install-rule"${busy ? ' disabled aria-busy="true"' : ""}>${
+          busy ? `${mark("active")}Waiting for your password` : "Install the USB rule"
+        }</button>
+        <p class="rule-why">Asks for your password once. Writes one file, <code>/etc/udev/rules.d/70-garmin-mtp.rules</code>, so Pelican can reach the watch without root.</p>`
+      : `<p class="rule-why">${esc(rule.why_not)}</p>`;
+    const said = S.ruleMsg
+      ? `<p class="rule-said${S.ruleMsg.error ? " fail" : ""}" role="status">${mark(S.ruleMsg.error ? "failed" : "warn")}<span>${esc(S.ruleMsg.text)}</span></p>`
+      : "";
+    return `<div class="rule">
+        ${older}
+        ${action}
+        ${said}
+        <details class="every runs">
+          <summary>${mark("open")}What it runs</summary>
+          <p class="runs-label">The rule, written to /etc/udev/rules.d/70-garmin-mtp.rules</p>
+          <pre><code>${esc(rule.rule.trimEnd())}</code></pre>
+          <p class="runs-label">The command, run once as root through polkit</p>
+          <pre><code>${esc(rule.command)}</code></pre>
+          <p class="runs-label">Or run it yourself in a terminal</p>
+          <pre><code>${esc(rule.manual)}</code></pre>
+        </details>
+      </div>`;
+  }
+
+  async function installRule() {
+    if (S.ruleBusy) return;
+    S.ruleBusy = true;
+    S.ruleMsg = null;
+    renderWatch();
+    announce("Asking for your password to install the USB rule.");
+    let res;
+    try {
+      res = await api.invoke("install_udev_rule");
+    } catch (e) {
+      res = { outcome: "failed", message: errText(e) };
+    }
+    S.ruleBusy = false;
+    if (res.outcome === "installed") {
+      S.ruleInstalled = true;
+      announce("USB rule installed. Checking for the watch.");
+      S.status = null;
+      renderWatch();
+      await refreshStatus();
+      if (S.status && !S.status.connected) announce("The watch is still not reachable. Unplug and replug the watch.");
+      return;
+    }
+    S.ruleMsg = { text: res.message, error: res.outcome === "failed" };
+    announce(res.message);
+    await refreshRule();
+    renderWatch();
+    const b = $('[data-act="install-rule"]');
+    if (b) b.focus({ preventScroll: true });
   }
 
   // --- Choose ----------------------------------------------------------
@@ -1132,6 +1235,34 @@
     if (!roll || Date.now() - rollTouchedAt < 5000) return;
     const top = li.offsetTop - roll.clientHeight * 0.58 + li.offsetHeight / 2;
     roll.scrollTo({ top, behavior: reduceMotion.matches ? "auto" : "smooth" });
+    clearRoll();
+  }
+
+  // No credit is ever shown cut in half. A credit that has begun to pass
+  // under the pinned failure (or, with none pinned, out of the roll's top
+  // edge) is hidden whole, and comes back only once it fully clears. An
+  // earlier failure under a later one is hidden the same way, so a longer
+  // reason can never peek out beneath the one that replaced it.
+  let rollFrame = 0;
+  function clearRoll() {
+    if (rollFrame) return;
+    rollFrame = requestAnimationFrame(() => {
+      rollFrame = 0;
+      const roll = $("#roll");
+      if (!roll) return;
+      const box = roll.getBoundingClientRect();
+      const items = $$("li", roll).map((li) => [li, li.getBoundingClientRect()]);
+      const stickTop = box.top + parseFloat(getComputedStyle(roll).getPropertyValue("--pin-top") || "0");
+      let pin = null;
+      for (const [li, r] of items) {
+        if (li.classList.contains("is-failed") && r.top <= stickTop + 0.5) pin = [li, r];
+      }
+      const ceiling = pin ? pin[1].bottom : box.top;
+      for (const [li, r] of items) {
+        const under = li !== (pin && pin[0]) && r.top < ceiling - 0.5 && r.bottom > box.top;
+        li.classList.toggle("is-under", under);
+      }
+    });
   }
 
   function paintMeta() {
@@ -1199,11 +1330,13 @@
     r.addEventListener("wheel", touch, { passive: true });
     r.addEventListener("touchmove", touch, { passive: true });
     r.addEventListener("keydown", touch);
+    r.addEventListener("scroll", clearRoll, { passive: true });
     paintMeta();
     const last = roll.lastElementChild;
     if (last) {
       requestAnimationFrame(() => {
         r.scrollTop = last.offsetTop - r.clientHeight * 0.58 + last.offsetHeight / 2;
+        clearRoll();
       });
     }
   }
@@ -1413,7 +1546,11 @@
       case "dismiss":
         clearNotice();
         break;
+      case "install-rule":
+        installRule();
+        break;
       case "recheck":
+        S.ruleMsg = null;
         S.status = null;
         renderWatch();
         await refreshStatus();
@@ -1769,6 +1906,24 @@
 
     let root = ROOT;
     let connected = true;
+    let problem = "none"; // why the watch is unreachable: "none" | "permission"
+    let ruleState = "current";
+    // The shipped rule, as the shell compiles it in (udev/70-garmin-mtp.rules).
+    const RULE_LINE = 'SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="091e", TAG+="uaccess"';
+    const RULE_TEXT =
+      "# Pelican: give the logged-in user direct USB access to Garmin watches.\n#\n" +
+      "# (Demo: the comments of the shipped file are abridged here.)\n\n" +
+      `${RULE_LINE}\n`;
+    const SCRIPT =
+      "install -m 644 /dev/stdin /etc/udev/rules.d/70-garmin-mtp.rules && udevadm control --reload && udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e && udevadm settle";
+    const ruleStatus = () => ({
+      state: ruleState,
+      path: ruleState === "missing" ? undefined : "/etc/udev/rules.d/70-garmin-mtp.rules",
+      can_install: true,
+      rule: RULE_TEXT,
+      command: `/usr/bin/pkexec /bin/sh -c '${SCRIPT}'`,
+      manual: `printf '%s\\n' '${RULE_LINE}' | sudo install -m 644 /dev/stdin /etc/udev/rules.d/70-garmin-mtp.rules && sudo udevadm control --reload && sudo udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e`,
+    });
     const listeners = [];
     let stopFlag = false;
     let runSeq = 0;
@@ -1933,8 +2088,17 @@
                 max_objects: 500,
                 ledger: status.ledger,
                 error:
-                  "No watch found. Use a data cable (a charge-only cable carries nothing); if the watch is plugged in, install udev/70-garmin-mtp.rules once, and if the file manager opened it, release it with gio mount -u mtp://Garmin/",
+                  problem === "permission"
+                    ? "could not open the watch: Permission denied (os error 13). Pelican cannot open the watch without the udev rule: copy udev/70-garmin-mtp.rules to /etc/udev/rules.d/, run `sudo udevadm control --reload`, then unplug and replug the watch."
+                    : "No watch found. Use a data cable (a charge-only cable carries nothing); if the watch is plugged in, install udev/70-garmin-mtp.rules once, and if the file manager opened it, release it with gio mount -u mtp://Garmin/",
               };
+        case "udev_rule_status":
+          return ruleStatus();
+        case "install_udev_rule":
+          // The real prompt is polkit's; the demo only waits as if for one.
+          await wait(1400);
+          ruleState = "current";
+          return { outcome: "installed", message: "Installed /etc/udev/rules.d/70-garmin-mtp.rules and reloaded udev." };
         case "library_root":
           return root;
         case "set_library_root":
@@ -2015,6 +2179,10 @@
         setConnected: (c) => {
           connected = c;
         },
+        setProblem: (p, rule) => {
+          problem = p;
+          ruleState = rule;
+        },
         preview,
         drive,
         fakeSha,
@@ -2023,8 +2191,8 @@
     };
   }
 
-  // Jump to a state for screenshots: #watch, #nowatch, #choose, #library,
-  // #review, #review-mix, #send, #done, #onwatch, #ledger.
+  // Jump to a state for screenshots: #watch, #nowatch, #permission, #choose,
+  // #library, #review, #review-mix, #send, #done, #onwatch, #ledger.
   async function demoState(name) {
     const D = api.demo;
     S.run = null;
@@ -2034,8 +2202,13 @@
     S.overrides = { artist: "", album: "", genre: "", year: "" };
     S.preview = null;
     S.root = await api.invoke("library_root");
-    D.setConnected(name !== "nowatch");
+    D.setConnected(name !== "nowatch" && name !== "permission");
+    D.setProblem(name === "permission" ? "permission" : "none", name === "permission" ? "missing" : "current");
+    S.ruleBusy = false;
+    S.ruleInstalled = false;
+    S.ruleMsg = null;
     S.status = await api.invoke("status");
+    if (!S.status.connected) S.rule = await api.invoke("udev_rule_status");
     const albums = [
       { path: D.SOT_DIR, name: "Sea of Thieves", kind: "dir", count: 25 },
       { path: D.MC_DIR, name: basename(D.MC_DIR), kind: "dir", count: 13 },
@@ -2045,6 +2218,7 @@
 
     switch (name) {
       case "nowatch":
+      case "permission":
       case "watch":
         show("watch", { focus: false });
         break;

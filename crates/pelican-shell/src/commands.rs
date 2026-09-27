@@ -324,3 +324,19 @@ pub async fn ledger(shell: Shared<'_>) -> Result<LedgerDto, String> {
     })
     .await
 }
+
+// ── the USB rule ─────────────────────────────────────────────────────────
+
+/// Whether the udev rule is installed and is the one this build ships.
+#[tauri::command]
+pub async fn udev_rule_status() -> Result<crate::udev::RuleStatus, String> {
+    off_thread(|| Ok(crate::udev::status())).await
+}
+
+/// Install the udev rule through polkit: one fixed command, the rule on its
+/// stdin, nothing from the webview in it (`udev.rs`). Waits for as long as
+/// the password prompt is open, on its own thread.
+#[tauri::command]
+pub async fn install_udev_rule() -> Result<crate::udev::InstallResult, String> {
+    off_thread(|| Ok(crate::udev::install())).await
+}

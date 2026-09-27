@@ -18,16 +18,16 @@ colors:
 typography:
   display:
     fontFamily: "Julius Sans One, Hanken Grotesk, sans-serif"
-    fontSize: "clamp(1.625rem, 2.35vw, 2.125rem)"
+    fontSize: "clamp(1.625rem, 2.66vw, 2.125rem)"
     fontWeight: 400
     lineHeight: 1.25
-    letterSpacing: "0.24em"
+    letterSpacing: "0.28em"
   headline:
     fontFamily: "Julius Sans One, Hanken Grotesk, sans-serif"
     fontSize: "1.625rem"
     fontWeight: 400
     lineHeight: 1.25
-    letterSpacing: "0.24em"
+    letterSpacing: "0.28em"
   wordmark:
     fontFamily: "Julius Sans One, Hanken Grotesk, sans-serif"
     fontSize: "0.8125rem"
@@ -192,8 +192,8 @@ Near-black ink and warm bone, with two accents: champagne (proven) and blood (fa
 **Character:** The display face is a thin, monoline, wide capital that stays even at 0.24–0.42em tracking, which is what a title card needs. The grotesque is neutral and workmanlike, and its figures stay in columns.
 
 ### Hierarchy
-- **Display** (400, clamp(1.625rem, 2.35vw, 2.125rem), 1.25, 0.24em, uppercase, balanced wrap): the one title line on a card view. "FORERUNNER 165 MUSIC" holds one line from 1280px up. The trailing tracking is cancelled with a matching negative right margin.
-- **Headline** (same face, fixed 1.625rem): the title of a list view (Library, Review, On the watch, Ledger).
+- **Display** (400, clamp(1.625rem, 2.66vw, 2.125rem), 1.25, 0.28em, uppercase, balanced wrap): the one title line on a card view. At 1280px it is 34px, and "FORERUNNER 165 MUSIC" holds one line (609px) because the card field gives way to it (see Layout). The trailing tracking is cancelled with a matching negative right margin.
+- **Headline** (same face and tracking, fixed 1.625rem): the title of a list view (Library, Review, On the watch, Ledger).
 - **Wordmark** (0.8125rem, 0.42em, uppercase): "PELICAN" top-left. The same face at 0.32em carries the drop veil's "Release to add".
 - **Lede** (400, 1.0625rem, 1.5, max 44ch): the one line under a title, such as room left or the send outcome.
 - **Body** (400, 0.9375rem, 1.5): track names, rows, and quiet lines (max 60ch).
@@ -210,7 +210,7 @@ Near-black ink and warm bone, with two accents: champagne (proven) and blood (fa
 ## Layout
 
 The window is one grid: a 64px top bar, a stage, and a 64px foot (52px when the viewport is under 700px tall). The ink field spans all three rows on the left, and its width follows the view:
-- 52% on card views (Watch, Choose), so the silhouette sits at optical centre and the title column is vertically centred with a max width of 620px.
+- clamp(40%, 100% − 702px, 52%) on card views (Watch, Choose): 52% on a wide window, giving way only as far as the title column needs to hold "FORERUNNER 165 MUSIC" on one line at 34px / 0.28em (45%, 578px, at 1280). The silhouette sits at optical centre, and the title column is vertically centred with a max width of 620px; it scrolls rather than clips when "What it runs" is open.
 - 48% on Send and Done, which gives the credits a little more room.
 - clamp(200px, 27%, 380px) on list views (Library, Review, On the watch, Ledger), where the field becomes a column and the stage holds a header, scrolling hairline rows, and a bottom bar.
 
@@ -220,10 +220,10 @@ The outer gutter is 40px (28px under 1100px). The stage's inner left edge is cla
 
 ## Elevation & Depth
 
-The system is flat. Depth comes from the ink itself, a plume of lit, domain-warped noise behind the silhouette, and not from the interface. Surfaces do not cast shadows. The one raised tone is Raised Ink, used for inputs and the notice band. The field's right edge and the credit roll's top and bottom edges dissolve through alpha masks. Those masks exist so rows can leave the box, and they never fade a row that is in reading position.
+The system is flat. Depth comes from the ink itself, a plume of lit, domain-warped noise behind the silhouette, and not from the interface. Surfaces do not cast shadows. The one raised tone is Raised Ink, used for inputs and the notice band. The field's right edge and the credit roll's top and bottom edges dissolve through alpha masks. Those masks exist so rows can leave the box, and they never fade a row that is in reading position. No row is ever shown cut: a credit that starts to pass under the pinned failure, or out of the roll's top edge, is hidden whole until it clears.
 
 ### Shadow Vocabulary
-- **Ink dissolve** (`box-shadow: 0 12px 14px -2px var(--ink)`): used only under a failed credit while it sticks at the top of the roll, so rows passing beneath dissolve into ink instead of showing a cut edge. It is ink over ink, not a lift.
+- None. The pinned failed credit stands on an opaque Ink ground, and rows beneath it are hidden whole rather than dissolved, so no shadow is needed.
 
 ### Named Rules
 **The Still Chrome Rule.** Ink moves; chrome does not. UI transitions use the exponential ease-out (cubic-bezier(0.16, 1, 0.3, 1)) at 180 ms, with 240 ms view entrances, and then stop. The canvas animates only while a bloom is live, pauses when the window is hidden, and bakes to its residue under prefers-reduced-motion.
@@ -254,6 +254,11 @@ The shape language is a hairline and a right angle. Buttons and inputs have a 1p
 ### Notice
 - A single band pinned above the stage: Raised Ink, strong-hairline border, a mark plus a bold capitalised word (Note, Problem) and then the sentence. On error the border turns blood.
 
+### The USB Rule
+- Shown in the no-watch states when the udev rule is missing or outdated (a permission problem, or no watch found). It is then the view's one quiet action, "Install the USB rule", and Check again drops to a text button. It is not champagne: installing a file proves nothing.
+- One Body Small line in dim bone beneath it names the cost: the password, once, and the one file it writes. A "What it runs" disclosure (the Every-track chevron pattern) shows the rule text, the exact polkit command and a terminal fallback in High Ink blocks that wrap and never scroll sideways.
+- While the password prompt is open the button is disabled, busy, and reads "Waiting for your password" after the in-flight mark. A cancel or failure lands as one line with a mark under the button; a failure's mark is blood-text beside the words "Not installed". After an install that still leaves the watch unreachable, the title becomes "Unplug and replug the watch".
+
 ### State Marks
 - **Mark plus word:** each state is a stroked 14px mark followed by its word in weight 600 (Verified, Skipped, Failed, Converting, Sending). Colour follows the state: champagne for verified or ledger, dim bone for pending, skipped or foreign, bone for in flight, and blood-text for failed, refused or stub.
 
@@ -262,17 +267,17 @@ The shape language is a hairline and a right angle. Buttons and inputs have a 1p
 - A new credit rises 22px over 520 ms, and its status resolves out of a 3px blur over 240 ms.
 - While a file transfers, a 64px hairline meter fills in bone.
 - A verified credit turns its status champagne.
-- A failed credit sticks at the top of the roll at full contrast until a later failure replaces it, and its reason wraps instead of truncating.
+- A failed credit sticks at the top of the roll at full contrast, on an opaque Ink ground, until a later failure replaces it, and its reason wraps instead of truncating. A credit passing beneath it (or an earlier failure under a later one) is hidden whole, never half shown.
 - The roll fades only in its outer 12px and 40px, and it hides its scrollbar.
 
 ### The Watch Silhouette (signature)
-- A generic round case with a fading strap and four buttons. It is one solid shape, darker than the ground, edged in bone at 5%. The only thing lit on it is the champagne room arc, which eases over 900 ms. It carries no counter and no brand. With no watch connected, the case becomes a dashed bone outline over empty ink, the arc is hidden, and the field dims to 40%.
+- A generic round case, a strap that runs off the field's top and bottom edges, and four buttons. Case and strap are one opaque shape, darker than the ground, edged in bone at 5%, painted over the ink so nothing in the field (not even the red thread) crosses it; the strap has no fade. The only thing lit on it is the champagne room arc, which eases over 900 ms. It carries no counter and no brand. With no watch connected, the case and strap become dashed outlines over empty ink, the arc is hidden, and the field dims to 40%.
 
 ## Do's and Don'ts
 
 ### Do:
 - **Do** give every state a mark and a word. Colour is never the only signal.
-- **Do** keep one title line per view in the display face, tracked 0.24em in uppercase, and one action (or one Send) beneath it.
+- **Do** keep one title line per view in the display face, tracked 0.28em in uppercase, and one action (or one Send) beneath it.
 - **Do** separate rows with hairlines (bone at 10%) and leave the rows themselves unfilled.
 - **Do** set every size, count and hash in tabular lining figures.
 - **Do** keep UI motion to 150–250 ms exponential ease-out. Let only the ink field move at length, and stop it when idle or under reduced motion.
@@ -283,6 +288,6 @@ The shape language is a hairline and a right angle. Buttons and inputs have a 1p
 - **Don't** show blood or blood-text without the failure word next to it, and don't use blood (#8e1b1b) for text.
 - **Don't** set buttons, rows, numbers or body copy in the display face.
 - **Don't** box content in cards, frosted panels or gradient-filled surfaces. Alpha masks that dissolve an edge are allowed; filled gradients are not.
-- **Don't** add elevation shadows. The one ink-coloured dissolve under a sticky failed credit is the whole vocabulary.
+- **Don't** add shadows of any kind. There is no shadow vocabulary.
 - **Don't** put Bond, 007 or Omega marks, a gun barrel, or franchise type anywhere.
 - **Don't** add a counter or brand detail to the watch silhouette. Its only lit element is the room arc.

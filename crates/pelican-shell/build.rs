@@ -22,6 +22,8 @@ fn main() {
             "stop",
             "watch_list",
             "ledger",
+            "udev_rule_status",
+            "install_udev_rule",
         ]),
     ))
     .expect("tauri build failed");

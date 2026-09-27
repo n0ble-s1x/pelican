@@ -204,7 +204,14 @@ sudo install -m 755 target/release/pelican /usr/local/bin/
 
 ### One-time USB permission (required)
 
-The watch needs a udev rule so your user can talk to it without root:
+The watch needs a udev rule so your user can talk to it without root.
+The AUR package (and the `.deb`) install the rule themselves, to
+`/usr/lib/udev/rules.d/`; nothing to do. From a source build, the window
+offers an **Install the USB rule** button when the watch cannot be opened:
+it asks for your password once through polkit, writes this one file to
+`/etc/udev/rules.d/` and reloads udev, and shows exactly what it runs
+before you press it. (Inside a Flatpak it cannot, and shows the command
+instead.) Or do it by hand:
 
 ```sh
 sudo install -m 644 udev/70-garmin-mtp.rules /etc/udev/rules.d/

@@ -30,24 +30,15 @@
        track. The watch sits in it at optical centre, lit from behind. -->
   <div class="field" id="field" aria-hidden="true">
     <canvas id="ink"></canvas>
-    <!-- The watch is a silhouette: one solid shape cut against the lit ink.
-         Only the room-left arc is lit on it. Generic round case, no brand. -->
+    <!-- The watch is a silhouette: one solid shape cut against the lit ink,
+         painted over the canvas so no ink (not even the red thread) crosses
+         it. The straps run off the field's top and bottom edges instead of
+         fading, so case and straps are one unbroken opaque shape. Only the
+         room-left arc is lit on it. Generic round case, no brand. -->
     <svg id="watch" class="watch" viewBox="0 60 320 360" focusable="false">
-      <defs>
-        <linearGradient id="strap-fade-top" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#fff" stop-opacity="0"/>
-          <stop offset="1" stop-color="#fff" stop-opacity="1"/>
-        </linearGradient>
-        <linearGradient id="strap-fade-bottom" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#fff" stop-opacity="1"/>
-          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-        </linearGradient>
-        <mask id="strap-mask-top"><rect x="0" y="60" width="320" height="80" fill="url(#strap-fade-top)"/></mask>
-        <mask id="strap-mask-bottom"><rect x="0" y="340" width="320" height="80" fill="url(#strap-fade-bottom)"/></mask>
-      </defs>
       <g class="strap">
-        <path mask="url(#strap-mask-top)" d="M106 60h108v36c0 12-6 22-14 30H120c-8-8-14-18-14-30z"/>
-        <path mask="url(#strap-mask-bottom)" d="M120 354h80c8 8 14 18 14 30v36H106v-36c0-12 6-22 14-30z"/>
+        <path d="M106 -1200h108v1296c0 12-6 22-14 30H120c-8-8-14-18-14-30z"/>
+        <path d="M120 354h80c8 8 14 18 14 30v1316H106v-1316c0-12 6-22 14-30z"/>
       </g>
       <g class="buttons">
         <rect x="270" y="166" width="16" height="26" rx="4" transform="rotate(-30 278 179)"/>

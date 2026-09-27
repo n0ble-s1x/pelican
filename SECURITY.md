@@ -92,7 +92,7 @@ Out of scope:
   http, updater or opener. No asset protocol is enabled.
 - **The ACL is the boundary.** `build.rs` registers an app manifest, so
   every command is ACL-gated, and `capabilities/main.json` grants exactly
-  the nine commands the UI invokes plus `core:event:allow-listen` /
+  the eleven commands the UI invokes plus `core:event:allow-listen` /
   `allow-unlisten` (for run progress and file drag-and-drop) — no
   `core:default`. `scripts/check.sh` fails if the gated, registered and
   granted lists differ or anything else is granted.
@@ -110,6 +110,21 @@ Out of scope:
   own OS thread, never the UI thread.
 - Run it with `cargo run -p pelican-shell`, not `cargo tauri dev`: a dev
   server is served without the CSP.
+
+**The one privileged path.** `install_udev_rule` (the window's "Install
+the USB rule" button) runs exactly one fixed command through polkit:
+`/usr/bin/pkexec /bin/sh -c 'install -m 644 /dev/stdin
+/etc/udev/rules.d/70-garmin-mtp.rules && udevadm control --reload &&
+udevadm trigger --action=add --subsystem-match=usb
+--attr-match=idVendor=091e && udevadm settle'`. The command is a constant
+in `crates/pelican-shell/src/udev.rs`; the rule is compiled in with
+`include_str!` from `udev/70-garmin-mtp.rules` and written to the child's
+stdin; the command takes no arguments from the webview and nothing is
+interpolated into it. pkexec is called by absolute path, and the button
+is refused when it is missing or when the app runs inside a Flatpak
+(`FLATPAK_ID` set or `/.flatpak-info` present), where the window prints
+the host command instead. It runs only when you press the button and
+authenticate; `udev_rule_status` only reads the two rule paths.
 
 The GTK3 stack Tauri uses on Linux brings two argued advisory exceptions
 (`glib` 0.18, `proc-macro-error`); the reasoning is in `.cargo/audit.toml`.
@@ -131,7 +146,10 @@ The GTK3 stack Tauri uses on Linux brings two argued advisory exceptions
 - On the watch it only creates files in `/Music`, under names it has never
   used. It has no code path that deletes or overwrites anything there.
 - It does **not** open network sockets, write outside its data dirs, or
-  modify system files.
+  modify system files — with one exception you trigger yourself: the
+  window's "Install the USB rule" button writes
+  `/etc/udev/rules.d/70-garmin-mtp.rules` through polkit, after asking for
+  your password (see The graphical shell).
 
 ## Future hardening (tracked, not yet shipped)
 

@@ -2,7 +2,8 @@
 #
 # Install with:
 #   sudo install -m 644 udev/70-garmin-mtp.rules /etc/udev/rules.d/
-#   sudo udevadm control --reload && sudo udevadm trigger
+#   sudo udevadm control --reload
+#   sudo udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e
 #
 # Why 70-, and why it must sort before 73-seat-late.rules:
 #   TAG+="uaccess" does nothing by itself. systemd-logind's ACL is applied by
@@ -12,7 +13,7 @@
 #   99-garmin-music.rules) arrives after the grant has been decided, so the
 #   device node never got a user ACL and Pelican could not open it without
 #   root. Verified on systemd 262, 2026-09-26
-#   (docs/garmin-library-persistence.md, Results — Linux).
+#   (docs/garmin-library-persistence.md, section Results).
 #
 # Why ENV{ID_MTP_DEVICE} is deliberately NOT set:
 #   ID_MTP_DEVICE=1 is the flag gvfs-mtp and KDE's kio-mtp watch for to

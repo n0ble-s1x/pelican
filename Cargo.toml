@@ -2,8 +2,8 @@
 resolver = "2"
 members = ["crates/pelican-core", "crates/pelican", "crates/pelican-shell"]
 
-# Shared package metadata. Both crates ship as one product, so version,
-# licence and provenance live here rather than being kept in sync by hand.
+# Shared package metadata. All three crates ship as one product, so version,
+# license and provenance live here rather than being kept in sync by hand.
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
@@ -30,7 +30,7 @@ serde_json = "1"
 sha2 = "0.10"
 # The window. Default features off: no brotli asset compression, no
 # runtime-mutable ACL (`dynamic-acl`), no Windows controls, no X11-only or
-# D-Bus extras — only wry over webkit2gtk. No Tauri plugin is used at all.
+# D-Bus extras; only wry over webkit2gtk. No Tauri plugin is used at all.
 tauri = { version = "2.11", default-features = false, features = ["wry"] }
 tauri-build = { version = "2.6", default-features = false }
 tempfile = "3"
@@ -38,7 +38,7 @@ tokio = { version = "1", features = ["rt", "macros", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Deny `unsafe` in our own code — keeps the auditable surface tiny. We accept
+# Deny `unsafe` in our own code to keep the auditable surface small. We accept
 # unsafe through dependencies (audited via cargo-deny) but not in ours, with
 # the single documented exception in `pelican-core/src/platform/gvfs.rs`.
 [workspace.lints.rust]

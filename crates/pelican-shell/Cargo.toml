@@ -1,6 +1,6 @@
 [package]
 name = "pelican-shell"
-description = "Pelican's desktop window — a Tauri shell over pelican-core, serving the plain ui/ frontend. No npm, no network."
+description = "Pelican's desktop window: a Tauri shell over pelican-core with a plain HTML/CSS/JS frontend. No npm, no network."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

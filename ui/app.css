@@ -37,6 +37,7 @@
   --ink: #050506;
   --ink-raised: #0e0e10;
   --ink-high: #16161a;
+  --silhouette: #010102;
   --bone: #ede8de;
   --bone-dim: #a7a29a;
   --bone-faint: #8a857d;
@@ -59,7 +60,7 @@
   --gutter: 40px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --fast: 180ms;
-  --field: 55%;
+  --field: 52%;
 
   color-scheme: dark;
 }
@@ -202,53 +203,26 @@ body[data-view="ledger"] {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(300px, 64%);
+  /* The case is 240 of the 320 units: 400px wide puts it at 300px. */
+  width: min(400px, 60%, calc(62vh * 320 / 360));
   height: auto;
-  max-height: 62vh;
   transform: translate(-50%, -50%);
   overflow: visible;
 }
 
-.watch .strap path {
-  fill: var(--ink-raised);
-  stroke: var(--hair-strong);
-  stroke-width: 1;
-}
-
-.watch .holes circle {
-  fill: var(--ink);
-  stroke: var(--hair);
-}
-
-.watch .buttons rect {
-  fill: var(--ink-high);
-  stroke: var(--hair-strong);
-}
-
+/* One solid shape, darker than the ground, so the lit ink cuts it out.
+   The edges carry only enough bone to survive an unlit corner. */
+.watch .strap path,
+.watch .buttons rect,
 .watch .case {
-  fill: var(--ink-raised);
-  stroke: rgb(237 232 222 / 0.26);
-  stroke-width: 1.2;
-}
-
-.watch .bezel {
-  fill: none;
-  stroke: var(--hair);
-}
-
-.watch .ticks line {
-  stroke: rgb(237 232 222 / 0.28);
+  fill: var(--silhouette);
+  stroke: rgb(237 232 222 / 0.05);
   stroke-width: 1;
-}
-
-.watch .ticks line.major {
-  stroke: rgb(237 232 222 / 0.55);
-  stroke-width: 1.4;
 }
 
 .watch .room-track {
   fill: none;
-  stroke: rgb(237 232 222 / 0.07);
+  stroke: rgb(237 232 222 / 0.06);
   stroke-width: 3;
 }
 
@@ -264,31 +238,18 @@ body[data-view="ledger"] {
   transition: stroke-dasharray 900ms var(--ease);
 }
 
-.watch .dial {
-  fill: var(--ink);
-  stroke: var(--hair);
+/* No watch: the silhouette is empty ink, and nothing lights the water. */
+#ink {
+  transition: opacity 600ms var(--ease);
 }
 
-.watch .dial-count {
-  fill: var(--champagne);
-  font-family: var(--f-ui);
-  font-weight: 300;
-  font-size: 40px;
-  letter-spacing: 0.02em;
+body.no-watch #ink {
+  opacity: 0.4;
 }
 
-.watch .dial-word {
-  fill: var(--bone-dim);
-  font-family: var(--f-ui);
-  font-size: 11px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-}
-
-/* No watch: the silhouette is empty ink. */
 body.no-watch .watch .case {
   fill: var(--ink);
-  stroke: rgb(237 232 222 / 0.16);
+  stroke: rgb(237 232 222 / 0.22);
   stroke-dasharray: 2 5;
 }
 
@@ -298,15 +259,9 @@ body.no-watch .watch .buttons rect {
   stroke: var(--hair);
 }
 
-body.no-watch .watch .ticks,
 body.no-watch .watch .room-arc,
-body.no-watch .watch .room-track,
-body.no-watch .watch .bezel {
+body.no-watch .watch .room-track {
   opacity: 0;
-}
-
-body.no-watch .watch .dial {
-  stroke: none;
 }
 
 .veil {
@@ -466,7 +421,7 @@ body.dragging .veil {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  max-width: 560px;
+  max-width: 620px;
 }
 
 .view:not([data-card]) {
@@ -490,16 +445,19 @@ body.dragging .veil {
   }
 }
 
+/* One line of tracked capitals. The size follows the viewport so
+   "FORERUNNER 165 MUSIC" holds one line from 1280 up; it wraps, balanced,
+   only below that. */
 .title {
   font-family: var(--f-display);
   font-weight: 400;
-  font-size: var(--t-title);
+  font-size: clamp(1.625rem, 2.35vw, var(--t-title));
   line-height: 1.25;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--bone);
   text-wrap: balance;
-  margin-right: -0.28em;
+  margin-right: -0.24em;
 }
 
 .view:not([data-card]) .title {
@@ -1206,7 +1164,9 @@ legend {
   height: min(46vh, 380px);
   overflow-y: auto;
   scrollbar-width: none;
-  mask-image: linear-gradient(to bottom, transparent 0, #000 30%, #000 72%, transparent 100%);
+  /* Only the last few pixels at either edge fade, where a row is leaving
+     the box; every row in reading position keeps full contrast. */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 40px), transparent 100%);
 }
 
 .roll::-webkit-scrollbar {
@@ -1259,6 +1219,17 @@ legend {
 
 .credit.is-verified .cs .detail {
   color: var(--champagne);
+}
+
+/* A failure does not scroll away while the roll runs: it holds at the top
+   of the roll, at full contrast, until a later failure takes its place. */
+.credit.is-failed {
+  position: sticky;
+  top: 12px;
+  z-index: 1;
+  background: var(--ink);
+  /* Rows passing under it dissolve instead of showing a cut line. */
+  box-shadow: 0 12px 14px -2px var(--ink);
 }
 
 .credit.is-failed .cs .detail {
@@ -1357,9 +1328,27 @@ details.every {
 }
 
 details.every summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
   color: var(--bone-dim);
   width: max-content;
+  list-style: none;
+}
+
+details.every summary::marker,
+details.every summary::-webkit-details-marker {
+  display: none;
+  content: "";
+}
+
+details.every summary .mk {
+  transition: transform var(--fast) var(--ease);
+}
+
+details.every[open] summary .mk {
+  transform: rotate(90deg);
 }
 
 details.every summary:hover {
@@ -1488,6 +1477,10 @@ details.every li .t {
 
   .field {
     grid-row: 1 / 3;
+  }
+
+  .watch {
+    width: min(200px, 60%);
   }
 
   .stage {

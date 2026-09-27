@@ -72,11 +72,13 @@
 
   // ------------------------------------------------------------ the ink
 
-  // A bounded canvas behind the watch. It draws a settled field once and
-  // then does nothing: no loop runs at rest. Each verified track blooms one
-  // thread of champagne ink out from under the case, which settles into a
-  // faint residue. Reduced motion bakes the residue without animating; a
-  // hidden window pauses the bloom and resumes it where it was.
+  // A bounded canvas behind the watch. The settled field is a plume of ink
+  // in black water, rendered once from domain-warped noise and lit from
+  // inside, behind the case, so the watch reads as a silhouette. Then it
+  // does nothing: no loop runs at rest. Each verified track blooms one
+  // champagne plume out from under the case; a failure sends one blood-red
+  // thread. Both settle into a faint residue. Reduced motion bakes the
+  // residue without animating; a hidden window pauses a bloom and resumes it.
   const Ink = (() => {
     const cv = $("#ink");
     const ctx = cv.getContext("2d");
@@ -85,64 +87,136 @@
     const resid = document.createElement("canvas");
     const rctx = resid.getContext("2d");
     const BLOOM_MS = 2800;
+    // Noise is computed on a coarse grid and scaled up smooth: ink has no
+    // edges finer than this, and the field renders in tens of milliseconds.
+    const CELL = 3;
     let W = 0;
     let H = 0;
     let dpr = 1;
     let raf = 0;
     let pausedAt = 0;
     let blooms = [];
-    let seed = 7;
+    let bloomSeed = 11;
 
-    // Deterministic, so the settled ink is the same field at every launch.
-    const seeded = () => {
-      seed = (seed * 16807) % 2147483647;
-      return (seed - 1) / 2147483646;
+    const rng = (s) => () => {
+      s = (s * 16807) % 2147483647;
+      return (s - 1) / 2147483646;
     };
 
+    // Value noise on a hashed lattice, five octaves, and the warp that turns
+    // it into billowing ink (fbm fed through fbm).
+    const hash = (x, y, k) => {
+      let h = (x * 374761393 + y * 668265263 + k * 1442695041) | 0;
+      h = Math.imul(h ^ (h >>> 13), 1274126177);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+    };
+    function noise(x, y, k) {
+      const xi = Math.floor(x);
+      const yi = Math.floor(y);
+      const xf = x - xi;
+      const yf = y - yi;
+      const u = xf * xf * (3 - 2 * xf);
+      const v = yf * yf * (3 - 2 * yf);
+      const a = hash(xi, yi, k);
+      const b = hash(xi + 1, yi, k);
+      const c = hash(xi, yi + 1, k);
+      const d = hash(xi + 1, yi + 1, k);
+      return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    }
+    function fbm(x, y, k) {
+      let s = 0;
+      let amp = 0.5;
+      for (let o = 0; o < 5; o += 1) {
+        s += amp * noise(x, y, k + o);
+        x = x * 2.03 + 17.1;
+        y = y * 2.03 + 3.7;
+        amp *= 0.5;
+      }
+      return s / 0.97;
+    }
+    // Returns the warped density and the second warp's offset, which bends
+    // the plume's envelope so its edge billows instead of ending in a curve.
+    function warped(x, y, k) {
+      const qx = fbm(x, y, k);
+      const qy = fbm(x + 5.2, y + 1.3, k);
+      const rx = fbm(x + 3.2 * qx + 1.7, y + 3.2 * qy + 9.2, k + 7);
+      const ry = fbm(x + 3.2 * qx + 8.3, y + 3.2 * qy + 2.8, k + 7);
+      return [fbm(x + 3 * rx, y + 3 * ry, k + 13), rx - 0.5, ry - 0.5];
+    }
+
+    const smooth = (a, b, x) => {
+      const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+      return t * t * (3 - 2 * t);
+    };
+
+    // The case, in canvas pixels.
     function geometry() {
       const f = cv.getBoundingClientRect();
-      const w = $("#watch").getBoundingClientRect();
-      const s = (w.width / 320) * dpr;
+      const c = $("#watch .case").getBoundingClientRect();
       return {
-        x: (w.left - f.left) * dpr + 160 * s,
-        y: (w.top - f.top) * dpr + 240 * s,
-        r: 120 * s,
+        x: (c.left - f.left + c.width / 2) * dpr,
+        y: (c.top - f.top + c.height / 2) * dpr,
+        r: (c.width / 2) * dpr,
       };
     }
 
     function drawBase() {
-      seed = 7;
       bctx.fillStyle = "#050506";
       bctx.fillRect(0, 0, W, H);
       const g = geometry();
-      for (let i = 0; i < 9; i += 1) {
-        const a = seeded() * Math.PI * 2;
-        const d = g.r * (0.4 + seeded() * 1.6);
-        const x = g.x + Math.cos(a) * d;
-        const y = g.y + Math.sin(a) * d * 1.3;
-        const rad = g.r * (0.9 + seeded() * 1.8);
-        const grad = bctx.createRadialGradient(x, y, 0, x, y, rad);
-        const alpha = 0.35 + seeded() * 0.35;
-        grad.addColorStop(0, `rgba(22, 21, 25, ${alpha})`);
-        grad.addColorStop(0.55, `rgba(16, 16, 19, ${alpha * 0.45})`);
-        grad.addColorStop(1, "rgba(5, 5, 6, 0)");
-        bctx.fillStyle = grad;
-        bctx.fillRect(0, 0, W, H);
+      const step = CELL * dpr;
+      const gw = Math.ceil(W / step) + 1;
+      const gh = Math.ceil(H / step) + 1;
+      const low = document.createElement("canvas");
+      low.width = gw;
+      low.height = gh;
+      const lctx = low.getContext("2d");
+      const img = lctx.createImageData(gw, gh);
+      const px = img.data;
+      for (let j = 0; j < gh; j += 1) {
+        for (let i = 0; i < gw; i += 1) {
+          // Watch-relative units: the plume keeps its shape at every size.
+          const dx = (i * step - g.x) / g.r;
+          const dy = (j * step - g.y) / g.r;
+          const [f, wx, wy] = warped(dx * 0.46 + 40, dy * 0.46 + 20, 3);
+          // The body: taller than wide, drifting up, its edge pushed about
+          // by the warp so it feathers into clear black water.
+          const ex = (dx + wx * 2.4) / 1.9;
+          const ey = (dy + 0.3 + wy * 2.4) / 2.4;
+          const env = smooth(1.05, 0.2, Math.sqrt(ex * ex + ey * ey));
+          const dens = smooth(0.34, 0.78, f) * env;
+          // The light inside the ink sits behind the case.
+          const rr = dx * dx + dy * dy;
+          const light = 0.12 + 0.88 * Math.exp(-rr / 1.6);
+          // Denser folds catch more of it: backlit smoke, brighter at the
+          // billow than in the thin water between.
+          const lum = Math.min(1, dens * light * (0.55 + 0.9 * smooth(0.5, 0.88, f)) * 1.3);
+          const o = (j * gw + i) * 4;
+          px[o] = 5 + lum * 150;
+          px[o + 1] = 5 + lum * 143;
+          px[o + 2] = 6 + lum * 132;
+          px[o + 3] = 255;
+        }
       }
-      // Fine grain so the ink is a material, not a flat fill.
+      lctx.putImageData(img, 0, 0);
+      bctx.imageSmoothingEnabled = true;
+      bctx.imageSmoothingQuality = "high";
+      bctx.drawImage(low, 0, 0, gw * step, gh * step);
+      // Fine grain so the ink is a material, not a smooth render.
+      const rnd = rng(7);
       const tile = document.createElement("canvas");
       tile.width = 96;
       tile.height = 96;
       const tctx = tile.getContext("2d");
-      const img = tctx.createImageData(96, 96);
-      for (let i = 0; i < img.data.length; i += 4) {
-        const v = seeded() > 0.5 ? 237 : 0;
-        img.data[i] = v;
-        img.data[i + 1] = v;
-        img.data[i + 2] = v;
-        img.data[i + 3] = seeded() * 9;
+      const grain = tctx.createImageData(96, 96);
+      for (let i = 0; i < grain.data.length; i += 4) {
+        const v = rnd() > 0.5 ? 237 : 0;
+        grain.data[i] = v;
+        grain.data[i + 1] = v;
+        grain.data[i + 2] = v;
+        grain.data[i + 3] = rnd() * 9;
       }
-      tctx.putImageData(img, 0, 0);
+      tctx.putImageData(grain, 0, 0);
       bctx.fillStyle = bctx.createPattern(tile, "repeat");
       bctx.fillRect(0, 0, W, H);
     }
@@ -174,57 +248,76 @@
       compose();
     }
 
-    function newBloom() {
+    // One bloom: a plume leaving the case at a heading, its density and the
+    // moment each cell of it arrives, both fixed up front. Drawing a frame
+    // is then a pass over two arrays. A failure is a thread, not a plume.
+    function newBloom(fail) {
       const g = geometry();
-      const count = 3 + Math.floor(Math.random() * 3);
-      const heading = Math.random() * Math.PI * 2;
-      const fil = [];
-      for (let i = 0; i < count; i += 1) {
-        let a = heading + (Math.random() - 0.5) * 1.6;
-        let x = g.x + Math.cos(a) * g.r * 0.92;
-        let y = g.y + Math.sin(a) * g.r * 0.92;
-        const pts = [[x, y]];
-        const phase = Math.random() * 10;
-        const v0 = g.r * (0.018 + Math.random() * 0.016);
-        for (let k = 1; k < 110; k += 1) {
-          a += Math.sin(k * 0.09 + phase) * 0.045 + (Math.random() - 0.5) * 0.06;
-          const v = v0 * Math.exp(-k / 70);
-          x += Math.cos(a) * v;
-          y += Math.sin(a) * v;
-          pts.push([x, y]);
+      const rnd = rng((bloomSeed = (bloomSeed * 48271) % 2147483647));
+      const heading = rnd() * Math.PI * 2;
+      const k = 50 + Math.floor(rnd() * 900);
+      const span = g.r * 6;
+      const step = 4 * dpr;
+      const n = Math.ceil(span / step);
+      const dens = new Float32Array(n * n);
+      const at = new Float32Array(n * n);
+      const hx = Math.cos(heading);
+      const hy = Math.sin(heading);
+      const width = fail ? 0.05 : 0.34;
+      for (let j = 0; j < n; j += 1) {
+        for (let i = 0; i < n; i += 1) {
+          const dx = (i * step - span / 2) / g.r;
+          const dy = (j * step - span / 2) / g.r;
+          const [f, wx, wy] = warped(dx * (fail ? 1.1 : 0.8) + k, dy * (fail ? 1.1 : 0.8), k);
+          // Along and across the heading, from the rim outward, bent by the warp.
+          const ax = dx + wx * (fail ? 0.9 : 1.4);
+          const ay = dy + wy * (fail ? 0.9 : 1.4);
+          const u = ax * hx + ay * hy - 0.85;
+          const v = -ax * hy + ay * hx;
+          if (u < -0.15) continue;
+          const wide = width + (fail ? 0.03 : 0.3) * Math.max(0, u);
+          const env = Math.exp(-(v * v) / (wide * wide)) * Math.exp(-Math.max(0, u) / (fail ? 1.9 : 1.2));
+          // Feathered to nothing before the tile's edge, so no bloom is cut.
+          const edge = smooth(0, 0.14, Math.min(i, j, n - 1 - i, n - 1 - j) / n);
+          const o = j * n + i;
+          dens[o] = (fail ? smooth(0.35, 0.6, f) : smooth(0.32, 0.8, f)) * env * edge * smooth(-0.15, 0.1, u);
+          at[o] = Math.max(0, u) / 2.4 + (f - 0.5) * 0.3;
         }
-        fil.push({ pts, w: 0.6 + Math.random() * 1.1, a: 0.28 + Math.random() * 0.3 });
       }
-      return { g, fil, t0: 0 };
+      const tile = document.createElement("canvas");
+      tile.width = n;
+      tile.height = n;
+      const color = fail ? [142, 27, 27] : [201, 164, 92];
+      return { x: g.x - span / 2, y: g.y - span / 2, span, n, dens, at, tile, color, fail, t0: 0 };
     }
 
-    // t in 0..1: the thread draws out, widens as it diffuses, then fades to
-    // the residue level. `settled` draws the end state for the residue.
+    // t in 0..1: the plume reveals outward, then fades to the residue level.
+    // `settled` draws the end state for the residue.
     function drawBloom(c, b, t, settled) {
-      const grow = settled ? 1 : 1 - Math.pow(1 - Math.min(1, t / 0.7), 3);
-      const fade = settled ? 0.16 : t < 0.5 ? 1 : 1 - ((t - 0.5) / 0.5) * 0.7;
-      const spread = settled ? 3 : 1 + t * 2.2;
-      c.save();
-      c.globalCompositeOperation = "lighter";
-      c.lineCap = "round";
-      c.lineJoin = "round";
-      for (const f of b.fil) {
-        const k = Math.max(1, Math.floor(grow * (f.pts.length - 1)));
-        c.beginPath();
-        c.moveTo(f.pts[0][0], f.pts[0][1]);
-        for (let i = 1; i <= k; i += 1) c.lineTo(f.pts[i][0], f.pts[i][1]);
-        c.strokeStyle = `rgba(201, 164, 92, ${f.a * fade * 0.16})`;
-        c.lineWidth = f.w * spread * 6 * dpr;
-        c.stroke();
-        c.strokeStyle = `rgba(201, 164, 92, ${f.a * fade})`;
-        c.lineWidth = f.w * spread * dpr;
-        c.stroke();
+      const grow = settled ? 2 : 1.15 * (1 - Math.pow(1 - Math.min(1, t / 0.75), 3));
+      const fade = settled ? (b.fail ? 0.6 : 0.42) : t < 0.55 ? 1 : 1 - ((t - 0.55) / 0.45) * (b.fail ? 0.45 : 0.78);
+      const tctx = b.tile.getContext("2d");
+      const img = tctx.createImageData(b.n, b.n);
+      const px = img.data;
+      const [cr, cg, cb] = b.color;
+      const gain = b.fail ? 1.8 : 1.5;
+      for (let o = 0; o < b.dens.length; o += 1) {
+        const d = b.dens[o];
+        if (!d) continue;
+        const a = Math.min(1, d * smooth(b.at[o] - 0.12, b.at[o], grow) * fade * gain);
+        const p = o * 4;
+        px[p] = cr;
+        px[p + 1] = cg;
+        px[p + 2] = cb;
+        px[p + 3] = a * 255;
       }
-      const cloud = c.createRadialGradient(b.g.x, b.g.y, b.g.r * 0.9, b.g.x, b.g.y, b.g.r * (1.1 + grow * 0.9));
-      cloud.addColorStop(0, `rgba(201, 164, 92, ${0.07 * fade})`);
-      cloud.addColorStop(1, "rgba(201, 164, 92, 0)");
-      c.fillStyle = cloud;
-      c.fillRect(0, 0, W, H);
+      tctx.putImageData(img, 0, 0);
+      c.save();
+      // Champagne is light in the ink; red is ink itself, laid over it.
+      c.globalCompositeOperation = b.fail ? "source-over" : "lighter";
+      c.imageSmoothingEnabled = true;
+      c.imageSmoothingQuality = "high";
+      c.drawImage(b.tile, b.x, b.y, b.span, b.span);
       c.restore();
     }
 
@@ -251,9 +344,9 @@
       if (blooms.length && !document.hidden) raf = requestAnimationFrame(tick);
     }
 
-    function bloom() {
+    function bloom(fail = false) {
       if (!W) return;
-      const b = newBloom();
+      const b = newBloom(fail);
       if (reduceMotion.matches) {
         bake(b);
         compose();
@@ -265,8 +358,9 @@
     }
 
     // Residue of blooms that happened before the window showed them.
-    function settle(n) {
-      for (let i = 0; i < n; i += 1) bake(newBloom());
+    function settle(n, failed = 0) {
+      for (let i = 0; i < n; i += 1) bake(newBloom(false));
+      for (let i = 0; i < failed; i += 1) bake(newBloom(true));
       compose();
     }
 
@@ -282,35 +376,18 @@
       }
     });
 
+    // The field is rendered, not drawn per frame, so a window being dragged
+    // wider waits for the drag to rest; the canvas stretches meanwhile.
     let pending = 0;
     new ResizeObserver(() => {
-      if (pending) return;
-      pending = requestAnimationFrame(() => {
-        pending = 0;
-        resize();
-      });
+      clearTimeout(pending);
+      pending = setTimeout(() => requestAnimationFrame(resize), W ? 120 : 0);
     }).observe($("#field"));
 
     return { bloom, settle, resize };
   })();
 
-  // The watch face: ticks once, the room-left arc and the dial count on demand.
-  (() => {
-    const g = $("#ticks");
-    let out = "";
-    for (let i = 0; i < 12; i += 1) {
-      const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
-      const major = i % 3 === 0;
-      const r1 = major ? 98 : 100;
-      const r2 = 106;
-      const p = (r) => `${(160 + Math.cos(a) * r).toFixed(2)} ${(240 + Math.sin(a) * r).toFixed(2)}`;
-      const [x1, y1] = p(r1).split(" ");
-      const [x2, y2] = p(r2).split(" ");
-      out += `<line${major ? ' class="major"' : ""} x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-    }
-    g.innerHTML = out;
-  })();
-
+  // The room-left arc: the one lit thing on the case.
   function setRoomArc(st) {
     const arc = $("#room-arc");
     const pct =
@@ -318,11 +395,6 @@
     arc.style.strokeDasharray = `${pct.toFixed(2)} 100`;
     // The first value lands without motion; later changes of room ease in.
     if (!arc.classList.contains("live")) requestAnimationFrame(() => arc.classList.add("live"));
-  }
-
-  function setDial(count, word) {
-    $("#dial-count").textContent = count == null ? "" : String(count);
-    $("#dial-word").textContent = word || "";
   }
 
   // ------------------------------------------------------------ IPC
@@ -462,11 +534,6 @@
     const connected = S.status && S.status.connected;
     document.body.classList.toggle("no-watch", !connected);
     setRoomArc(S.status);
-    if (S.view === "send" || S.view === "done") {
-      setDial(S.run ? S.run.tally.verified : 0, "verified");
-    } else {
-      setDial(null, "");
-    }
   }
 
   // --- Watch -----------------------------------------------------------
@@ -995,6 +1062,7 @@
         } else {
           line.detail = ev.reason || "";
           run.tally.failed += 1;
+          Ink.bloom(true);
           announce(`Failed: ${line.title}. ${ev.reason || ""}`);
         }
         break;
@@ -1023,7 +1091,6 @@
       }, 1400);
     }
     if (ev.kind === "error") renderSend();
-    if (ev.kind === "done") setDial(run.tally.verified, "verified");
   }
 
   function lineHtml(l) {
@@ -1176,7 +1243,7 @@
               .join("")}</ul>`
           : ""
       }
-      <details class="every"><summary>Every track in this send</summary><ol>${run.lines
+      <details class="every"><summary>${mark("open")}Every track in this send</summary><ol>${run.lines
         .map(
           (l) =>
             `<li><span class="t">${esc(l.title)}</span><span class="state s-${l.state}">${mark(LINE_MARK[l.state])}${LINE_WORD[l.state]}${
@@ -1188,7 +1255,6 @@
         <button type="button" class="act" data-act="again">Choose more music</button>
         <button type="button" class="text-btn" data-go="onwatch">See what is on the watch</button>
       </div>`;
-    setDial(f.verified, "verified");
   }
 
   // --- On the watch ----------------------------------------------------
@@ -2056,7 +2122,7 @@
           D.drive(run.id, S.preview.files, upto, counter, { ...run.tally });
         }
         Ink.resize();
-        Ink.settle(Math.min(run.tally.verified, 5));
+        Ink.settle(Math.min(run.tally.verified, 5), run.tally.failed);
         break;
       }
       case "onwatch":

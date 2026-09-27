@@ -27,10 +27,12 @@
 <div class="frame">
 
   <!-- The ink field: a bounded canvas, still at rest, one bloom per proven
-       track. The watch sits in it at optical centre. -->
+       track. The watch sits in it at optical centre, lit from behind. -->
   <div class="field" id="field" aria-hidden="true">
     <canvas id="ink"></canvas>
-    <svg id="watch" class="watch" viewBox="0 0 320 480" focusable="false">
+    <!-- The watch is a silhouette: one solid shape cut against the lit ink.
+         Only the room-left arc is lit on it. Generic round case, no brand. -->
+    <svg id="watch" class="watch" viewBox="0 60 320 360" focusable="false">
       <defs>
         <linearGradient id="strap-fade-top" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="#fff" stop-opacity="0"/>
@@ -40,31 +42,22 @@
           <stop offset="0" stop-color="#fff" stop-opacity="1"/>
           <stop offset="1" stop-color="#fff" stop-opacity="0"/>
         </linearGradient>
-        <mask id="strap-mask-top"><rect x="0" y="0" width="320" height="140" fill="url(#strap-fade-top)"/></mask>
-        <mask id="strap-mask-bottom"><rect x="0" y="340" width="320" height="140" fill="url(#strap-fade-bottom)"/></mask>
+        <mask id="strap-mask-top"><rect x="0" y="60" width="320" height="80" fill="url(#strap-fade-top)"/></mask>
+        <mask id="strap-mask-bottom"><rect x="0" y="340" width="320" height="80" fill="url(#strap-fade-bottom)"/></mask>
       </defs>
       <g class="strap">
-        <path mask="url(#strap-mask-top)" d="M106 0h108v96c0 12-6 22-14 30H120c-8-8-14-18-14-30z"/>
-        <path mask="url(#strap-mask-bottom)" d="M120 354h80c8 8 14 18 14 30v96H106v-96c0-12 6-22 14-30z"/>
-        <g class="holes" mask="url(#strap-mask-bottom)">
-          <circle cx="160" cy="412" r="3"/><circle cx="160" cy="432" r="3"/><circle cx="160" cy="452" r="3"/>
-        </g>
+        <path mask="url(#strap-mask-top)" d="M106 60h108v36c0 12-6 22-14 30H120c-8-8-14-18-14-30z"/>
+        <path mask="url(#strap-mask-bottom)" d="M120 354h80c8 8 14 18 14 30v36H106v-36c0-12 6-22 14-30z"/>
       </g>
       <g class="buttons">
         <rect x="270" y="166" width="16" height="26" rx="4" transform="rotate(-30 278 179)"/>
         <rect x="270" y="268" width="16" height="26" rx="4" transform="rotate(30 278 281)"/>
         <rect x="34" y="166" width="16" height="26" rx="4" transform="rotate(30 42 179)"/>
         <rect x="34" y="268" width="16" height="26" rx="4" transform="rotate(-30 42 281)"/>
-        <rect x="270" y="217" width="14" height="26" rx="4"/>
       </g>
       <circle class="case" cx="160" cy="240" r="120"/>
-      <circle class="bezel" cx="160" cy="240" r="108"/>
-      <g class="ticks" id="ticks"></g>
-      <circle class="room-track" cx="160" cy="240" r="114"/>
-      <circle class="room-arc" id="room-arc" cx="160" cy="240" r="114" pathLength="100" transform="rotate(-90 160 240)"/>
-      <circle class="dial" cx="160" cy="240" r="96"/>
-      <text class="dial-count" id="dial-count" x="160" y="246" text-anchor="middle"></text>
-      <text class="dial-word" id="dial-word" x="160" y="270" text-anchor="middle"></text>
+      <circle class="room-track" cx="160" cy="240" r="112"/>
+      <circle class="room-arc" id="room-arc" cx="160" cy="240" r="112" pathLength="100" transform="rotate(-90 160 240)"/>
     </svg>
     <div class="veil" id="veil"><p>Release to add</p></div>
   </div>

@@ -632,7 +632,13 @@
       ol.innerHTML = RESET_STEPS.map((name, i) => {
         const n = i + 1;
         const cur = n === at;
-        const ok = !cur && n <= S.reset.reached && !S.reset.checking && S.reset.step !== "done";
+        const b = S.reset.backup;
+        const copying = b && (b.state === "listing" || b.state === "copying");
+        // Any card can be reached from any other: the backup is offered,
+        // never required, and Confirm only reads the watch. Held only while
+        // a backup is copying (so the watch is not reset under it) and
+        // while the check runs.
+        const ok = !cur && !copying && !S.reset.checking && S.reset.step !== "done";
         return `<li><button type="button" data-rstep="${n}"${cur ? ' aria-current="step"' : ""}${ok ? "" : " disabled"}>${name}</button></li>`;
       }).join("");
       $(".steps-nav").setAttribute("aria-label", "Clear the watch");
@@ -2066,6 +2072,7 @@
         <p class="facts">Pelican can't reset the watch. You do it on the watch, and Pelican checks the result.</p>
         <div class="actions">
           <button type="button" class="act" data-act="reset-step" data-n="2">Back up first</button>
+          <button type="button" class="text-btn" data-act="reset-step" data-n="3">Skip to the reset</button>
           <button type="button" class="text-btn" data-act="reset-close">Not now</button>
         </div>`;
       return;
@@ -2196,10 +2203,17 @@
         <button type="button" class="text-btn" data-act="backup-stop"${b.stopping ? " disabled" : ""}>${
           b.stopping ? "Stopping after this file" : "Stop the backup"
         }</button>
-        <p class="why-not" id="backup-wait">Continue opens when the backup finishes. The next step erases the watch.</p>`;
+        <p class="why-not" id="backup-wait">Continue opens when the backup finishes. The next step erases the watch, so to go on without a full copy, stop the backup first.</p>`;
       return;
     }
     const partial = b && b.state === "finished" && (b.stopped || (b.failed && b.failed.length));
+    // No backup made: skipping is a plain choice, not the primary action,
+    // so the backup button above stays the one thing that stands out.
+    if (!b || b.state === "error") {
+      next.innerHTML = `<button type="button" class="text-btn" data-act="reset-step" data-n="3">Skip the backup</button>
+      ${back}`;
+      return;
+    }
     next.innerHTML = `<button type="button" class="act" data-act="reset-step" data-n="3">${
       partial ? "Continue without a full backup" : "Continue"
     }</button>

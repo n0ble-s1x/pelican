@@ -309,9 +309,8 @@ combination, and never over a value you have set.
 ### One-time USB permission (required)
 
 The watch needs a udev rule so your user can talk to it without root.
-The `.deb` and the AUR packages install the rule to
-`/usr/lib/udev/rules.d/`, so there is nothing more to do. The AppImage,
-the release tarball and a source build install no system files, so the
+The AUR package installs the rule to `/usr/lib/udev/rules.d/`, so there
+is nothing more to do. A source build installs no system files, so the
 window offers an **Install the USB rule** button when the watch cannot be
 opened: it asks for your password once through polkit, writes this one
 file to `/etc/udev/rules.d/` and reloads udev, and shows exactly what it
@@ -334,20 +333,14 @@ watch, close it or eject the watch from its side bar.
 
 ### Packages
 
-Starting with v0.2.0 each release is meant to ship the app and the
-command-line tool as packages, so nobody has to build from source. None
-is published yet:
+Starting with v0.2.0 the app and the command-line tool ship as packages, so
+nobody has to build from source. None is published yet:
 
-- **Debian and Ubuntu:** a `.deb` on the GitHub release page (both
-  programs, the USB rule, the desktop entry). Needs `ffmpeg`.
-- **Any distribution:** an AppImage on the release page (the app only;
-  ffmpeg must be installed on the system), and a tarball with both
-  programs.
-- **Arch:** `pelican-bin` (prebuilt) and `pelican` (from source) on the
-  AUR, from [`packaging/aur/`](packaging/aur/).
-- **Flathub:** `com.krypteia.Pelican`, from
+- **Any distribution:** Flathub, `io.github.n0ble_s1x.Pelican`, from
   [`packaging/flatpak/`](packaging/flatpak/). The command-line tool is
-  inside it: `flatpak run --command=pelican com.krypteia.Pelican status`.
+  inside it: `flatpak run --command=pelican io.github.n0ble_s1x.Pelican status`.
+- **Arch:** `pelican` on the AUR, built from the release tag, from
+  [`packaging/aur/`](packaging/aur/).
 
 ---
 

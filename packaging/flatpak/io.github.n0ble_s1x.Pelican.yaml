@@ -3,15 +3,15 @@
 #
 # Local test build (from the repository root; see README.md in this folder):
 #   flatpak-builder --user --install --force-clean \
-#     build-flatpak/ packaging/flatpak/com.krypteia.Pelican.yaml
-#   flatpak run com.krypteia.Pelican
-#   flatpak run --command=pelican com.krypteia.Pelican status
+#     build-flatpak/ packaging/flatpak/io.github.n0ble_s1x.Pelican.yaml
+#   flatpak run io.github.n0ble_s1x.Pelican
+#   flatpak run --command=pelican io.github.n0ble_s1x.Pelican status
 #
 # Flathub builds offline from a git tag. Before submitting, swap the `type: dir`
 # source below for the commented `type: git` one and regenerate
 # cargo-sources.json from the tagged Cargo.lock.
 
-id: com.krypteia.Pelican
+id: io.github.n0ble_s1x.Pelican
 runtime: org.gnome.Platform
 # GNOME 51 (Freedesktop SDK 26.08 base) is current as of 2026-09. It carries
 # webkit2gtk-4.1, which Tauri 2 needs, and ffmpeg with libmp3lame.
@@ -41,7 +41,7 @@ finish-args:
   # Music is read, never modified: the Music folder and removable or mounted
   # drives. Flathub's linter rejects host:ro and home:ro without an
   # exception, so a library elsewhere needs a user override, for example
-  #   flatpak override --user --filesystem=/srv/music:ro com.krypteia.Pelican
+  #   flatpak override --user --filesystem=/srv/music:ro io.github.n0ble_s1x.Pelican
   # Backups of the watch are written to Documents by default.
   - --filesystem=xdg-music:ro
   - --filesystem=/media:ro
@@ -67,9 +67,9 @@ modules:
       - cargo --offline build --release --locked -p pelican -p pelican-shell
       - install -Dm755 target/release/pelican-app -t ${FLATPAK_DEST}/bin/
       - install -Dm755 target/release/pelican -t ${FLATPAK_DEST}/bin/
-      - install -Dm644 packaging/desktop/com.krypteia.Pelican.desktop -t ${FLATPAK_DEST}/share/applications/
-      - install -Dm644 packaging/flatpak/com.krypteia.Pelican.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo/
-      - install -Dm644 packaging/icons/com.krypteia.Pelican.svg -t ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/
+      - install -Dm644 packaging/desktop/io.github.n0ble_s1x.Pelican.desktop -t ${FLATPAK_DEST}/share/applications/
+      - install -Dm644 packaging/flatpak/io.github.n0ble_s1x.Pelican.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo/
+      - install -Dm644 packaging/icons/io.github.n0ble_s1x.Pelican.svg -t ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/
       - install -Dm644 LICENSE-MIT LICENSE-APACHE -t ${FLATPAK_DEST}/share/licenses/${FLATPAK_ID}/
       # For reference only: a Flatpak cannot install a udev rule. The app
       # shows the one-line host command instead (see README.md).

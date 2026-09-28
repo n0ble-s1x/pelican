@@ -355,7 +355,7 @@ mod tests {
     fn flatpak_is_detected_by_either_signal() {
         assert!(!in_flatpak(None, false));
         assert!(!in_flatpak(Some(""), false));
-        assert!(in_flatpak(Some("com.krypteia.Pelican"), false));
+        assert!(in_flatpak(Some("io.github.n0ble_s1x.Pelican"), false));
         assert!(in_flatpak(None, true));
     }
 

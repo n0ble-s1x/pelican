@@ -6,13 +6,13 @@ app (`pelican-app`, the default command) and the command-line tool
 
 ## Files
 
-- `com.krypteia.Pelican.yaml`: the manifest (build recipe).
-- `com.krypteia.Pelican.metainfo.xml`: AppStream metadata (the store listing).
+- `io.github.n0ble_s1x.Pelican.yaml`: the manifest (build recipe).
+- `io.github.n0ble_s1x.Pelican.metainfo.xml`: AppStream metadata (the store listing).
   Also installed by the AUR packages.
 - `cargo-sources.json`: every crate in `Cargo.lock`, for the offline build.
   Generated; regenerate it whenever `Cargo.lock` changes.
-- `../desktop/com.krypteia.Pelican.desktop`: the desktop entry.
-- `../icons/com.krypteia.Pelican.svg`: the application icon. Not drawn
+- `../desktop/io.github.n0ble_s1x.Pelican.desktop`: the desktop entry.
+- `../icons/io.github.n0ble_s1x.Pelican.svg`: the application icon. Not drawn
   yet; the build fails until it exists.
 
 ## Decisions
@@ -47,7 +47,7 @@ holding the watch" check. `--filesystem=host:ro` and `home:ro` are linter
 errors on Flathub without an exception, so a library anywhere else needs:
 
 ```sh
-flatpak override --user --filesystem=/path/to/music:ro com.krypteia.Pelican
+flatpak override --user --filesystem=/path/to/music:ro io.github.n0ble_s1x.Pelican
 ```
 
 If that proves common, request a `home:ro` exception in the submission PR
@@ -75,18 +75,18 @@ flatpak install --user flathub org.flatpak.Builder \
 
 # From the repository root:
 flatpak run org.flatpak.Builder --user --force-clean --repo=repo-flatpak \
-  build-flatpak packaging/flatpak/com.krypteia.Pelican.yaml
+  build-flatpak packaging/flatpak/io.github.n0ble_s1x.Pelican.yaml
 
 # Lint exactly as Flathub does:
 flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
-  manifest packaging/flatpak/com.krypteia.Pelican.yaml
+  manifest packaging/flatpak/io.github.n0ble_s1x.Pelican.yaml
 flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo-flatpak
 
 # Install and run it:
 flatpak run org.flatpak.Builder --user --install --force-clean \
-  build-flatpak packaging/flatpak/com.krypteia.Pelican.yaml
-flatpak run com.krypteia.Pelican
-flatpak run --command=pelican com.krypteia.Pelican status
+  build-flatpak packaging/flatpak/io.github.n0ble_s1x.Pelican.yaml
+flatpak run io.github.n0ble_s1x.Pelican
+flatpak run --command=pelican io.github.n0ble_s1x.Pelican status
 ```
 
 `build-flatpak/`, `.flatpak-builder/` and `repo-flatpak/` are ignored by
@@ -106,15 +106,10 @@ fbt/bin/python flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
 Flathub's process is at
 https://docs.flathub.org/docs/for-app-authors/submission. Before starting:
 
-1. **App ID and domain.** `com.krypteia.Pelican` requires control of
-   `krypteia.com`. Flathub's linter (`appid-url-not-reachable`) currently
-   fails because `https://krypteia.com` does not serve a valid certificate
-   for that name. Fix the site, then verify the app on Flathub by placing
-   the token it gives you at
-   `https://krypteia.com/.well-known/org.flathub.VerifiedApps.txt`. The
-   alternative is the ID `io.github.n0ble_s1x.Pelican`, which needs no
-   domain but renames every file here.
-2. **Icon.** Draw `packaging/icons/com.krypteia.Pelican.svg` and commit it.
+1. **App ID.** `io.github.n0ble_s1x.Pelican` is verified through the GitHub
+   account `n0ble-s1x` (Flathub turns the hyphen into an underscore): sign
+   in to Flathub with that account. No domain is involved.
+2. **Icon.** `packaging/icons/io.github.n0ble_s1x.Pelican.svg`.
 3. **Release.** Merge the release PR and push the signed `v0.2.0` tag, so
    the screenshots under
    `https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/`
@@ -126,7 +121,7 @@ Then:
 1. Fork https://github.com/flathub/flathub and clone the `new-pr` branch:
    `git clone --branch=new-pr git@github.com:<you>/flathub.git`.
 2. Create a branch from `new-pr` (for example `add-pelican`).
-3. Copy in `com.krypteia.Pelican.yaml` and `cargo-sources.json`
+3. Copy in `io.github.n0ble_s1x.Pelican.yaml` and `cargo-sources.json`
    (regenerated from the tagged `Cargo.lock`).
 4. In the copied manifest, delete the `type: dir` source and uncomment the
    `type: git` source, with `tag: v0.2.0` and `commit:` set to the tag's
@@ -135,11 +130,11 @@ Then:
    `appstream-screenshots-not-mirrored-in-ostree` error is expected on a
    local build; Flathub's build mirrors them).
 6. Open a PR against `flathub/flathub`, base branch `new-pr`, titled
-   `Add com.krypteia.Pelican`. Fill in the checklist in the PR template.
+   `Add io.github.n0ble_s1x.Pelican`. Fill in the checklist in the PR template.
 7. Answer review. A reviewer will ask about `--device=usb` and the
    filesystem permissions; the Decisions section above has the reasons.
    Comment `bot, build` on the PR to trigger a test build.
-8. Once merged, Flathub creates `flathub/com.krypteia.Pelican` and invites
+8. Once merged, Flathub creates `flathub/io.github.n0ble_s1x.Pelican` and invites
    you as a maintainer. Accept the invite and enable two-factor
    authentication on GitHub (required). Updates are PRs to that repository
    (see `RELEASING.md`).

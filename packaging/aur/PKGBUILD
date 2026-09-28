@@ -1,7 +1,6 @@
-# Maintainer: Krypteia <krypteia.annex447@8alias.com>
+# Maintainer: Krypteia Security <krypteia.annex447@8alias.com>
 #
-# Builds from the tagged source. packaging/aur/pelican-bin/PKGBUILD installs
-# the prebuilt release tarball instead.
+# Builds from the tagged source on the user's machine.
 pkgname=pelican
 pkgver=0.2.0
 pkgrel=1
@@ -40,12 +39,12 @@ package() {
     install -Dm755 target/release/pelican "$pkgdir/usr/bin/pelican"
     install -Dm755 target/release/pelican-app "$pkgdir/usr/bin/pelican-app"
     install -Dm644 udev/70-garmin-mtp.rules "$pkgdir/usr/lib/udev/rules.d/70-garmin-mtp.rules"
-    install -Dm644 packaging/desktop/com.krypteia.Pelican.desktop \
-        "$pkgdir/usr/share/applications/com.krypteia.Pelican.desktop"
-    install -Dm644 packaging/icons/com.krypteia.Pelican.svg \
-        "$pkgdir/usr/share/icons/hicolor/scalable/apps/com.krypteia.Pelican.svg"
-    install -Dm644 packaging/flatpak/com.krypteia.Pelican.metainfo.xml \
-        "$pkgdir/usr/share/metainfo/com.krypteia.Pelican.metainfo.xml"
+    install -Dm644 packaging/desktop/io.github.n0ble_s1x.Pelican.desktop \
+        "$pkgdir/usr/share/applications/io.github.n0ble_s1x.Pelican.desktop"
+    install -Dm644 packaging/icons/io.github.n0ble_s1x.Pelican.svg \
+        "$pkgdir/usr/share/icons/hicolor/scalable/apps/io.github.n0ble_s1x.Pelican.svg"
+    install -Dm644 packaging/flatpak/io.github.n0ble_s1x.Pelican.metainfo.xml \
+        "$pkgdir/usr/share/metainfo/io.github.n0ble_s1x.Pelican.metainfo.xml"
     install -Dm644 LICENSE-MIT "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
     install -Dm644 LICENSE-APACHE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"
     install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

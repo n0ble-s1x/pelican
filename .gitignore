@@ -32,5 +32,3 @@ crates/pelican-shell/gen/schemas/*-schema.json
 /build-flatpak/
 /.flatpak-builder/
 /repo-flatpak/
-# Release tarball staging (RELEASING.md).
-/dist/

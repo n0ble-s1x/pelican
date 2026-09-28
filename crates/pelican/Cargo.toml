@@ -27,30 +27,3 @@ mtp-backend = ["pelican-core/mtp-backend"]
 
 [lints]
 workspace = true
-
-# `cargo deb` produces a .deb for native install on Pop / Ubuntu / Debian.
-#   cargo install cargo-deb
-#   cargo deb --release -p pelican
-# Output lands at target/debian/pelican_<ver>_<arch>.deb
-#
-# Asset source paths are relative to THIS manifest, so they climb out of
-# crates/pelican/ to reach the repo root.
-[package.metadata.deb]
-maintainer = "n0ble-s1x <krypteia.annex447@8alias.com>"
-copyright = "2026, Krypteia LLC"
-license-file = ["../../LICENSE-MIT", "4"]
-extended-description = """\
-Transcodes your music to one profile Garmin watches play, sends it to the
-watch over USB under names the watch has never seen, and reads every file
-back to prove it arrived. No Garmin Express, no account, no telemetry, no
-daemon, no network."""
-depends = "$auto, ffmpeg, libudev1"
-section = "sound"
-priority = "optional"
-assets = [
-    ["../../target/release/pelican", "usr/bin/", "755"],
-    ["../../udev/70-garmin-mtp.rules", "usr/lib/udev/rules.d/", "644"],
-    ["../../README.md", "usr/share/doc/pelican/README.md", "644"],
-    ["../../LICENSE-MIT", "usr/share/doc/pelican/LICENSE-MIT", "644"],
-    ["../../LICENSE-APACHE", "usr/share/doc/pelican/LICENSE-APACHE", "644"],
-]

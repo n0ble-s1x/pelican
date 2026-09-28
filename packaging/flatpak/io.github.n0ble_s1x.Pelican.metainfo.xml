@@ -6,15 +6,15 @@
   appstream check (packaging/flatpak/README.md has both commands).
 -->
 <component type="desktop-application">
-  <id>com.krypteia.Pelican</id>
+  <id>io.github.n0ble_s1x.Pelican</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT OR Apache-2.0</project_license>
 
   <name>Pelican</name>
   <summary>Put your own music on a Garmin watch</summary>
 
-  <developer id="com.krypteia">
-    <name>Krypteia</name>
+  <developer id="io.github.n0ble_s1x">
+    <name>Krypteia Security</name>
   </developer>
 
   <description>
@@ -45,7 +45,7 @@
     </p>
   </description>
 
-  <launchable type="desktop-id">com.krypteia.Pelican.desktop</launchable>
+  <launchable type="desktop-id">io.github.n0ble_s1x.Pelican.desktop</launchable>
 
   <screenshots>
     <screenshot type="default">

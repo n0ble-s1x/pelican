@@ -112,6 +112,13 @@ the playlist.
   <img src="docs/images/playlist.png" alt="Naming a playlist: seven songs from two folders, a name field, and the line On the watch it appears under Albums, in this order" width="820" />
 </p>
 
+### Name your watches
+
+The first time a watch is plugged in, the app offers to name it ("Mav's
+165"). The name titles the window from then on, with the model under it, so
+two watches in one house are never confused. It is kept on this computer
+next to that watch's ledger, and nothing is written to the watch.
+
 ### Send again
 
 A track that is already on the watch is skipped by default. **Send again**
@@ -130,10 +137,8 @@ Verified on a Forerunner 165 Music (firmware 2506) on Linux, 2026-09-26: a
 24-track album sent in under a minute, every file hash-verified, confirmed
 again by an independent libmtp read-back, and played on the watch. Details in
 [`docs/status.md`](docs/status.md). Playlists as albums, the
-backup and sending from the app were verified on the same watch on
-2026-09-27. Clear the watch has been checked on hardware only as far as refusing
-a watch that still holds music; the step after a real factory reset has been
-tested against a simulated watch.
+backup, sending from the app and Clear the watch, through a real factory
+reset, were verified on the same watch on 2026-09-27.
 
 ---
 
@@ -268,6 +273,10 @@ pelican backup ~/Documents/watch-backup
 
 # After a factory reset: checks /Music is empty, then starts a fresh ledger
 pelican reset-ledger
+
+# Name the watch, and list every device named on this computer
+pelican name "Mav's 165"
+pelican devices
 ```
 
 `push` exits non-zero if any file failed. With more than one watch plugged
@@ -309,13 +318,14 @@ combination, and never over a value you have set.
 ### One-time USB permission (required)
 
 The watch needs a udev rule so your user can talk to it without root.
-The AUR `PKGBUILD` and the `.deb` config install the rule to
-`/usr/lib/udev/rules.d/` (neither is published yet). From a source build, the window
-offers an **Install the USB rule** button when the watch cannot be opened:
-it asks for your password once through polkit, writes this one file to
-`/etc/udev/rules.d/` and reloads udev, and shows exactly what it runs
-before you press it. (Inside a Flatpak it cannot, and shows the command
-instead.) Or do it by hand:
+The AUR package installs the rule to `/usr/lib/udev/rules.d/`, so there
+is nothing more to do. A source build installs no system files, so the
+window offers an **Install the USB rule** button when the watch cannot be
+opened: it asks for your password once through polkit, writes this one
+file to `/etc/udev/rules.d/` and reloads udev, and shows exactly what it
+runs before you press it. The Flatpak cannot write outside its sandbox, so
+there the window shows the same one-line command to run in a terminal
+instead. Or do it by hand:
 
 ```sh
 sudo install -m 644 udev/70-garmin-mtp.rules /etc/udev/rules.d/
@@ -332,12 +342,14 @@ watch, close it or eject the watch from its side bar.
 
 ### Packages
 
-An AUR `PKGBUILD` ([`packaging/aur/`](packaging/aur/)) and a Debian package
-config (`cargo deb -p pelican`) are in the tree for the command-line tool;
-neither is published yet, and neither packages the app yet. A Flatpak
-manifest for the command-line tool is in
-[`packaging/flatpak/`](packaging/flatpak/); it has not been built or
-submitted yet. See [Roadmap](#roadmap).
+Starting with v0.2.0 the app and the command-line tool ship as packages, so
+nobody has to build from source. None is published yet:
+
+- **Any distribution:** Flathub, `io.github.n0ble_s1x.Pelican`, from
+  [`packaging/flatpak/`](packaging/flatpak/). The command-line tool is
+  inside it: `flatpak run --command=pelican io.github.n0ble_s1x.Pelican status`.
+- **Arch:** `pelican` on the AUR, built from the release tag, from
+  [`packaging/aur/`](packaging/aur/).
 
 ---
 

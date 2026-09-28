@@ -18,6 +18,7 @@
 //! [`library`] browses the music on disk one folder at a time.
 
 pub mod backup;
+pub mod devices;
 pub mod error;
 pub mod garmin;
 pub mod hash;

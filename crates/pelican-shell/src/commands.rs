@@ -21,7 +21,7 @@ use pelican_core::ledger::Ledger;
 use pelican_core::preview::{self, Room};
 use pelican_core::transcode::encoder;
 use pelican_core::transfer::{self, Options, PlanEntry, Stop};
-use pelican_core::{backup, library, mtp, paths, places, platform, reset, source, watch};
+use pelican_core::{backup, devices, library, mtp, paths, places, platform, reset, source, watch};
 
 use crate::dto::{
     self, BackupEvent, BackupPayload, BackupStarted, LedgerDto, ListingDto, Payload, PlaceDto,
@@ -106,9 +106,15 @@ fn read_status(gvfs_warning: Option<String>) -> Result<(Status, Room)> {
     // statement, before the ledger is read.
     let snap = watch::read(mtp::open(&device)?.as_mut(), &device)?;
     let counts = snap.counts();
-    let (ledger, error) = match serial_of(&device) {
-        Ok(s) => (Ledger::read(&data_dir()?, &s)?.totals().into(), None),
-        Err(e) => (Default::default(), Some(err(e))),
+    let (ledger, name, error) = match serial_of(&device) {
+        Ok(s) => {
+            let dir = data_dir()?;
+            let name = devices::Registry::read(&dir)?
+                .name_of(&s)
+                .map(str::to_string);
+            (Ledger::read(&dir, &s)?.totals().into(), name, None)
+        }
+        Err(e) => (Default::default(), None, Some(err(e))),
     };
     let room = Room {
         free_bytes: snap.free,
@@ -116,6 +122,7 @@ fn read_status(gvfs_warning: Option<String>) -> Result<(Status, Room)> {
     };
     let status = Status {
         connected: true,
+        name,
         model: Some(snap.model),
         serial: snap.serial,
         free_bytes: Some(snap.free),
@@ -128,6 +135,31 @@ fn read_status(gvfs_warning: Option<String>) -> Result<(Status, Room)> {
         error_kind: None,
     };
     Ok((status, room))
+}
+
+// ── the watch's name ─────────────────────────────────────────────────────
+
+/// Name (or rename) the watch the last `status` saw. Kept on this computer
+/// in `devices.jsonl`; nothing is written to the watch. Returns the stored
+/// name, trimmed.
+#[tauri::command]
+pub async fn name_watch(shell: Shared<'_>, name: String) -> Result<String, String> {
+    let shell = shell.inner().clone();
+    off_thread(move || {
+        let run = || -> Result<String> {
+            let serial = shell.watch.serial().ok_or_else(|| {
+                anyhow!(
+                    "no watch has been read yet, or it reports no serial number, \
+                     so it cannot be named"
+                )
+            })?;
+            let dir = data_dir()?;
+            let named = devices::set_name(&dir, &serial, shell.watch.model().as_deref(), &name)?;
+            Ok(named.name)
+        };
+        run().map_err(err)
+    })
+    .await
 }
 
 // ── library ──────────────────────────────────────────────────────────────

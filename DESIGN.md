@@ -315,7 +315,7 @@ Four title cards with their own step index in the foot (Erases · Back up · Res
 1. **What a reset erases:** the permanence statement and the five categories as hairline rows.
 2. **Back up first:** sync with Garmin Connect; "If you use Agoge or another fitness app, pull your activities into it first"; a read-only copy of the watch's GARMIN folder with a live count, file and meter; the settings backup on the watch. While the copy runs, Continue is disabled with the reason beneath it ("Continue opens when the backup finishes. The next step erases the watch.") and the only other move is Stop the backup; no control, the step index included, goes past this card mid-copy. A stopped or partial copy names itself on the way on: "Continue without a full backup".
 3. **Reset the watch:** the six steps on the watch, with the Forerunner 165's buttons named.
-4. **Plug it back in:** "The watch is clean" reads the watch's music folder; the ledger restarts only if it is empty. Refused is its own card (the word Refused in blood-text, the likely cause). A clean result is "Verified clean" in champagne, and the ink blooms once.
+4. **Plug it back in:** "Check the watch" reads the watch's music folder; the ledger restarts only if it is empty. Refused is its own card (the word Refused in blood-text, the likely cause). A clean result is "Verified clean" in champagne, and the ink blooms once. The card then says the watch keeps its name (a reset does not change its serial) with Rename it, or offers the name form if it never had one.
 
 ## Do's and Don'ts
 

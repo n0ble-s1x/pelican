@@ -1723,6 +1723,23 @@ details.saw .rule-why {
   min-height: 52px;
 }
 
+/* Naming the watch: a quieter form than the playlist's, under the facts. */
+.watch-name {
+  margin-top: 26px;
+}
+
+.name-label {
+  flex-basis: 100%;
+  font-size: var(--t-xs);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.watch-name + .why-not {
+  margin-top: 10px;
+}
+
 .name-form + .facts {
   margin-top: 14px;
 }

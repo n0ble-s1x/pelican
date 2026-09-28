@@ -1,0 +1,94 @@
+# Pelican: Flatpak manifest for the desktop app (pelican-app) and the
+# command-line tool (pelican).
+#
+# Local test build (from the repository root; see README.md in this folder):
+#   flatpak-builder --user --install --force-clean \
+#     build-flatpak/ packaging/flatpak/io.github.n0ble_s1x.Pelican.yaml
+#   flatpak run io.github.n0ble_s1x.Pelican
+#   flatpak run --command=pelican io.github.n0ble_s1x.Pelican status
+#
+# Flathub builds offline from a git tag. Before submitting, swap the `type: dir`
+# source below for the commented `type: git` one and regenerate
+# cargo-sources.json from the tagged Cargo.lock.
+
+id: io.github.n0ble_s1x.Pelican
+runtime: org.gnome.Platform
+# GNOME 51 (Freedesktop SDK 26.08 base) is current as of 2026-09. It carries
+# webkit2gtk-4.1, which Tauri 2 needs, and ffmpeg with libmp3lame.
+runtime-version: "51"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: pelican-app
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # WebKit renders with the GPU.
+  - --device=dri
+
+  # USB. Pelican speaks MTP to the watch itself (nusb over /dev/bus/usb), so
+  # it needs the raw USB nodes. --device=usb (Flatpak 1.15.11+) grants
+  # /dev/bus/usb only, which is narrower than --device=all. On an older
+  # Flatpak that does not know the usb device type, the conditional line
+  # falls back to --device=all. --usb lists the devices the app may
+  # enumerate through the USB portal: Garmin's vendor ID only.
+  - --device=usb
+  - --device-if=all:!has-usb-device
+  - --usb=vnd:091e
+
+  # Music is read, never modified: the Music folder and removable or mounted
+  # drives. Flathub's linter rejects host:ro and home:ro without an
+  # exception, so a library elsewhere needs a user override, for example
+  #   flatpak override --user --filesystem=/srv/music:ro io.github.n0ble_s1x.Pelican
+  # Backups of the watch are written to Documents by default.
+  - --filesystem=xdg-music:ro
+  - --filesystem=/media:ro
+  - --filesystem=/run/media:ro
+  - --filesystem=/mnt:ro
+  - --filesystem=xdg-documents
+  # Pelican warns when the desktop's gvfs has mounted the watch (which makes
+  # it busy). That check reads /run/user/<uid>/gvfs.
+  - --filesystem=xdg-run/gvfs:ro
+
+  # No network. Pelican makes no connections, and this keeps it that way.
+
+modules:
+  - name: pelican
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/pelican/cargo
+        CARGO_NET_OFFLINE: "true"
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo --offline build --release --locked -p pelican -p pelican-shell
+      - install -Dm755 target/release/pelican-app -t ${FLATPAK_DEST}/bin/
+      - install -Dm755 target/release/pelican -t ${FLATPAK_DEST}/bin/
+      - install -Dm644 packaging/desktop/io.github.n0ble_s1x.Pelican.desktop -t ${FLATPAK_DEST}/share/applications/
+      - install -Dm644 packaging/flatpak/io.github.n0ble_s1x.Pelican.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo/
+      - install -Dm644 packaging/icons/io.github.n0ble_s1x.Pelican.svg -t ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/
+      - install -Dm644 LICENSE-MIT LICENSE-APACHE -t ${FLATPAK_DEST}/share/licenses/${FLATPAK_ID}/
+      # For reference only: a Flatpak cannot install a udev rule. The app
+      # shows the one-line host command instead (see README.md).
+      - install -Dm644 udev/70-garmin-mtp.rules -t ${FLATPAK_DEST}/share/pelican/
+    sources:
+      # Local builds: the working tree.
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - build-flatpak
+          - .flatpak-builder
+      # Flathub: the release tag, pinned to its commit.
+      # - type: git
+      #   url: https://github.com/n0ble-s1x/pelican.git
+      #   tag: v0.2.0
+      #   commit: <full commit SHA of the v0.2.0 tag>
+      #   x-checker-data:
+      #     type: git
+      #     tag-pattern: ^v([\d.]+)$
+      # Offline crates, from flatpak-cargo-generator.py (see README.md).
+      - cargo-sources.json

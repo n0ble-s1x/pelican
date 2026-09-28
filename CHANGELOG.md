@@ -15,10 +15,14 @@ does not do.
 **Hardware acceptance passed on 2026-09-26:** 24 tracks sent to a Forerunner
 165 Music on firmware 2506, 24 verified by read-back hash, confirmed by an
 independent libmtp read-back, and played on the watch. On 2026-09-27 playlists sent as albums, the backup and
-a send from the app passed on the same watch; Clear the watch has been checked
-on hardware only as far as its refusal while music remains.
+a send from the app passed on the same watch, and so did Clear the watch,
+through a real factory reset.
 
 ### Added
+- **Device names**: name a watch ("Mav's 165") the first time it is plugged
+  in; the name titles the window, with the model under it. Kept on this
+  computer in `devices.jsonl`, append-only, next to the ledgers; nothing is
+  written to the watch. CLI: `pelican name`, `pelican devices`.
 - **`pelican-app`**, a Tauri 2 desktop app for Linux (`crates/pelican-shell`)
   with a plain HTML/CSS/JS interface in `ui/` (no npm). A send is four steps:
   Watch, Choose (a folder explorer with network shares and removable drives),
@@ -63,6 +67,10 @@ on hardware only as far as its refusal while music remains.
   showing up as `091e:0003`) and reported with one instruction: unplug it,
   wait five seconds, plug it back in.
 - `udev/70-garmin-mtp.rules` (R10).
+- **Packages for the app and the CLI**: a Flatpak manifest for
+  `io.github.n0ble_s1x.Pelican` on the GNOME 51 runtime, with USB access
+  limited to `/dev/bus/usb`, and AUR `pelican`, built from the release tag.
+  An app icon. None is published yet.
 
 ### Changed
 - **One output profile**: every source is re-encoded by ffmpeg to CBR 192

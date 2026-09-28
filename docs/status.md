@@ -40,8 +40,13 @@ macOS is out of scope for the rebuild.
 - **Desktop app**: a five-song playlist from two folders sent through
   `pelican-app`: 5 verified, libmtp read-back matched, tracks 1 to 5.
 - **Clear the watch**: `reset-ledger` against a watch with 27 audio objects
-  refused and left the ledger byte-identical. The other half (a `reset`
-  line after a real factory reset) is not yet hardware-tested.
+  refused and left the ledger byte-identical. After a real factory reset
+  (Delete Data and Reset Settings), the app's check read `/Music` with 0
+  audio objects and appended one `reset` line with the counter at 34;
+  nothing before it changed. `pelican status` then showed 0 of 500 objects
+  and a fresh epoch, an independent libmtp listing found 48 objects and no
+  audio file, and the USB serial was unchanged, so the watch's ledger and
+  name carry over.
 
 ## What it does
 
@@ -57,12 +62,13 @@ macOS is out of scope for the rebuild.
 | Upload, then prove it | One MTP session per run, split-header transfers, streamed upload into flat `/Music`. Each upload is read back and hashed against the local transcode. Mismatch or error → `failed` in the ledger, the name stays burned, one retry under a fresh name (`--retries N`). | R6 |
 | Capacity before any write | Refused before the first write if planned bytes + 2 MiB exceed free space, or audio objects on `/Music` + planned files exceed 500. A retry is checked the same way, with the room promised to files still queued held back. | R7 |
 | Temp files never outlive the run | Everything is transcoded into `$XDG_CACHE_HOME/pelican/staging/<run-id>/` before the session opens; the dir is removed on success, failure and error, and a dir left by Ctrl-C is swept at next start. Sources are only read. | R8 |
-| CLI | `pelican push [--dry-run] [--resend] [--retries N] [--artist/--album/--genre/--year] [--mix NAME] [--serial S] PATHS…`, `pelican status`, `pelican ls` (rows marked `ledger`/`foreign`/`stub`), `pelican ledger`, `pelican backup [DEST]`, `pelican reset-ledger`. A dry run prints the plan through the same decision code the run uses, and touches no device. | R9 |
+| CLI | `pelican push [--dry-run] [--resend] [--retries N] [--artist/--album/--genre/--year] [--mix NAME] [--serial S] PATHS…`, `pelican status`, `pelican ls` (rows marked `ledger`/`foreign`/`stub`), `pelican ledger`, `pelican backup [DEST]`, `pelican reset-ledger`, `pelican name [NAME]`, `pelican devices`. A dry run prints the plan through the same decision code the run uses, and touches no device. | R9 |
 | Send again | Besides the run-wide `--resend`, a front-end can name single files to send again (`Options::resend_sources`, `transfer::Resend`): each goes under a fresh name (the counter never repeats) as another copy in the library. Adding a song already on the watch to a playlist needs no flag at all: the skip key is audio + album, so it is sent as a new copy automatically. | R5 |
 | A watch that stops answering | After a reboot the FR165 can come back wedged: seen 2026-09-26 enumerating as `091e:0003` "Garmin GPS usb/tty converter", every MTP open then timing out after 30 s until a physical replug. `error::classify` sorts any device error into `not_found` / `permission` / `busy` / `gvfs` / `wedged` / `other`; a timeout (mtp-rs `Error::Timeout`, an I/O `TimedOut`, or the text) is `wedged` and carries `error::REPLUG`: "The watch isn't answering. Unplug it, wait five seconds, plug it back in." `garmin::pick_device` reports a watch seen only as `091e:0003` the same way. A push whose upload or read-back times out records the attempt as `failed`, does not retry, and ends the run with that instruction instead of waiting out a timeout per file. The CLI prints the instruction on its own line. |  |
 | Back up the watch | `backup::backup` walks the watch's `GARMIN` folder with `list_dir` and copies every file with `download_file` into `DEST/GARMIN/…`. Those are the only two calls it makes, so it cannot write to the watch. Local files are created new, never replaced; device names that could climb out of DEST are refused. Stoppable between files; a file that will not copy is reported and the rest are still copied; a wedge ends it with the replug instruction. `backup::default_dest(model)` is `~/Documents/Pelican/<model> backup <YYYY-MM-DD>` (XDG documents dir, UTC date, ` (2)` if taken). CLI: `pelican backup [DEST]`. |  |
 | Clear the watch (a factory reset) | `reset::reset_ledger` re-reads `/Music` itself and, only if it holds no audio objects (stubs count), appends a `reset` line to the ledger. After it, names and verified sources from before no longer count; `max_counter` still spans everything, so the numbering keeps rising. Refuses with an explanation while audio remains. CLI: `pelican reset-ledger`. | R4 |
 | Places | `places::places(library_root)`: Home, the XDG Music dir, the configured library, mounted network shares (nfs/nfs4/cifs/smb3/smbfs/sshfs from `/proc/self/mounts`, plus an `autofs` trigger that `/etc/fstab` says mounts a network filesystem, as with a systemd automount NAS), and drives under `/run/media/$USER` or `/media/$USER`. Mount points are not `stat`ed (an NFS mount with its server gone can hang); the fixed folders are. Parsing is pure and tested on fixture text. |  |
+| Device names | `devices::set_name` appends `{"event":"name","serial","name","model"}` to `$XDG_DATA_HOME/pelican/devices.jsonl`, fsync'd; the latest line per serial wins and nothing is rewritten. Keyed by the USB serial, the ledger's key, so an existing ledger needs no migration. A name is at most 40 characters with no control characters, and it decides nothing: which names are free on the watch stays the ledger's business. CLI: `pelican name [NAME]`, `pelican devices`; `status` prints it. The app offers it on first plug. |  |
 | gvfs warning | Every device-touching command warns, with the `gio mount -u` fix, if gvfs-mtp holds the watch. | R9 |
 | udev | `udev/70-garmin-mtp.rules` sorts before `73-seat-late.rules`, so `uaccess` actually grants the ACL. | R10 |
 

@@ -13,7 +13,7 @@ rust-version = "1.89"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/n0ble-s1x/pelican"
 homepage = "https://github.com/n0ble-s1x/pelican"
-# Author: maintainer of this fork; copyright remains Krypteia LLC (see LICENSE-*).
+# Author: maintainer of this fork; copyright remains Krypteia Security LLC (see LICENSE-*).
 authors = ["n0ble-s1x <krypteia.annex447@8alias.com>"]
 
 [workspace.dependencies]

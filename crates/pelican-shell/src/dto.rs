@@ -108,6 +108,9 @@ impl From<ledger::Totals> for LedgerTotals {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct Status {
     pub connected: bool,
+    /// The name the owner gave this watch on this computer, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

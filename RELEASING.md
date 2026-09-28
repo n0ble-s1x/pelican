@@ -30,6 +30,8 @@ is one (see Possible later work).
 git switch -c release/v0.X.Y main
 
 $EDITOR Cargo.toml                                # [workspace.package] version = "0.X.Y"
+$EDITOR crates/pelican/Cargo.toml crates/pelican-shell/Cargo.toml
+                                                  # the pelican-core dependency's version = "0.X.Y"
 $EDITOR crates/pelican-shell/tauri.conf.json      # "version": "0.X.Y"
 $EDITOR CHANGELOG.md                              # move [Unreleased] into [0.X.Y] - YYYY-MM-DD
 $EDITOR packaging/flatpak/io.github.n0ble_s1x.Pelican.metainfo.xml

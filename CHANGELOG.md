@@ -19,6 +19,10 @@ a send from the app passed on the same watch; Clear the watch has been checked
 on hardware only as far as its refusal while music remains.
 
 ### Added
+- **Device names**: name a watch ("Mav's 165") the first time it is plugged
+  in; the name titles the window, with the model under it. Kept on this
+  computer in `devices.jsonl`, append-only, next to the ledgers; nothing is
+  written to the watch. CLI: `pelican name`, `pelican devices`.
 - **`pelican-app`**, a Tauri 2 desktop app for Linux (`crates/pelican-shell`)
   with a plain HTML/CSS/JS interface in `ui/` (no npm). A send is four steps:
   Watch, Choose (a folder explorer with network shares and removable drives),

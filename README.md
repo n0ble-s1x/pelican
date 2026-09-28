@@ -112,6 +112,13 @@ the playlist.
   <img src="docs/images/playlist.png" alt="Naming a playlist: seven songs from two folders, a name field, and the line On the watch it appears under Albums, in this order" width="820" />
 </p>
 
+### Name your watches
+
+The first time a watch is plugged in, the app offers to name it ("Mav's
+165"). The name titles the window from then on, with the model under it, so
+two watches in one house are never confused. It is kept on this computer
+next to that watch's ledger, and nothing is written to the watch.
+
 ### Send again
 
 A track that is already on the watch is skipped by default. **Send again**
@@ -268,6 +275,10 @@ pelican backup ~/Documents/watch-backup
 
 # After a factory reset: checks /Music is empty, then starts a fresh ledger
 pelican reset-ledger
+
+# Name the watch, and list every device named on this computer
+pelican name "Mav's 165"
+pelican devices
 ```
 
 `push` exits non-zero if any file failed. With more than one watch plugged

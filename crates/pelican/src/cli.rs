@@ -41,6 +41,22 @@ pub enum Command {
     /// The ledger is appended to, never rewritten; the name counter keeps
     /// rising.
     ResetLedger(DeviceArgs),
+    /// Give the watch a name ("Mav's 165"), shown instead of its model.
+    /// Kept on this computer next to its ledger; nothing is written to the
+    /// watch. With no NAME, print the name it has.
+    Name(NameArgs),
+    /// List the devices named on this computer. Touches no USB device.
+    Devices,
+}
+
+#[derive(Args, Debug)]
+pub struct NameArgs {
+    /// Which watch, by USB serial. Naming it skips USB entirely.
+    #[arg(long, value_name = "S")]
+    pub serial: Option<String>,
+    /// The name, at most 40 characters.
+    #[arg(value_name = "NAME")]
+    pub name: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -191,6 +207,21 @@ mod tests {
     }
 
     #[test]
+    fn name_takes_an_optional_name_and_serial() {
+        let cli = Cli::try_parse_from(["pelican", "name", "Mav's 165"]).unwrap();
+        let Command::Name(n) = cli.command else {
+            panic!("not name")
+        };
+        assert_eq!(n.name.as_deref(), Some("Mav's 165"));
+        let cli = Cli::try_parse_from(["pelican", "name", "--serial", "abc"]).unwrap();
+        let Command::Name(n) = cli.command else {
+            panic!("not name")
+        };
+        assert_eq!((n.serial.as_deref(), n.name), (Some("abc"), None));
+        assert!(Cli::try_parse_from(["pelican", "devices"]).is_ok());
+    }
+
+    #[test]
     fn push_needs_a_path() {
         assert!(Cli::try_parse_from(["pelican", "push"]).is_err());
     }
@@ -205,7 +236,16 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            ["push", "status", "ls", "ledger", "backup", "reset-ledger"]
+            [
+                "push",
+                "status",
+                "ls",
+                "ledger",
+                "backup",
+                "reset-ledger",
+                "name",
+                "devices"
+            ]
         );
         for bad in ["delete", "rm", "remove", "wipe", "playlist"] {
             assert!(Cli::try_parse_from(["pelican", bad]).is_err(), "{bad}");

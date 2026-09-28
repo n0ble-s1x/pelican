@@ -17,9 +17,9 @@ use pelican_core::transfer::{
     self, Env, Mix, Options, Outcome, PlanEntry, Progress, Skip, Stop, Verdict,
 };
 use pelican_core::watch::{self, Origin, Row};
-use pelican_core::{backup, paths, platform, reset, source};
+use pelican_core::{backup, devices, paths, platform, reset, source};
 
-use crate::cli::{BackupArgs, Command, DeviceArgs, PushArgs};
+use crate::cli::{BackupArgs, Command, DeviceArgs, NameArgs, PushArgs};
 
 pub fn run(cmd: Command) -> Result<ExitCode> {
     match cmd {
@@ -29,7 +29,61 @@ pub fn run(cmd: Command) -> Result<ExitCode> {
         Command::Ledger(a) => ledger(a),
         Command::Backup(a) => backup_cmd(a),
         Command::ResetLedger(a) => reset_ledger(a),
+        Command::Name(a) => name_cmd(a),
+        Command::Devices => devices_cmd(),
     }
+}
+
+fn name_cmd(a: NameArgs) -> Result<ExitCode> {
+    let dir = data_dir()?;
+    // With --serial nothing is read from USB. Without it, the watch is
+    // asked for its model, so the name can be shown next to it.
+    let (serial, model) = match a.serial {
+        Some(s) => (s, None),
+        None => {
+            warn_if_held();
+            let device = garmin::pick_device(None)?;
+            let serial = device.serial.clone().ok_or_else(|| {
+                anyhow!(
+                    "{} reports no USB serial number, so Pelican cannot tell it apart \
+                     from another watch and cannot name it.",
+                    device.label()
+                )
+            })?;
+            let snap = watch::read(mtp::open(&device)?.as_mut(), &device)?;
+            (serial, Some(snap.model))
+        }
+    };
+    match a.name {
+        None => match devices::Registry::read(&dir)?.get(&serial) {
+            Some(n) => println!("{}", n.name),
+            None => println!("(no name) · name it with: pelican name \"Mav's 165\""),
+        },
+        Some(name) => {
+            let n = devices::set_name(&dir, &serial, model.as_deref(), &name)?;
+            println!("named    {} · {}", n.name, serial);
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn devices_cmd() -> Result<ExitCode> {
+    let dir = data_dir()?;
+    let reg = devices::Registry::read(&dir)?;
+    let mut any = false;
+    for n in reg.all() {
+        any = true;
+        println!(
+            "{}\t{}\t{}",
+            n.name,
+            n.model.as_deref().unwrap_or("-"),
+            n.serial
+        );
+    }
+    if !any {
+        eprintln!("no devices named yet · plug one in and run: pelican name \"Mav's 165\"");
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn push(a: PushArgs) -> Result<ExitCode> {
@@ -223,6 +277,14 @@ fn status(a: DeviceArgs) -> Result<ExitCode> {
     let device = garmin::pick_device(a.serial.as_deref())?;
     let snap = watch::read(mtp::open(&device)?.as_mut(), &device)?;
     let c = snap.counts();
+    if let Some(n) = device.serial.as_deref().and_then(|s| {
+        devices::Registry::read(&data_dir().ok()?)
+            .ok()?
+            .get(s)
+            .cloned()
+    }) {
+        println!("name     {}", n.name);
+    }
     println!("model    {}", snap.model);
     println!("serial   {}", snap.serial.as_deref().unwrap_or("(none)"));
     println!("free     {} of {}", size(snap.free), size(snap.capacity));

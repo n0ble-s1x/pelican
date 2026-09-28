@@ -45,6 +45,7 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::status,
+            commands::name_watch,
             commands::library_list,
             commands::places,
             commands::preview,

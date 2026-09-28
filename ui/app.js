@@ -510,6 +510,9 @@
     bezel: 0, // clicks the dive bezel has turned
     roomFree: null, // free bytes as a send takes them, until status is read again
     reset: null, // the Clear the watch walkthrough, while it is open
+    renaming: false, // the name form is open for a watch that has a name
+    nameLater: new Set(), // serials whose naming was put off this session
+    nameError: null,
   };
 
   const STEP_OF = { watch: 0, library: 1, playlist: 1, review: 2, send: 3, done: 3 };
@@ -809,14 +812,39 @@
           <p class="rule-why">${withCode(st.gvfs_warning)}</p>
         </details>`
       : "";
-    v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">${esc(st.model || "Your watch")}</h1>
+    // A name the owner gave it leads; the model moves down into the facts.
+    // A watch seen for the first time is offered a name once per session.
+    if (st.name && st.model) facts.unshift(st.model);
+    const naming = S.renaming || (!st.name && st.serial && !S.nameLater.has(st.serial));
+    const nameForm = naming
+      ? `<form class="name-form watch-name" data-form="watch-name" autocomplete="off">
+          <label class="name-label" for="watch-name">${S.renaming ? "Rename this watch" : "Name this watch"}</label>
+          <input class="field-input name-input" id="watch-name" name="name" value="${esc(S.renaming ? st.name || "" : "")}" placeholder="Trail watch" spellcheck="false" maxlength="40"${S.nameError ? ' aria-invalid="true" aria-describedby="watch-name-err"' : ""}>
+          <button type="submit" class="act">Save</button>
+        </form>
+        ${S.nameError ? `<p class="why-not" id="watch-name-err">${esc(S.nameError)}</p>` : ""}
+        <p class="facts">So you can tell your watches apart. The name is kept on this computer with this watch's ledger; nothing is written to the watch.</p>`
+      : "";
+    const later = naming
+      ? `<button type="button" class="text-btn" data-act="${S.renaming ? "name-cancel" : "name-later"}">${S.renaming ? "Cancel" : "Not now"}</button>`
+      : st.serial
+        ? `<button type="button" class="text-btn" data-act="name-edit">${st.name ? "Rename" : "Name this watch"}</button>`
+        : "";
+    v.innerHTML = `<h1 class="title" id="t-watch" tabindex="-1">${esc(st.name || st.model || "Your watch")}</h1>
       <p class="lede"><span class="gold">${esc(bytes(st.free_bytes))} free</span> · room for about ${room.toLocaleString("en")} tracks</p>
       <p class="facts">${esc(facts.join(" · "))}</p>
       ${warn}
+      ${nameForm}
       <div class="actions">
         <button type="button" class="act" data-go="library">Choose music</button>
         ${S.chosen.length ? `<button type="button" class="text-btn" data-go="review">Review what is chosen</button>` : ""}
+        ${later}
       </div>`;
+  }
+
+  function focusNameInput() {
+    const input = $("#watch-name");
+    if (input && !STILL) requestAnimationFrame(() => input.focus({ preventScroll: true }));
   }
 
   async function refreshStatus() {
@@ -2451,6 +2479,23 @@
       case "reset-open":
         openReset();
         break;
+      case "name-edit":
+        S.renaming = !!(S.status && S.status.name);
+        if (!S.renaming && S.status && S.status.serial) S.nameLater.delete(S.status.serial);
+        S.nameError = null;
+        renderWatch();
+        focusNameInput();
+        break;
+      case "name-later":
+        if (S.status && S.status.serial) S.nameLater.add(S.status.serial);
+        S.nameError = null;
+        renderWatch();
+        break;
+      case "name-cancel":
+        S.renaming = false;
+        S.nameError = null;
+        renderWatch();
+        break;
       case "reset-step":
         resetStep(Number(el.dataset.n));
         break;
@@ -2523,7 +2568,25 @@
     }
   });
 
-  document.addEventListener("submit", (e) => {
+  document.addEventListener("submit", async (e) => {
+    const named = e.target.closest("[data-form='watch-name']");
+    if (named) {
+      e.preventDefault();
+      const input = named.elements.name;
+      try {
+        const name = await api.invoke("name_watch", { name: input.value });
+        if (S.status) S.status.name = name;
+        S.renaming = false;
+        S.nameError = null;
+        renderWatch();
+        announce(`Named ${name}.`);
+      } catch (err) {
+        S.nameError = errText(err);
+        renderWatch();
+        focusNameInput();
+      }
+      return;
+    }
     const form = e.target.closest("[data-form='playlist']");
     if (!form) return;
     e.preventDefault();

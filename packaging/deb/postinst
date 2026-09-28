@@ -1,0 +1,12 @@
+#!/bin/sh
+# Pelican: apply the packaged USB rule (/usr/lib/udev/rules.d/70-garmin-mtp.rules)
+# without a replug. Failure is not fatal: in a container or chroot there is
+# no udev to reload, and the rule still applies on the next boot or replug.
+set -e
+
+if [ "$1" = "configure" ] && command -v udevadm >/dev/null 2>&1; then
+    udevadm control --reload >/dev/null 2>&1 || true
+    udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e >/dev/null 2>&1 || true
+fi
+
+exit 0

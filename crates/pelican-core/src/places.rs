@@ -246,7 +246,7 @@ systemd-1 /mnt/nas autofs rw,relatime,fd=41 0 0
 systemd-1 /mnt/Backups autofs rw,relatime,fd=42 0 0
 192.0.2.10:/export/music /mnt/nas nfs4 rw,vers=4.2 0 0
 //nas/music /mnt/smb\\040music cifs rw 0 0
-six@box:/srv /home/user/box fuse.sshfs rw 0 0
+user@box:/srv /home/user/box fuse.sshfs rw 0 0
 /dev/sdb1 /run/media/six/WALKMAN\\040SD vfat rw 0 0
 /dev/sdc1 /run/media/other/THEIRS vfat rw 0 0
 /dev/sdd1 /media/six/USB exfat rw 0 0

@@ -5,7 +5,7 @@ members = ["crates/pelican-core", "crates/pelican", "crates/pelican-shell"]
 # Shared package metadata. All three crates ship as one product, so version,
 # license and provenance live here rather than being kept in sync by hand.
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 # 1.89 for `std::fs::File::lock`, which the per-device ledger holds for the
 # length of a run so two runs cannot hand out the same counter.

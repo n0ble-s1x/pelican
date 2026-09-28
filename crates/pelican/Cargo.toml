@@ -13,7 +13,7 @@ keywords = ["garmin", "mtp", "music", "sync", "linux"]
 categories = ["multimedia", "command-line-utilities"]
 
 [dependencies]
-pelican-core = { path = "../pelican-core", version = "0.2.0", default-features = false }
+pelican-core = { path = "../pelican-core", version = "0.2.1", default-features = false }
 anyhow.workspace = true
 clap.workspace = true
 tracing-subscriber.workspace = true

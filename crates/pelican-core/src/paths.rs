@@ -87,10 +87,28 @@ fn cache_dir_unchecked() -> Option<PathBuf> {
 
 #[cfg(not(target_os = "macos"))]
 fn data_dir_unchecked() -> Option<PathBuf> {
-    let mut p = match absolute(std::env::var_os("XDG_DATA_HOME")) {
-        Some(x) => x,
-        None => {
-            let mut h = home()?;
+    data_dir_from(std::env::var_os("XDG_DATA_HOME"), home(), in_flatpak())
+}
+
+/// The data directory from its inputs, so the Flatpak case can be tested.
+///
+/// Inside a Flatpak, `XDG_DATA_HOME` is the sandbox's private
+/// `~/.var/app/<id>/data`. A ledger there would be a second ledger for the
+/// same watch, blind to every name a source or AUR build had already used,
+/// and its counter would start again at 1. So in a Flatpak the store is the
+/// host's `~/.local/share/pelican`, which the manifest grants with
+/// `--filesystem=xdg-data/pelican:create`: one ledger per watch, whichever
+/// way Pelican was installed.
+#[cfg(not(target_os = "macos"))]
+fn data_dir_from(
+    xdg_data_home: Option<std::ffi::OsString>,
+    home: Option<PathBuf>,
+    flatpak: bool,
+) -> Option<PathBuf> {
+    let mut p = match (flatpak, absolute(xdg_data_home)) {
+        (false, Some(x)) => x,
+        _ => {
+            let mut h = home?;
             h.push(".local");
             h.push("share");
             h
@@ -98,6 +116,13 @@ fn data_dir_unchecked() -> Option<PathBuf> {
     };
     p.push("pelican");
     Some(p)
+}
+
+/// True inside a Flatpak sandbox.
+#[cfg(not(target_os = "macos"))]
+pub fn in_flatpak() -> bool {
+    std::env::var_os("FLATPAK_ID").is_some_and(|v| !v.is_empty())
+        || std::path::Path::new("/.flatpak-info").exists()
 }
 
 #[cfg(test)]
@@ -114,6 +139,30 @@ mod tests {
             let home = home().expect("HOME set in test env");
             assert!(d.starts_with(&home), "{d:?} escaped {home:?}");
         }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn a_flatpak_shares_the_hosts_data_dir() {
+        let home = Some(PathBuf::from("/home/u"));
+        let sandbox = Some("/home/u/.var/app/io.github.n0ble_s1x.Pelican/data".into());
+        assert_eq!(
+            data_dir_from(sandbox.clone(), home.clone(), true),
+            Some(PathBuf::from("/home/u/.local/share/pelican")),
+            "the sandbox's private XDG_DATA_HOME is not used"
+        );
+        assert_eq!(
+            data_dir_from(sandbox, home.clone(), false),
+            Some(PathBuf::from(
+                "/home/u/.var/app/io.github.n0ble_s1x.Pelican/data/pelican"
+            )),
+            "outside a Flatpak, XDG_DATA_HOME wins as before"
+        );
+        assert_eq!(
+            data_dir_from(None, home, false),
+            Some(PathBuf::from("/home/u/.local/share/pelican"))
+        );
+        assert_eq!(data_dir_from(None, None, true), None, "still fails closed");
     }
 
     #[test]

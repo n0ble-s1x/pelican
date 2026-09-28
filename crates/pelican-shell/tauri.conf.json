@@ -1,6 +1,6 @@
 {
   "productName": "Pelican",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "io.github.n0ble-s1x.pelican",
   "mainBinaryName": "pelican-app",
   "build": {

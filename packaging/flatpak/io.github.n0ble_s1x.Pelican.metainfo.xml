@@ -50,23 +50,23 @@
   <screenshots>
     <screenshot type="default">
       <caption>The connected watch, with free space and room for tracks</caption>
-      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/watch.png</image>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.1/docs/images/watch.png</image>
     </screenshot>
     <screenshot>
       <caption>Choosing music from the library</caption>
-      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/playlist.png</image>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.1/docs/images/playlist.png</image>
     </screenshot>
     <screenshot>
       <caption>Reviewing what will be sent</caption>
-      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/review.png</image>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.1/docs/images/review.png</image>
     </screenshot>
     <screenshot>
       <caption>Sending, with every file read back and verified</caption>
-      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/send.png</image>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.1/docs/images/send.png</image>
     </screenshot>
     <screenshot>
       <caption>Backing up the watch before a factory reset</caption>
-      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/reset-1.png</image>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.1/docs/images/reset-1.png</image>
     </screenshot>
   </screenshots>
 
@@ -104,6 +104,15 @@
   </branding>
 
   <releases>
+    <release version="0.2.1" date="2026-09-27">
+      <url type="details">https://github.com/n0ble-s1x/pelican/releases/tag/v0.2.1</url>
+      <description>
+        <p>
+          One ledger per watch, however Pelican was installed: the Flatpak
+          now keeps it with the other installs instead of starting its own.
+        </p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-09-27">
       <url type="details">https://github.com/n0ble-s1x/pelican/releases/tag/v0.2.0</url>
       <description>

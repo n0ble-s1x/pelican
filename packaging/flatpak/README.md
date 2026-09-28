@@ -53,6 +53,15 @@ flatpak override --user --filesystem=/path/to/music:ro io.github.n0ble_s1x.Pelic
 If that proves common, request a `home:ro` exception in the submission PR
 (see [the linter docs](https://docs.flathub.org/linter)).
 
+**One ledger per watch.** `--filesystem=xdg-data/pelican:create` gives the
+app its own folder in the host's `~/.local/share` and nothing else there.
+The ledger decides which file names are free on the watch, and a ledger in
+the sandbox's private `~/.var/app` folder would be a second one for the same
+watch, blind to every name a source or AUR build had used, with its counter
+starting again at 1. Inside the Flatpak, `paths::data_dir` therefore uses
+the host's `~/.local/share/pelican`. Settings and the transcode cache stay
+private to the sandbox.
+
 **No network.** No `--share=network`. Pelican makes no connections.
 
 **The udev rule.** A Flatpak cannot install a udev rule on the host. The

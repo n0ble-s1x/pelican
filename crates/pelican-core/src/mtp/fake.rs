@@ -432,6 +432,12 @@ impl Backend for FakeBackend {
         if o.broken {
             bail!("GetObjectInfo failed for {path}: the object is a stub");
         }
+        // The FR165 answers a GetObject for 0 bytes with nothing, and the
+        // session never recovers: every later call times out.
+        if o.data.is_empty() {
+            s.faults.wedged = true;
+            bail!("downloading {path}: Invalid data: Empty response");
+        }
         let mut data = o.data.clone();
         if s.faults.corrupt_downloads > 0 {
             s.faults.corrupt_downloads -= 1;

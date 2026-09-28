@@ -14,9 +14,9 @@ does not do.
 
 **Hardware acceptance passed on 2026-09-26:** 24 tracks sent to a Forerunner
 165 Music on firmware 2506, 24 verified by read-back hash, confirmed by an
-independent libmtp read-back, and played on the watch. Playlists sent as
-albums, the backup and the Start over flow are tested against the simulated
-watch only.
+independent libmtp read-back, and played on the watch. On 2026-09-27 playlists sent as albums, the backup and
+a send from the app passed on the same watch; Start over has been checked
+on hardware only as far as its refusal while music remains.
 
 ### Added
 - **`pelican-app`**, a Tauri 2 desktop app for Linux (`crates/pelican-shell`)
@@ -92,6 +92,10 @@ watch only.
   read-only ones stay.
 
 ### Fixed
+- A backup stopped at the first empty file on the watch and left it not
+  answering until a replug: the FR165 answers a download of a 0-byte file
+  with an empty response and the session never recovers. Empty files are
+  now copied from the listing without asking the watch for them.
 - The `gio mount -u` command offered for a gvfs-held watch quoted the
   device-controlled host in a way fish could break out of. The host is now
   checked against udev's character set and left out of the command when it

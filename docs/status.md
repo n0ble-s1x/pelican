@@ -1,6 +1,6 @@
 # Status: what Pelican does, and what it does not
 
-As of `main`, 2026-09-26. Requirement IDs (R1-R12) are
+As of `main`, 2026-09-27. Requirement IDs (R1-R12) are
 `docs/rebuild-plan.md`'s. The core (`pelican-core`) does the work; the
 command-line tool (`pelican`) and the desktop app (`pelican-app`, in
 `crates/pelican-shell`, with the interface in `ui/`) are front-ends over it.
@@ -25,6 +25,24 @@ at 2 because `pl0001` was on the device.
 Reference hardware for that run: Forerunner 165 Music · FW 2506, on Linux.
 macOS is out of scope for the rebuild.
 
+**Second hardware pass, 2026-09-27**, same watch and firmware:
+
+- **Backup**: all 329 files under `GARMIN` (7.6 MiB) copied in 4.5 s, the
+  empty `Debug/err_log.txt` included. The first two attempts wedged the
+  watch at file 47: a GetObject for a 0-byte file comes back "Empty
+  response" and every later call in that session fails. Empty files are
+  now written locally from the listing without a download.
+- **Mix**: `--mix test1` of four songs from three folders (WAV and FLAC,
+  one already on the watch): 4 verified; an independent libmtp read-back
+  matched each ledger hash and carried album `test1`, album artist
+  "Various Artists" and tracks 1 to 4. The album appears in the watch's
+  music app and plays.
+- **Desktop app**: a five-song playlist from two folders sent through
+  `pelican-app`: 5 verified, libmtp read-back matched, tracks 1 to 5.
+- **Start over**: `reset-ledger` against a watch with 27 audio objects
+  refused and left the ledger byte-identical. The other half (a `reset`
+  line after a real factory reset) is not yet hardware-tested.
+
 ## What it does
 
 | Capability | How | Req |
@@ -34,7 +52,7 @@ macOS is out of scope for the rebuild.
 | Names never reused | `pl{counter:05}-{slug}.mp3`, counter strictly monotonic per watch. Every name on the device, every stub, and every name in the ledger is taken; one case fold (`mtp::fold_name`) is used for every comparison. Each stub moves the counter one further, since its name cannot be seen. No overwrite path, no rename-on-collision branch. | R3 |
 | The ledger | `$XDG_DATA_HOME/pelican/ledger-<serial>.jsonl`, append-only, never pruned or rewritten. A `reset` line (see below) closes an epoch; lookups answer from the current one. The `reserve` line is fsync'd before the upload starts. Exclusive lock per run; a second run fails fast. An unparsable line is a hard error naming file and line. | R4 |
 | Skip what is there | A source whose SHA-256 the ledger has as `verified` **in the same resolved album** is skipped as "already on watch"; `--resend` sends it again under a new name. The album is part of the key because a song on its own album and the same song inside a mix are two library entries. A repeat of the same audio within one run is sent once. | R5 |
-| Mixes (playlist as album) | **Implemented, not yet hardware-tested.** The watch rejects MTP playlists, so `--mix NAME` sends the files in the order given as one album: album = NAME, album artist "Various Artists", track = 1..n in that order, each song keeping its own title and artist; year and genre only from `--year` / `--genre`. A song in two mixes is two files. |  |
+| Mixes (playlist as album) | **Hardware-tested 2026-09-27.** The watch rejects MTP playlists, so `--mix NAME` sends the files in the order given as one album: album = NAME, album artist "Various Artists", track = 1..n in that order, each song keeping its own title and artist; year and genre only from `--year` / `--genre`. A song in two mixes is two files. |  |
 | Stop between files | A `transfer::Stop` handle passed in `Env` is checked before each transcode and before each send, never inside a file (a retry of the file in flight still runs). Unsent files end as `skipped` (`stopped`), the tally is flagged `stopped`, staging is removed, and no stopped file has a ledger line. The CLI does not expose it; Ctrl-C still ends a CLI run. |  |
 | Upload, then prove it | One MTP session per run, split-header transfers, streamed upload into flat `/Music`. Each upload is read back and hashed against the local transcode. Mismatch or error → `failed` in the ledger, the name stays burned, one retry under a fresh name (`--retries N`). | R6 |
 | Capacity before any write | Refused before the first write if planned bytes + 2 MiB exceed free space, or audio objects on `/Music` + planned files exceed 500. A retry is checked the same way, with the room promised to files still queued held back. | R7 |

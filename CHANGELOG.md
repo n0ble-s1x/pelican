@@ -6,6 +6,17 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-27
+
+### Fixed
+- The Flatpak kept its ledger and device names in the sandbox's private
+  folder, a second ledger for the same watch that knew none of the names
+  another install had used, with its counter starting again at 1. It now
+  uses the host's `~/.local/share/pelican`, granted by
+  `--filesystem=xdg-data/pelican:create`, so a watch has one ledger however
+  Pelican was installed. Found by running the Flatpak built from the v0.2.0
+  tag against the watch before submitting it to Flathub.
+
 ## [0.2.0] - 2026-09-27
 
 Pelican was rebuilt for Linux around one promise: transcode to one known-good

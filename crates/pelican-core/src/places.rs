@@ -246,7 +246,7 @@ systemd-1 /mnt/nas autofs rw,relatime,fd=41 0 0
 systemd-1 /mnt/Backups autofs rw,relatime,fd=42 0 0
 192.0.2.10:/export/music /mnt/nas nfs4 rw,vers=4.2 0 0
 //nas/music /mnt/smb\\040music cifs rw 0 0
-six@box:/srv /home/six/box fuse.sshfs rw 0 0
+user@box:/srv /home/user/box fuse.sshfs rw 0 0
 /dev/sdb1 /run/media/six/WALKMAN\\040SD vfat rw 0 0
 /dev/sdc1 /run/media/other/THEIRS vfat rw 0 0
 /dev/sdd1 /media/six/USB exfat rw 0 0
@@ -273,7 +273,7 @@ UUID=def /mnt/Backups ext4 noauto,x-systemd.automount 0 0
                 // The autofs trigger, and the nfs mount over it, are one place.
                 ("nas", "/mnt/nas", PlaceKind::Network),
                 ("smb music", "/mnt/smb music", PlaceKind::Network),
-                ("box", "/home/six/box", PlaceKind::Network),
+                ("box", "/home/user/box", PlaceKind::Network),
                 ("WALKMAN SD", "/run/media/six/WALKMAN SD", PlaceKind::Drive),
                 ("USB", "/media/six/USB", PlaceKind::Drive),
             ]
@@ -308,10 +308,10 @@ XDG_DESKTOP_DIR="$HOME/"
 XDG_BAD_DIR="relative/path"
 NOT_XDG="x"
 "#;
-        let d = parse_user_dirs(text, Path::new("/home/six"));
-        assert_eq!(d["MUSIC"], Path::new("/home/six/Music"));
+        let d = parse_user_dirs(text, Path::new("/home/user"));
+        assert_eq!(d["MUSIC"], Path::new("/home/user/Music"));
         assert_eq!(d["DOCUMENTS"], Path::new("/data/docs"));
-        assert_eq!(d["DESKTOP"], Path::new("/home/six"));
+        assert_eq!(d["DESKTOP"], Path::new("/home/user"));
         assert!(!d.contains_key("BAD"));
         assert_eq!(d.len(), 3);
     }
@@ -324,14 +324,14 @@ NOT_XDG="x"
             kind,
         };
         let fixed = vec![
-            place("Home", "/home/six", PlaceKind::Home),
-            place("Music", "/home/six/Music", PlaceKind::Music),
+            place("Home", "/home/user", PlaceKind::Home),
+            place("Music", "/home/user/Music", PlaceKind::Music),
             place("Library", "/mnt/nas", PlaceKind::Library),
         ];
         let mounted = vec![
             place("USB", "/media/six/USB", PlaceKind::Drive),
             place("nas", "/mnt/nas", PlaceKind::Network),
-            place("box", "/home/six/box", PlaceKind::Network),
+            place("box", "/home/user/box", PlaceKind::Network),
         ];
         let kinds: Vec<PlaceKind> = merge(fixed, mounted).iter().map(|p| p.kind).collect();
         assert_eq!(

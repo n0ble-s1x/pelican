@@ -477,18 +477,18 @@ mod tests {
 
     #[test]
     fn default_names() {
-        let d = Path::new("/home/six/Documents");
+        let d = Path::new("/home/user/Documents");
         assert_eq!(
             dir_name(d, "Forerunner 165 Music", "2026-09-26"),
-            Path::new("/home/six/Documents/Pelican/Forerunner 165 Music backup 2026-09-26")
+            Path::new("/home/user/Documents/Pelican/Forerunner 165 Music backup 2026-09-26")
         );
         assert_eq!(
             dir_name(d, "../x/y\u{1b}", "2026-09-26"),
-            Path::new("/home/six/Documents/Pelican/-x-y- backup 2026-09-26")
+            Path::new("/home/user/Documents/Pelican/-x-y- backup 2026-09-26")
         );
         assert_eq!(
             dir_name(d, "", "2026-09-26"),
-            Path::new("/home/six/Documents/Pelican/Garmin watch backup 2026-09-26")
+            Path::new("/home/user/Documents/Pelican/Garmin watch backup 2026-09-26")
         );
         let tmp = tempfile::tempdir().unwrap();
         let base = tmp.path().join("x backup");

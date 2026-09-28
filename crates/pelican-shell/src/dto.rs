@@ -968,7 +968,7 @@ mod tests {
         let v = serde_json::to_value(places(vec![
             Place {
                 label: "Home".into(),
-                path: PathBuf::from("/home/six"),
+                path: PathBuf::from("/home/user"),
                 kind: PlaceKind::Home,
             },
             Place {
@@ -981,7 +981,7 @@ mod tests {
         assert_eq!(
             v,
             json!([
-                {"label": "Home", "path": "/home/six", "kind": "home"},
+                {"label": "Home", "path": "/home/user", "kind": "home"},
                 {"label": "nas", "path": "/mnt/nas", "kind": "network"}
             ])
         );
@@ -1026,7 +1026,7 @@ mod tests {
         let finished = map_backup(backup::Progress::Finished(backup::Summary {
             files: 4,
             bytes: 99,
-            dest: PathBuf::from("/home/six/Documents/Pelican/FR165 backup 2026-09-26"),
+            dest: PathBuf::from("/home/user/Documents/Pelican/FR165 backup 2026-09-26"),
             failed: vec![backup::Failed {
                 path: "GARMIN/..".into(),
                 reason: "not a plain file name".into(),
@@ -1037,7 +1037,7 @@ mod tests {
         assert_eq!(
             ev(finished),
             json!({"run_id": "b1", "kind": "finished", "files": 4, "bytes": 99,
-                   "dest": "/home/six/Documents/Pelican/FR165 backup 2026-09-26",
+                   "dest": "/home/user/Documents/Pelican/FR165 backup 2026-09-26",
                    "failed": [{"path": "GARMIN/..", "reason": "not a plain file name"}],
                    "unreadable": 1, "stopped": false})
         );

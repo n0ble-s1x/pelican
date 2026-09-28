@@ -51,6 +51,10 @@ finish-args:
   # Pelican warns when the desktop's gvfs has mounted the watch (which makes
   # it busy). That check reads /run/user/<uid>/gvfs.
   - --filesystem=xdg-run/gvfs:ro
+  # The ledger and device names live in the host's ~/.local/share/pelican,
+  # not in the sandbox's private data folder, so a watch has one ledger
+  # however Pelican was installed (crates/pelican-core/src/paths.rs).
+  - --filesystem=xdg-data/pelican:create
 
   # No network. Pelican makes no connections, and this keeps it that way.
 

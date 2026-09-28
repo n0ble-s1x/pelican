@@ -6,8 +6,6 @@
   "windows": ["main"],
   "permissions": [
     "allow-status",
-    "allow-library-root",
-    "allow-set-library-root",
     "allow-library-list",
     "allow-places",
     "allow-preview",

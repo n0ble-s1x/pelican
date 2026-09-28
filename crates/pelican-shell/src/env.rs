@@ -6,7 +6,7 @@
 //! explicit sync is turned off (verified on the maintainer's machine;
 //! Tauri documents the same workaround:
 //! <https://v2.tauri.app/develop/debug/linux-graphics/>). So Pelican sets
-//! `__NV_DISABLE_EXPLICIT_SYNC=1` for its own process — only on Wayland,
+//! `__NV_DISABLE_EXPLICIT_SYNC=1` for its own process: only on Wayland,
 //! only with the `nvidia` kernel module loaded, and never over a value the
 //! user set themselves, whatever it is.
 

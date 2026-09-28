@@ -1,23 +1,23 @@
 [advisories]
-# Every entry here is an *informational* advisory — `unmaintained` or
-# `unsound`. There is no allowlisted vulnerability in this project and there
+# Every entry here is an *informational* advisory (`unmaintained` or
+# `unsound`). There is no allowlisted vulnerability in this project and there
 # is not going to be one. `cargo audit --deny warnings` treats informational
 # advisories as failures, which is the posture SECURITY.md promises, so each
 # exception has to be argued rather than waved through.
 #
 ignore = [
-    # paste — unmaintained. lofty → paste, as a proc-macro: it pastes
+    # paste: unmaintained. lofty → paste, as a proc-macro: it pastes
     # identifiers at compile time and is not linked into the binary. No
     # runtime surface, no exploit path. Revisit when lofty drops it.
     "RUSTSEC-2024-0436",
 
-    # proc-macro-error — unmaintained. glib-macros → proc-macro-error, in
+    # proc-macro-error: unmaintained. glib-macros → proc-macro-error, in
     # the GTK3 stack Tauri uses on Linux (pelican-shell). A proc-macro: it
     # runs at compile time and is not linked into any binary.
     # Revisit when Tauri's Linux runtime leaves gtk-rs 0.18.
     "RUSTSEC-2024-0370",
 
-    # glib 0.18 — *unsound*: `VariantStrIter`'s `Iterator` impls can read
+    # glib 0.18: *unsound*. `VariantStrIter`'s `Iterator` impls can read
     # out of bounds. Compiled into pelican-app on Linux (tauri → wry/tao/
     # muda → gtk 0.18 → glib 0.18); the fix is only in glib ≥ 0.20, which
     # the GTK3 bindings Tauri 2 needs will not take. Accepted because
@@ -25,7 +25,7 @@ ignore = [
     # 2026-09-26 by grepping every crate that depends on glib (atk, cairo-rs,
     # gdk, gdk-pixbuf, gio, gtk, javascriptcore-rs, muda, pango, soup3, tao,
     # tauri, tauri-runtime, tauri-runtime-wry, webkit2gtk, wry) for
-    # `VariantStrIter` / `array_iter_str` — only glib itself names it — and
+    # `VariantStrIter` / `array_iter_str` (only glib itself names it), and
     # Pelican's own code does not use glib. Re-run that check on every
     # Tauri bump; revisit when Tauri moves to GTK4.
     "RUSTSEC-2024-0429",

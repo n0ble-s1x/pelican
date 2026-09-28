@@ -37,7 +37,7 @@ fn write_tone_wav(path: &Path) {
 }
 
 /// A WAV carrying its real title/artist in RIFF INFO, plus an ID3v2 tag whose
-/// TIT2/TPE1 are blank — exactly what a tagger that stamps empty frames
+/// TIT2/TPE1 are blank, exactly what a tagger that stamps empty frames
 /// leaves behind. The file IS tagged; every field the watch needs is present.
 #[test]
 fn a_blank_primary_frame_must_not_shadow_a_real_value_in_another_tag() {
@@ -60,12 +60,9 @@ fn a_blank_primary_frame_must_not_shadow_a_real_value_in_another_tag() {
     f.save_to_path(&p, WriteOptions::default()).unwrap();
 
     let got = tags::Tags::read(&p).unwrap();
-    // This used to fail: `from_tagged`'s `first` closure ran `find_map`
-    // over the tags and only then `clean`ed, so the blank ID3v2 frame won
-    // the search and was thrown away, and the RIFF INFO tag holding the
-    // real values was never consulted. The path fallback would now paper
-    // over it with the filename — which is exactly why the tag read has to
-    // be right on its own.
+    // The blank ID3v2 frame must not win the search over the RIFF INFO tag
+    // holding the real values. The path fallback would hide the failure
+    // behind the filename, so the tag read has to be right on its own.
     assert_eq!(got.title.as_deref(), Some("Drunken Sailor"));
     assert_eq!(got.artist.as_deref(), Some("Windrose"));
 }

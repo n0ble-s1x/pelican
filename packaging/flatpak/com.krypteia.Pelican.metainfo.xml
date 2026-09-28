@@ -17,17 +17,13 @@
       Pelican moves your own music files onto a Garmin watch over a USB
       cable. Point it at a folder of music and it tags, converts every file to
       one known-good MP3 profile, uploads, and reads each file back to prove it
-      landed intact — without going through Garmin Express, iTunes, or any
-      cloud service, and without a vendor account.
+      landed intact. It needs no Garmin Express, no cloud service and no
+      vendor account.
     </p>
     <p>
       Privacy-first by design. The binary makes zero network connections.
       Your music stays on your computer; your fitness data stays on your
       watch. Nothing leaves either unless you decide.
-    </p>
-    <p>
-      A Krypteia tool — part of an effort to give people open-source
-      alternatives to subscription-only platforms.
     </p>
     <p>Features:</p>
     <ul>
@@ -35,7 +31,8 @@
       <li>Tags missing from a file are filled from its folder and file name</li>
       <li>Every file is sent under a name never used on that watch before, then read back and hashed</li>
       <li>Per-device ledger of every name sent (persists across runs)</li>
-      <li>A single command-line binary with no daemon and no telemetry</li>
+      <li>Backs up the watch's own files before a factory reset, and starts a fresh ledger after one</li>
+      <li>A command-line tool with no daemon and no telemetry</li>
     </ul>
   </description>
 
@@ -68,19 +65,8 @@
     <internet>offline-only</internet>
   </recommends>
 
-  <releases>
-    <release version="0.1.0" date="2026-05-02">
-      <description>
-        <p>Initial release.</p>
-        <ul>
-          <li>Command-line tool: push, status, ls, ledger</li>
-          <li>ffmpeg-based audio normalization to Garmin-compatible MP3</li>
-          <li>Per-device ledger of every name sent</li>
-          <li>Verified on Forerunner 165 Music (firmware 2506)</li>
-        </ul>
-      </description>
-    </release>
-  </releases>
+  <!-- No <releases> entry until the rebuilt Pelican has a tagged release.
+       The 0.1.0 tag is the earlier egui app (see CHANGELOG.md). -->
 
   <provides>
     <binary>pelican</binary>

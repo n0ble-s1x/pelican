@@ -1,8 +1,8 @@
 //! Turning a source file into the one thing the watch is sent.
 //!
 //! [`encoder`] runs ffmpeg with the single proven profile; [`tags`] decides
-//! what the fresh tag says. Tags are never carried across — Garmin's
-//! indexer silently rejects files whose tag holds non-standard frames — so
+//! what the fresh tag says. Tags are never carried across (Garmin's
+//! indexer silently rejects files whose tag holds non-standard frames), so
 //! the output carries exactly the seven allowlisted fields and no art.
 //!
 //! Where the output goes is [`crate::staging`]'s business, not this

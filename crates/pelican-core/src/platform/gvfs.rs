@@ -5,7 +5,7 @@
 //! `LIBUSB_ERROR_BUSY`. We surface this clearly rather than letting the
 //! underlying error confuse the user.
 //!
-//! The user can fix it with no privileges — `gio mount -u` is enough.
+//! The user can fix it with no privileges: `gio mount -u` is enough.
 
 use std::fs;
 
@@ -17,14 +17,32 @@ pub struct GvfsMount {
     /// Full mount directory, e.g. `/run/user/1000/gvfs/mtp:host=091E_4CA1_0123456789`.
     pub path: String,
     /// Device id lifted out of the directory name, e.g. `091E_4CA1_0123456789`.
-    /// This comes from USB descriptors the device controls, so it is untrusted:
-    /// quote it before it goes anywhere near a shell.
+    /// This comes from USB descriptors the device controls, so it is untrusted
+    /// and goes into a pasteable command only through `remedy`.
     pub host: String,
 }
 
-/// Wrap an untrusted string in single quotes for safe shell pasting.
-fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', r"'\''"))
+/// The characters udev allows in `ID_SERIAL`, which gvfs builds the host from.
+fn is_plain_host(host: &str) -> bool {
+    !host.is_empty()
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_.:@=+#-".contains(c))
+}
+
+/// The command that frees the watch, safe to paste into sh, bash, zsh or fish.
+///
+/// Quoting rules differ between shells (fish treats `\'` inside single quotes
+/// as an escape), so a host outside udev's character set is never put in the
+/// command. With the allowlist, the single-quoted word has no quote or
+/// backslash in it and means the same thing in every shell.
+fn remedy(host: &str) -> String {
+    if is_plain_host(host) {
+        format!("gio mount -u 'mtp://{host}'")
+    } else {
+        "gio mount -l (find the mtp:// address of the watch), then gio mount -u <that address>"
+            .to_string()
+    }
 }
 
 /// Returns Some(mount) if a gvfs MTP mount appears to belong to a Garmin
@@ -47,8 +65,8 @@ pub fn detect_garmin_gvfs_mount() -> Option<GvfsMount> {
         if name.starts_with(&needle)
             && (name.contains(&vendor) || name.contains(&vendor.to_lowercase()))
         {
-            // Strip the whole `mtp:host=` prefix — leaving the `host=` behind
-            // produces `mtp://host=...`, which gio does not accept.
+            // Strip the whole `mtp:host=` prefix: gio does not accept
+            // `mtp://host=...`.
             let host = name.strip_prefix(&needle).unwrap_or(&name).to_string();
             return Some(GvfsMount {
                 path: format!("{base}/{name}"),
@@ -61,14 +79,10 @@ pub fn detect_garmin_gvfs_mount() -> Option<GvfsMount> {
 
 pub fn detect() -> Option<Contention> {
     let mount = detect_garmin_gvfs_mount()?;
-    // The URI is built here rather than in a shell substitution: the old
-    // `basename | sed 's/^mtp://'` pipeline emitted `mtp://host=...`, which
-    // gio rejects, and it interpolated device-controlled text unquoted.
-    let uri = shell_quote(&format!("mtp://{}", mount.host));
     Some(Contention {
         holder: "GVFS".to_string(),
+        remedy: remedy(&mount.host),
         detail: mount.path,
-        remedy: format!("gio mount -u {uri}"),
     })
 }
 
@@ -76,41 +90,50 @@ pub fn detect() -> Option<Contention> {
 mod tests {
     use super::*;
 
-    /// The host string comes off USB descriptors the device controls.
-    ///
-    /// This test used to assert the output did not *contain* `'; rm`, and
-    /// failed against correct code: the standard `'\''` idiom closes the
-    /// quote, emits an escaped quote and reopens, so the characters `'; rm`
-    /// do appear — inside a quoted word, where they are inert. The code was
-    /// right and the substring check was wrong. What matters is what a shell
-    /// makes of the result, so that is what is asserted now.
+    const HOSTILE: [&str; 6] = [
+        "a'; rm -rf ~; echo '",
+        "$(touch /nonexistent/pwned)",
+        "`id`",
+        r#"a"b\c"#,
+        "091E_4CA1_'\n'x",
+        // Breaks out of POSIX-style quoting under fish.
+        r"091E_x\' ; echo PWNED ; echo \",
+    ];
+
     #[test]
-    fn shell_quote_neutralises_embedded_quotes() {
-        let hostile = "a'; rm -rf ~; echo '";
-        assert_eq!(shell_quote(hostile), r"'a'\''; rm -rf ~; echo '\'''");
+    fn a_plain_host_is_named_in_the_command() {
+        assert_eq!(
+            remedy("091E_4CA1_0123456789"),
+            "gio mount -u 'mtp://091E_4CA1_0123456789'"
+        );
     }
 
-    /// Round-trip through a real `sh`: one argument in, the same bytes out,
-    /// nothing executed.
     #[test]
-    fn shell_quote_survives_a_real_shell() {
-        for hostile in [
-            "a'; rm -rf ~; echo '",
-            "$(touch /nonexistent/pwned)",
-            "`id`",
-            r#"a"b\c"#,
-            "091E_4CA1_'\n'x",
-        ] {
-            let script = format!("printf %s {}", shell_quote(hostile));
-            let Ok(out) = std::process::Command::new("sh")
+    fn a_host_outside_udevs_set_never_reaches_the_command() {
+        for hostile in HOSTILE {
+            let r = remedy(hostile);
+            assert!(!r.contains(hostile), "{r}");
+            assert!(!r.contains('\''), "{r}");
+        }
+    }
+
+    /// Every shell on the machine reads the command as `gio`, `mount`, `-u`
+    /// and one URI argument.
+    #[test]
+    fn the_remedy_is_one_argument_in_every_shell() {
+        let host = "091E_4CA1_a.b:c@d=e+f#g-h";
+        let uri = format!("mtp://{host}");
+        let cmd = remedy(host).replacen("gio mount -u", "printf %s", 1);
+        for shell in ["sh", "bash", "zsh", "fish"] {
+            let Ok(out) = std::process::Command::new(shell)
                 .arg("-c")
-                .arg(&script)
+                .arg(&cmd)
                 .output()
             else {
-                return; // no sh here; the exact-string test above still holds
+                continue;
             };
-            assert!(out.status.success(), "{script}");
-            assert_eq!(String::from_utf8_lossy(&out.stdout), hostile, "{script}");
+            assert!(out.status.success(), "{shell}: {cmd}");
+            assert_eq!(String::from_utf8_lossy(&out.stdout), uri, "{shell}");
         }
     }
 

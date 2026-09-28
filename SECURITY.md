@@ -1,177 +1,175 @@
-# Security Policy
-
-Krypteia takes security seriously. This document explains how to report
-vulnerabilities and the supply-chain posture we maintain on this project.
+# Security policy
 
 ## Reporting a vulnerability
 
-**Please do not file a public GitHub issue for security problems.** Instead:
+Report security problems privately through GitHub's private vulnerability
+reporting: open the repository's **Security** tab and choose **Report a
+vulnerability**, or go straight to
+<https://github.com/n0ble-s1x/pelican/security/advisories/new>. Please do not
+open a public issue, pull request or discussion for a security problem.
 
-- Email **krypteia.annex447@8alias.com** with the details
-- We'll acknowledge within **3 business days**
-- We aim to ship a fix or mitigation within **30 days** for high-severity
-  issues; lower severity may take longer
+A useful report says what is affected (file, command or build), how to
+reproduce it, and what an attacker gains. A proof of concept helps but is not
+required.
 
-If the issue is in an upstream dependency rather than this project's code,
-let us know anyway — we'll help shepherd the report.
+Ordinary bugs, including crashes with no security impact, belong in
+[public issues](https://github.com/n0ble-s1x/pelican/issues).
+
+## How a report is handled
+
+Pelican follows coordinated disclosure: the details of a vulnerability stay
+private until a fix is available, and then everything is published. The code
+itself is always public.
+
+1. You submit the report. It becomes a draft security advisory that only you
+   and the maintainer can see.
+2. The maintainer acknowledges it, usually within a few days, and confirms or
+   disputes the issue with you in the advisory thread.
+3. The fix is developed privately, in a temporary private fork attached to
+   the advisory. You can be invited to review or contribute to it.
+4. The fix is merged and released.
+5. The advisory is published on GitHub, with a CVE requested through GitHub
+   where the issue warrants one. It credits you if you want credit; you can
+   also stay anonymous.
+
+If a fix will take longer than about 90 days, the maintainer will tell you
+why and agree on a disclosure date with you. If the problem is in an
+upstream dependency, say so in the report, and the maintainer will help get
+it to the right project.
 
 ## Scope
 
 In scope:
-- Code in this repository
-- Build configuration, packaging recipes
-- Anything our binary writes to disk or sends over USB
+
+- Code in this repository, including `ui/`.
+- Build configuration and packaging recipes.
+- Anything Pelican writes to disk or sends over USB.
+- The udev rule, and the one privileged command the app can run.
 
 Out of scope:
-- Vulnerabilities in upstream dependencies (report those upstream; we'll
-  coordinate)
-- Vulnerabilities in Garmin firmware (report to Garmin's security team)
-- Brute-forcing user-provided file paths or filesystem permissions
 
-## What we do on our side
+- Vulnerabilities in upstream crates (report them upstream; we will
+  coordinate if Pelican is affected).
+- Vulnerabilities in Garmin firmware (report them to Garmin).
+- Attacks that need someone who already controls your user account or your
+  `$PATH`.
 
-- **No third-party CI.** We do not use GitHub Actions or any hosted CI. The
-  build / lint / test / audit pipeline lives in [`scripts/check.sh`](scripts/check.sh)
-  and runs entirely on the maintainer's machine, where every command is
-  inspectable. Eliminates a major supply-chain surface (compromised Action,
-  leaked CI tokens, malicious workflow on PR from fork).
-- **Local-CI contract.** Contributors run `./scripts/check.sh --full` before
-  opening a PR. The maintainer pulls the PR branch and re-runs the same script
-  locally before merge.
-- **`cargo audit`** runs as part of `scripts/check.sh --full`; new RUSTSEC
-  advisories break the build. Allowlisted advisories (with rationale) live in
-  [`.cargo/audit.toml`](.cargo/audit.toml) — that path, not the repo root,
-  is the one `cargo-audit` actually reads. Every entry there is
-  *informational* (`unmaintained` / `unsound`) and argued crate by crate;
-  no vulnerability is allowlisted.
-- **`cargo deny`** enforces an SPDX license allowlist, forbids yanked crates,
-  restricts crate sources to crates.io, and bans wildcard versions.
-- **Dependabot** opens PRs for outdated dependencies on a **48-hour cooldown**
-  — no PR is created for a release younger than 2 days, giving the world time
-  to flag a poisoned release before it surfaces here.
-- **Never auto-merge. Anything.** Not Dependabot PRs, not security PRs, not
-  one-line typo fixes. Every merge is a deliberate human decision.
-- **No telemetry, no network access.** The binary opens no sockets and
-  compiles no HTTP/TLS code. `cargo deny check sources` audits where crates
-  come from; `scripts/check.sh` additionally asserts that `reqwest`, `hyper`
-  and `tower-http` are not in the compiled graph, graphical shell included.
-- **Reproducible builds** via committed `Cargo.lock`.
-- **`unsafe_code = "deny"`** in `Cargo.toml` — every `unsafe` block in our
-  code requires an explicit `#[allow(unsafe_code)]` with a SAFETY comment.
-  Currently there is exactly one (a `geteuid` syscall in `crates/pelican-core/src/platform/gvfs.rs`).
-- **Branch protection on `main`**: PRs are required (no direct push to main),
-  no force-pushes, no branch deletion, conversation must be resolved before
-  merge, admins are subject to all rules. The maintainer is the sole
-  collaborator with merge access; external contributors PR from forks.
-- **Signed commits enforced on `main`.** Every commit that lands on `main`
-  must carry a valid SSH signature from a key registered to the maintainer's
-  GitHub account. GitHub displays a green "Verified" badge on each commit;
-  unsigned commits are rejected at push time. The maintainer signs from a
-  dedicated, passphrase-protected ed25519 key kept separate from any
-  authentication key — a leak of one does not compromise the other.
-- **Squash-only merges.** Web UI does not offer rebase or merge-commit;
-  every PR collapses into a single signed commit on `main`, keeping a
-  linear, attributable history.
-- **Web commit sign-off required** — any commit authored through GitHub's
-  web UI must include a DCO sign-off line.
-- **Minimum-required permissions** on the udev rule we ship
-  (`udev/70-garmin-mtp.rules`: `TAG+="uaccess"` only — an ACL for the active
-  seat user on Garmin devices; no mode change, no group, no `root:root`
-  daemon, no setuid binary).
+## Project practices
 
-## The graphical shell
+- **No hosted CI.** GitHub Actions is disabled. Formatting, lints, build,
+  tests, `cargo audit` and `cargo deny` run through
+  [`scripts/check.sh`](scripts/check.sh) on the contributor's machine, and
+  the maintainer re-runs it before merging. That takes compromised Actions,
+  leaked CI tokens and malicious workflows off the attack surface.
+- `cargo audit --deny warnings` fails on any RUSTSEC advisory, including
+  unmaintained and unsound crates. The exceptions are listed, each with its
+  reasoning, in [`.cargo/audit.toml`](.cargo/audit.toml). Every exception is
+  informational (unmaintained or unsound); no vulnerability is ignored.
+  `check.sh` fails if `deny.toml` ignores a different set.
+- `cargo deny` enforces a license allowlist, rejects yanked crates, allows
+  only crates.io as a source, and bans wildcard versions.
+- Dependabot opens update PRs only for releases at least two days old, so a
+  poisoned release has time to be noticed. Nothing is auto-merged.
+- No network code. The binaries open no sockets, and `check.sh` fails if
+  `reqwest`, `hyper` or `tower-http` is compiled into any of them.
+- `Cargo.lock` is committed.
+- `unsafe_code = "deny"` across the workspace. The one exception is a
+  `geteuid` call in `crates/pelican-core/src/platform/gvfs.rs`, with a SAFETY
+  comment.
+- `main` is protected: changes land through pull requests, force-pushes and
+  branch deletion are blocked, the rules apply to admins, and merges are
+  squash-only. Every commit on `main` must carry a verified signature. The
+  maintainer signs with a dedicated, passphrase-protected SSH key kept apart
+  from any authentication key.
+- The udev rule (`udev/70-garmin-mtp.rules`) adds only `TAG+="uaccess"`: an
+  ACL on Garmin devices for the user at the active seat. No mode change, no
+  group, no daemon, no setuid binary.
+
+## The desktop app
 
 `crates/pelican-shell` builds `pelican-app`, a Tauri 2 window over
-`pelican-core` (Linux-first, system webkit2gtk). What keeps it small:
+`pelican-core` that uses the system webkit2gtk.
 
-- **No JS supply chain.** `ui/` is plain HTML, CSS and JS, checked in and
-  compiled into the binary. No npm, no bundler, no `node_modules` — so the
-  whole dependency graph is the one `cargo deny` and `cargo audit` read.
-- **Tauri with default features off** (`wry` only: no asset compression,
-  no runtime-mutable ACL) and **no Tauri plugins** — no fs, shell, dialog,
-  http, updater or opener. No asset protocol is enabled.
-- **The ACL is the boundary.** `build.rs` registers an app manifest, so
-  every command is ACL-gated, and `capabilities/main.json` grants exactly
-  the eleven commands the UI invokes plus `core:event:allow-listen` /
-  `allow-unlisten` (for run progress and file drag-and-drop) — no
-  `core:default`. `scripts/check.sh` fails if the gated, registered and
-  granted lists differ or anything else is granted.
-- **CSP**: `default-src 'self'`; scripts and styles from `'self'` only (no
-  `'unsafe-inline'`, no `'unsafe-eval'`); `img-src 'self' data:`; IPC as the
+- **No JavaScript supply chain.** `ui/` is plain HTML, CSS and JS, checked
+  in and compiled into the binary. There is no npm, bundler or
+  `node_modules`, so the whole dependency graph is the one `cargo deny` and
+  `cargo audit` check.
+- **Tauri with default features off** (`wry` only) and no Tauri plugins: no
+  fs, shell, dialog, http, updater or opener plugin, and no asset protocol.
+- **The ACL is the boundary.** `build.rs` registers an app manifest, so every
+  command is ACL-gated. `capabilities/main.json` grants the app's own
+  commands plus `core:event:allow-listen` and `allow-unlisten` (for progress
+  events and file drops), and no `core:default`. `check.sh` fails if the
+  gated, registered and granted lists differ from each other or from the
+  commands `ui/app.js` invokes, or if anything else is granted.
+- **CSP.** `default-src 'self'`; scripts and styles from `'self'` only, with
+  no `'unsafe-inline'` or `'unsafe-eval'`; `img-src 'self' data:`; IPC is the
   only `connect-src`; no objects, frames, workers or form targets; no remote
-  origin anywhere — also asserted by `scripts/check.sh`. `freezePrototype`
-  is on. `withGlobalTauri` exposes `window.__TAURI__` to the page's own
-  scripts, which the CSP limits to the bundled files.
-- **No delete command exists**, as in the core. `library_list` and
-  `preview` only read local files; `set_library_root` writes one file,
-  `$XDG_CONFIG_HOME/pelican/config.json`.
+  origin. `check.sh` checks this too. `freezePrototype` is on.
+  `withGlobalTauri` exposes `window.__TAURI__` to the page's own scripts,
+  which the CSP limits to the bundled files.
+- **No delete command**, as in the core. `library_list` and `preview` only
+  read local files. The window reads `$XDG_CONFIG_HOME/pelican/config.json`
+  for the library folder and never writes it.
 - **One device session at a time.** `status`, `watch_list`, `push`,
-  `backup_watch`, `reset_check` and `reset_ledger` share one lock and a second caller is refused as busy; device work runs on its
-  own OS thread, never the UI thread.
+  `backup_watch`, `reset_check` and `reset_ledger` share one lock, and a
+  second caller is refused as busy. Device work runs on its own thread, never
+  the UI thread.
 - Run it with `cargo run -p pelican-shell`, not `cargo tauri dev`: a dev
   server is served without the CSP.
 
-**The one privileged path.** `install_udev_rule` (the window's "Install
-the USB rule" button) runs exactly one fixed command through polkit:
-`/usr/bin/pkexec /bin/sh -c 'install -m 644 /dev/stdin
-/etc/udev/rules.d/70-garmin-mtp.rules && udevadm control --reload &&
-udevadm trigger --action=add --subsystem-match=usb
---attr-match=idVendor=091e && udevadm settle'`. The command is a constant
-in `crates/pelican-shell/src/udev.rs`; the rule is compiled in with
-`include_str!` from `udev/70-garmin-mtp.rules` and written to the child's
-stdin; the command takes no arguments from the webview and nothing is
-interpolated into it. pkexec is called by absolute path, and the button
-is refused when it is missing or when the app runs inside a Flatpak
-(`FLATPAK_ID` set or `/.flatpak-info` present), where the window prints
-the host command instead. It runs only when you press the button and
-authenticate; `udev_rule_status` only reads the two rule paths.
+**The one privileged action.** The window's **Install the USB rule** button
+(`install_udev_rule`) runs one fixed command through polkit:
 
-The GTK3 stack Tauri uses on Linux brings two argued advisory exceptions
-(`glib` 0.18, `proc-macro-error`); the reasoning is in `.cargo/audit.toml`.
+```sh
+/usr/bin/pkexec /bin/sh -c 'install -m 644 /dev/stdin /etc/udev/rules.d/70-garmin-mtp.rules && udevadm control --reload && udevadm trigger --action=add --subsystem-match=usb --attr-match=idVendor=091e && udevadm settle'
+```
 
-## What you, the user, should know
+The command is a constant in `crates/pelican-shell/src/udev.rs`. The rule is
+compiled in from `udev/70-garmin-mtp.rules` and written to the command's
+stdin. Nothing from the webview is passed to the command or interpolated
+into it, and pkexec is called by absolute path. The button is refused when
+pkexec is missing or when the app runs inside a Flatpak (`FLATPAK_ID` set or
+`/.flatpak-info` present); the window then shows the command to run by hand.
+It runs only when you press the button and authenticate. `udev_rule_status`
+only reads the two rule paths.
 
-- Krypteia · Pelican runs in **userspace** with no elevated privileges.
-- It writes only to `~/.local/share/pelican/` (the per-watch ledger),
-  `~/.cache/pelican/staging/` (per-run transcodes, removed when the run ends
-  and swept on the next start if a run was killed) and, for the window only,
-  `~/.config/pelican/config.json` (the music folder). Per-user dirs, never
-  `/tmp` or another shared location.
+The GTK3 stack Tauri uses on Linux brings two advisory exceptions (`glib`
+0.18 and `proc-macro-error`), argued in `.cargo/audit.toml`.
+
+## What Pelican does on your machine
+
+- It runs as your user, with no elevated privileges.
+- It writes to:
+  - `~/.local/share/pelican/`: the per-watch ledger.
+  - `~/.cache/pelican/staging/`: transcodes for the current send, removed
+    when the send ends and swept at the next start if a send was killed.
+  - `~/Documents/Pelican/<model> backup <YYYY-MM-DD>/`: the watch backup,
+    when you run one. `pelican backup DEST` writes into the folder you name
+    instead. A backup creates files and never replaces one.
+
+  All of these are per-user directories, never `/tmp` or another shared
+  location.
 - It reads your source files and never writes to them.
-- It opens USB devices through `nusb`, which needs the udev rule for non-root
-  access (`udev/70-garmin-mtp.rules`).
+- It opens the watch through `nusb`, which needs the udev rule for access
+  without root.
 - It runs `ffmpeg` from your `$PATH` to transcode. If your `$PATH` is
-  compromised, so is this — standard for any tool that uses `ffmpeg`. Source
-  paths are passed as absolute paths, never through a shell.
+  compromised, so is Pelican, as with any tool that runs `ffmpeg`. Source
+  paths are passed as arguments, never through a shell.
 - On the watch it only creates files in `/Music`, under names it has never
-  used. It has no code path that deletes or overwrites anything there.
-- The watch backup is read-only on the watch (it lists and downloads
-  `GARMIN/`) and writes only into the folder you pick, default
-  `~/Documents/Pelican/`, creating files and never replacing one.
+  used. It has no code path that deletes or overwrites anything there. The
+  backup only reads from the watch.
 - A watch's ledger is reset only after Pelican re-reads `/Music` itself and
-  finds no audio left; the reset is an appended line, not an erasure.
-- It does **not** open network sockets, write outside its data dirs, or
-  modify system files — with one exception you trigger yourself: the
-  window's "Install the USB rule" button writes
+  finds no audio. The reset is an appended line; nothing is erased.
+- It opens no network sockets and changes no system files, with one
+  exception you trigger yourself: the **Install the USB rule** button writes
   `/etc/udev/rules.d/70-garmin-mtp.rules` through polkit, after asking for
-  your password (see The graphical shell).
+  your password.
 
-## Future hardening (tracked, not yet shipped)
+## Not done yet
 
-- `cargo-vet` for an explicit per-dependency audit ledger — every transitive
-  crate signed off in `supply-chain/` instead of trusting the SPDX-license
-  allowlist alone. The graph is now **624 external crates** (627
-  `[[package]]` blocks in `Cargo.lock` at `ec9cd3d`, less the three workspace
-  members). The community-audit coverage split quoted here previously — 93 of
-  449 covered by Mozilla / Bytecode Alliance / Google / Embark / ISRG / Zcash
-  / Fermyon — was measured against the pre-Tauri, Linux-only graph and is
-  **not** valid for the current one. It has to be re-derived against the
-  real 624 before any of it is republished; `cargo vet` needs network access
-  to fetch those audit sets, so it has not been re-run here.
-- Reproducible-build verification (deterministic `cargo build --release`
-  output across machines).
-
-## Acknowledgements
-
-We'll publicly credit reporters in release notes (with permission). If you
-prefer anonymous reporting that's fine too.
+- `cargo-vet` is not set up, and audit coverage of the current dependency
+  graph has not been measured. To count the graph, run
+  `grep -c '^\[\[package\]\]' Cargo.lock` (the count includes the three
+  workspace crates).
+- Reproducible builds have not been verified across machines.

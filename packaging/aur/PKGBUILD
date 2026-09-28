@@ -2,11 +2,11 @@
 pkgname=pelican
 pkgver=0.1.0
 pkgrel=1
-pkgdesc="Sync music to Garmin watches over MTP (the Linux build)"
+pkgdesc="Transcode music and send it to a Garmin watch over USB, verifying every file (CLI)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/n0ble-s1x/pelican"
 license=('MIT' 'Apache')
-depends=('ffmpeg' 'libudev.so')
+depends=('ffmpeg' 'gcc-libs' 'glibc')
 makedepends=('cargo')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/n0ble-s1x/pelican/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')

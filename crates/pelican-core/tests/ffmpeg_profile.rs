@@ -103,10 +103,7 @@ fn assert_profile(mp3: &[u8]) {
         at += 144 * 192_000 / 44_100 + padding;
         frames += 1;
     }
-    assert!(
-        frames > 50,
-        "only {frames} frames walked — not a CBR stream"
-    );
+    assert!(frames > 50, "only {frames} frames walked: not a CBR stream");
 }
 
 /// R1 + R2 + R8 together, on the rebuild plan's proof case: an untagged

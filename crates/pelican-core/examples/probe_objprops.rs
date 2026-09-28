@@ -1,6 +1,6 @@
 //! Can the watch actually report tags over MTP?
 //!
-//! Pelican itself never asks — it writes its own tags and proves the bytes.
+//! Pelican itself never asks: it writes its own tags and proves the bytes.
 //! Read-only: no writes, no deletes.
 use mtp::ptp::ObjectPropertyCode;
 use mtp::MtpDevice;
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get_object_handles(sid, None, Some(music))
         .await?;
     println!(
-        "\n/Music: {} handles — reading properties for the first 4\n",
+        "\n/Music: {} handles, reading properties for the first 4\n",
         handles.len()
     );
 

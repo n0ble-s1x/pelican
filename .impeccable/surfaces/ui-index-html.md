@@ -7,7 +7,7 @@ related_targets: []
 
 ## Scope
 
-The Pelican desktop window (Tauri 2, Linux-first) — the only surface. Replaces
+The Pelican desktop window (Tauri 2, Linux-first), the only surface. Replaces
 the removed Fjord UI entirely. Views: the guided flow (Watch → Choose →
 Review → Send), where Choose is the Library explorer (places + folder tree,
 ticks on folders and songs) and a Playlist is named on its own title card;
@@ -22,7 +22,7 @@ proven, in one short sitting.
 
 ## Audience and job
 
-Primary: the owner — NAS music, whole albums and soundtracks, often untagged
+Primary: the owner, with NAS music, whole albums and soundtracks, often untagged
 WAV/FLAC. Secondary: a public first-run user. Job: plug in, choose, see what
 will happen (tags, size, room left, permanence), send, watch every file verify.
 
@@ -37,15 +37,15 @@ dive-watch silhouette is a silhouette only. Plain HTML/CSS/JS, no npm.
 
 ## Direction contract
 
-THESIS: Every step of the send is a title card from a modern Bond opening —
-black ink, one silhouette, one line of widely tracked capitals — and the send
+THESIS: Every step of the send is a title card from a modern Bond opening
+(black ink, one silhouette, one line of widely tracked capitals), and the send
 run is the credits, tracks rising as each is proven. It refuses the
 category's sidebar-plus-track-table file manager.
 
 OWN-WORLD: Ink black ground (#050506) with a faintly raised ink (#0E0E10);
 bone ink text (#EDE8DE, dimmed #A7A29A); hairlines at bone 10%. Champagne
-(#C9A45C) is law: it lights only what is proven — a verified track, the send
-action, the room left — never decoration. Blood red (#8E1B1B, legible tint
+(#C9A45C) is law: it lights only what is proven (a verified track, the send
+action, the room left) and is never decoration. Blood red (#8E1B1B, legible tint
 for text) appears only on failure, always with the word. One self-hosted thin
 wide-capital display face for title lines only; a vendored workhorse sans for
 everything operable; tabular figures for sizes and hashes. Every state is a
@@ -58,27 +58,24 @@ says exactly what will go, how it will be tagged, whether it fits, and that
 what goes on stays on; presses Send; watches the credits roll up as each
 track is proven by hash; unplugs and runs.
 
-FIRST VIEWPORT: 1280×800. Left ~55%: the ink field, a round-watch silhouette
-(authored SVG, generic, no brand) sitting in slowly settled ink at optical
-centre, ~300px. Right column, vertically centred: the title line
+FIRST VIEWPORT: 1280×800. Left, clamp(40%, 100% − 716px, 52%) wide (see
+DESIGN.md, Layout): the ink field, a dive-watch silhouette (authored SVG, no
+brand) sitting in slowly settled ink at optical center, ~300px. Right column,
+vertically centered: the title line
 "FORERUNNER 165 MUSIC" in the display face (~34px, tracking ~0.28em), beneath
-it one quiet line of room — "2.3 GB free · room for about 470 tracks" — and
+it one quiet line of room ("2.3 GB free · room for about 470 tracks") and
 one action, "Choose music". Top-right, small tracked links: On the watch ·
 Ledger. Bottom edge: the four-step index as words (Watch · Choose · Review ·
 Send), the current one in bone, the rest dim. No watch: the silhouette is
 empty ink, title "CONNECT YOUR WATCH", and the fix (cable, udev rule, gvfs)
 in one plain line.
 
-FORM: Title Sequence — my list position 1 (Impeccable's pick; the roll
-assigned position 5, Shanghai Glass, as `direction-payload.json` records).
-Seed key a89ed0a8. The owner chose this card explicitly on the
-decision page on 2026-09-26 (serve-question key 60909434, ANSWER
-`{"optionId":"model-pick","buildPath":"code"}`), over the rolled Shanghai
-Glass; the pick was logged back to the seed with `--kind pick`. Signature
-interaction: the credits roll — during Send, each track line rises into
+FORM: Title Sequence, chosen by the owner on 2026-09-26 over Shanghai Glass
+(`direction-payload.json` has the record). Signature interaction: the
+credits roll. During Send, each track line rises into
 place and resolves to "Verified" in champagne with its hash prefix, and a
 thread of champagne ink blooms in the field once per verified track; at rest
-the ink is still. Motion grammar: 150–250 ms exponential ease-out for UI,
+the ink is still. Motion grammar: 150-250 ms exponential ease-out for UI,
 ink is a bounded canvas effect that never runs when idle and respects
 prefers-reduced-motion.
 
@@ -91,11 +88,12 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 - Failed credits keep full contrast for as long as they are in the roll; the
   roll fades only at its very edges, never over a row's reading position.
 - A failure sends one blood-red thread through the ink, beside the credit
-  that names it — the only place red enters the field.
+  that names it: the only place red enters the field.
 
 - The title is 34px at 0.28em, as the contract says, and holds one line
   at 1280 by narrowing the card field there rather than the type: the card
-  field is clamp(40%, 100% − 702px, 52%). Measured in headless Brave at
+  field is clamp(40%, 100% − 702px, 52%) (later 716px; see Title band
+  below). Measured in headless Brave at
   1280×800: "FORERUNNER 165 MUSIC" is 609px at 34px / 0.28em (516px at the
   interim 30px / 0.24em); the field is 578px (45%), the case 286px, and the
   title box 620px on one line. From about 1460px up the field is 52% again.
@@ -161,7 +159,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     and the likely cause (Reset Default Settings keeps music). A clean
     result is "Verified clean" in champagne (it is proven by read-back) and
     blooms the ink once.
-  - **Motion — the at-rest decision.** One loop is allowed at rest: the ink
+  - **Motion: the at-rest decision.** One loop is allowed at rest: the ink
     breathes (a 14 s transform-only swell of the lit plume behind the case;
     the canvas is never redrawn for it). It runs only while a watch is
     connected and the window is visible, so a live watch reads as alive and
@@ -171,7 +169,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     (≤ 500 ms total); list views bring rows in as a list (220 ms, 16 ms
     stagger, capped at 14); a folder's contents unfold under it; a hairline
     travels under the current step (360 ms); the bezel clicks 6°
-    anticlockwise per proven track and rests where the send left it; the
+    counterclockwise per proven track and rests where the send left it; the
     room arc sweeps in on first read and gives up each proven track's room
     as it lands; credits and blooms as before. Controls stay 180 ms.
     Entrances use the Web Animations API so a re-render never replays them.
@@ -187,7 +185,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     bezel's scalloped edge is drawn again over the end links, so the head
     reads round lit or empty. Lugs are slim lyre blades with a twist facet
     and air beside the end link. The bracelet tapers and its links stagger
-    (polished centre link, outer links half a pitch off).
+    (polished center link, outer links half a pitch off).
   - **Plain-words recovery.** Connect / Release / Busy / Permission each
     say the move as a numbered list (the reset steps' list); the shell's
     sentence, with its file names and commands, is folded under "What
@@ -199,11 +197,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     `stop` covers backups); `resetStep` refuses to pass card 2 mid-copy
     from any control. A stopped or partial copy reads "Continue without a
     full backup".
-  - **Title entrance.** clip-path from the centre + blur + opacity, 520 ms;
+  - **Title entrance.** clip-path from the center + blur + opacity, 520 ms;
     no letter-spacing. Height measured constant (one line, 43px) through
     every frame at 1280/1360/1440/1460/1600.
   - **Title band.** Field is clamp(40%, 100% − 716px, 52%): the reserve
-    covers the stage inset at its 64px maximum, so 1280–1460 holds one line.
+    covers the stage inset at its 64px maximum, so 1280-1460 holds one line.
   - **Place marks.** Drives: a drive body with activity dots. Computer: a
     monitor on its stand.
   - **Ceiling notes not taken:** the gun-barrel/aperture device is out

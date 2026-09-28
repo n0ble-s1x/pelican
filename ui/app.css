@@ -1,4 +1,4 @@
-/* Pelican — the title sequence.
+/* Pelican: the title sequence.
  *
  * Ink black ground, bone ink text, one champagne that lights only what is
  * proven (a verified track, the send action, the room left), blood red only
@@ -6,14 +6,8 @@
  * surfaces: ink moves, chrome does not.
  */
 
-/* Julius Sans One is the display face, for title lines only. Of the thin,
- * wide-capital candidates rendered side by side (Julius Sans One, Tenor Sans,
- * Italiana, Josefin Sans 200/300) it is the only one that stays monoline and
- * even at 0.28em tracking: Tenor is too heavy and humanist for a title card,
- * Italiana's Didone contrast and old-style figures shrink "165" to lowercase
- * height, and Josefin's vintage geometry reads 1920s poster, not modern
- * titles. Julius carries a Reserved Font Name, so it ships unmodified (not
- * subset) under its OFL. */
+/* Julius Sans One: display face for title lines only. It carries a Reserved
+ * Font Name, so it ships unmodified (not subset) under its OFL. */
 @font-face {
   font-family: "Julius Sans One";
   src: url("fonts/JuliusSansOne-Regular.ttf") format("truetype");
@@ -44,7 +38,6 @@
   --hair: rgb(237 232 222 / 0.1);
   --hair-strong: rgb(237 232 222 / 0.2);
   --champagne: #c9a45c;
-  --champagne-soft: rgb(201 164 92 / 0.14);
   --blood: #8e1b1b;
   --blood-text: #d46a5f;
 
@@ -60,12 +53,8 @@
   --gutter: 40px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --fast: 180ms;
-  /* Card views: the field takes 52%, but gives way to the title column
-     until "FORERUNNER 165 MUSIC" (609px at 34px / 0.28em, less its -0.28em
-     trailing margin) holds one line. The column reserves the title, the
-     right gutter and the stage's left inset at its largest (64px), so the
-     line holds through the 1280-1460 band where that inset still grows
-     with 4vw. 1280: 44%; 1440: 50%; 1600 up: 52%. */
+  /* Card views: the field yields width so the longest model name
+     ("FORERUNNER 165 MUSIC", 609px) holds one title line from 1280px. */
   --field: clamp(40%, 100% - 716px, 52%);
 
   color-scheme: dark;
@@ -242,7 +231,7 @@ body[data-view="ledger"] {
   stroke: none;
 }
 
-/* The dive bezel turns anticlockwise, one click per proven track (app.js,
+/* The dive bezel turns counterclockwise, one click per proven track (app.js,
    turnBezel), and rests where the send left it. */
 .watch .bezel {
   transform-origin: 160px 240px;
@@ -532,6 +521,10 @@ body.dragging .veil {
   flex-direction: column;
   justify-content: center;
   max-width: 620px;
+  /* The title's -0.28em margin (cancelling its trailing letter-spacing)
+     makes it 0.28em wider than the card. A card that scrolls vertically
+     would otherwise scroll sideways by that much of empty tracking. */
+  overflow-x: hidden;
 }
 
 .view:not([data-card]) {
@@ -544,9 +537,8 @@ body.dragging .veil {
   display: none;
 }
 
-/* One line of tracked capitals. The size follows the viewport and the card
-   field gives way (see --field) so "FORERUNNER 165 MUSIC" holds one line
-   at 34px / 0.28em from 1280 up; it wraps, balanced, only below that. */
+/* One line of tracked capitals from 1280px up (see --field); below that it
+   wraps, balanced. */
 .title {
   font-family: var(--f-display);
   font-weight: 400;
@@ -663,10 +655,6 @@ code {
   color: var(--bone-faint);
 }
 
-.act.busy {
-  cursor: progress;
-}
-
 .text-btn {
   background: none;
   border: 0;
@@ -682,6 +670,18 @@ code {
 .text-btn:hover {
   color: var(--bone);
   text-decoration-color: var(--bone-dim);
+}
+
+/* A link inside a sentence: it takes the sentence's size and line. */
+.text-btn.inline {
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+.text-btn.inline:hover {
+  color: var(--bone);
 }
 
 .text-btn:disabled {
@@ -729,8 +729,7 @@ code {
 .s-skip,
 .s-pending,
 .s-reserve,
-.s-foreign,
-.s-active {
+.s-foreign {
   color: var(--bone-dim);
 }
 
@@ -800,11 +799,6 @@ code {
 .warn-line .mk {
   color: var(--bone);
   align-self: center;
-}
-
-.warn-line.is-error .mk,
-.warn-line.is-error .word {
-  color: var(--blood-text);
 }
 
 .word {
@@ -993,7 +987,7 @@ code {
   display: grid;
   place-items: center;
   width: 26px;
-  height: 20px;
+  height: 24px;
   padding: 0;
   background: none;
   border: 0;
@@ -1054,14 +1048,6 @@ code {
 
 .fit .dim {
   grid-column: 2;
-}
-
-.group-label {
-  font-size: var(--t-xs);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--bone-dim);
-  margin-bottom: 10px;
 }
 
 fieldset {
@@ -1198,6 +1184,20 @@ legend {
   margin-top: 2px;
   font-size: var(--t-sm);
   min-width: 0;
+  color: var(--bone-dim);
+}
+
+.credit.is-verified .cs {
+  color: var(--champagne);
+}
+
+.credit.is-failed .cs {
+  color: var(--blood-text);
+}
+
+.credit.is-transcoding .cs,
+.credit.is-sending .cs {
+  color: var(--bone);
 }
 
 .credit .cs .mk {
@@ -1963,11 +1963,7 @@ details.tags .overrides {
     grid-template-columns: 4em 7em minmax(0, 1fr);
   }
 
-  .ledger-row .num {
-  text-align: left;
-}
-
-.ledger-row .when {
+  .ledger-row .when {
     display: none;
   }
 }
@@ -2123,21 +2119,4 @@ details.tags .overrides {
 .rows.is-stale {
   opacity: 0.55;
   transition: opacity var(--fast) var(--ease);
-}
-
-.credit .cs {
-  color: var(--bone-dim);
-}
-
-.credit.is-verified .cs {
-  color: var(--champagne);
-}
-
-.credit.is-failed .cs {
-  color: var(--blood-text);
-}
-
-.credit.is-transcoding .cs,
-.credit.is-sending .cs {
-  color: var(--bone);
 }

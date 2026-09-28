@@ -145,7 +145,7 @@ components:
 
 Every step of the send is a title card from a modern Bond opening: black ink, one silhouette, one line of widely tracked capitals. The window is a split frame. On the left, a bounded field of ink holds a dive watch in silhouette (scalloped bezel, lyre lugs, a three-link bracelet), lit from behind. On the right, one title line, one or two quiet lines, and one action. Sending is the credits: track lines rise into place and resolve to a proven state, and a thread of champagne ink blooms in the field once for each verified file.
 
-The register is classy, elegant and simple. That means the craft and restraint of title design, not a spy-gadget or terminal pastiche, and no franchise marks of any kind. Density stays low even in the list views. Rows are separated by hairlines, never boxed, and the ink field narrows to a column so the list has room. Colour is almost entirely ink and bone. The two accents are permissions, not decoration. Champagne means proven. Blood means failed, and the word always goes with it.
+The register is classy, elegant and simple. That means the craft and restraint of title design, not a spy-gadget or terminal pastiche, and no franchise marks of any kind. Density stays low even in the list views. Rows are separated by hairlines, and the ink field narrows to a column so the list has room. Color is almost entirely ink and bone. The two accents are used only as permissions: champagne means proven, blood means failed, and the word always goes with it.
 
 Motion belongs to the ink. Chrome settles in 150 to 250 ms and then stays still. One loop is allowed at rest: while a watch is connected and the window is visible, the lit plume behind the case breathes (a 14 s transform-only swell; the canvas is not redrawn for it), so a live watch reads as alive and a missing one as still. Beyond that the field runs a bounded bloom only when a track resolves, and it bakes to a still residue under reduced motion.
 
@@ -162,12 +162,12 @@ Motion belongs to the ink. Chrome settles in 150 to 250 ms and then stays still.
 Near-black ink and warm bone, with two accents: champagne (proven) and blood (failure).
 
 ### Primary
-- **Proof Champagne** (champagne): the colour of evidence. It appears on the verified mark and word, a verified credit's hash prefix, the room-left arc on the watch, ledger-sent entries on the watch listing ("Sent by Pelican"), the "Fits" verdict, the filled Send button, "Verified clean" after a reset is read back, and the lit bloom in the ink field. Nothing else is champagne.
+- **Proof Champagne** (champagne): the color of evidence. It appears on the verified mark and word, a verified credit's hash prefix, the room-left arc on the watch, ledger-sent entries on the watch listing ("Sent by Pelican"), the "Fits" verdict, the filled Send button, "Verified clean" after a reset is read back, and the lit bloom in the ink field. Nothing else is champagne.
 - **Champagne Lift** (champagne-lift): the hover state of the Send button, and only that.
 
 ### Secondary
 - **Blood** (blood): failure as ink. It appears as the notice border on errors and as the one red thread laid into the field beside a failed credit. It is too dark to use for text.
-- **Blood, Legible** (blood-text): the failure colour for words and marks, including Failed, Refused, Stub, "Does not fit", an invalid field border, and the reason a credit failed. It keeps AA contrast on ink.
+- **Blood, Legible** (blood-text): the failure color for words and marks, including Failed, Refused, Stub, "Does not fit", an invalid field border, and the reason a credit failed. It keeps AA contrast on ink.
 
 ### Neutral
 - **Ink** (ink): the ground of the window, the field, and the sticky commit block. The canvas base is painted in the same value.
@@ -189,10 +189,10 @@ Near-black ink and warm bone, with two accents: champagne (proven) and blood (fa
 **Display Font:** Julius Sans One (with Hanken Grotesk, sans-serif), self-hosted, shipped unmodified under its OFL.
 **Body Font:** Hanken Grotesk variable (with system-ui, sans-serif), self-hosted and subset to Latin.
 
-**Character:** The display face is a thin, monoline, wide capital that stays even at 0.24–0.42em tracking, which is what a title card needs. The grotesque is neutral and workmanlike, and its figures stay in columns.
+**Character:** The display face is a thin, monoline, wide capital that stays even at 0.24-0.42em tracking, which is what a title card needs. The grotesque is neutral and workmanlike, and its figures stay in columns.
 
 ### Hierarchy
-- **Display** (400, clamp(1.625rem, 2.66vw, 2.125rem), 1.25, 0.28em, uppercase, balanced wrap): the one title line on a card view. At 1280px it is 34px, and "FORERUNNER 165 MUSIC" holds one line (609px) because the card field gives way to it (see Layout). The trailing tracking is cancelled with a matching negative right margin.
+- **Display** (400, clamp(1.625rem, 2.66vw, 2.125rem), 1.25, 0.28em, uppercase, balanced wrap): the one title line on a card view. At 1280px it is 34px, and "FORERUNNER 165 MUSIC" holds one line (609px) because the card field gives way to it (see Layout). The trailing tracking is canceled with a matching negative right margin.
 - **Headline** (same face and tracking, fixed 1.625rem): the title of a list view (Library, Review, On the watch, Ledger).
 - **Wordmark** (0.8125rem, 0.42em, uppercase): "PELICAN" top-left. The same face at 0.32em carries the drop veil's "Release to add".
 - **Lede** (400, 1.0625rem, 1.5, max 44ch): the one line under a title, such as room left or the send outcome.
@@ -200,7 +200,7 @@ Near-black ink and warm bone, with two accents: champagne (proven) and blood (fa
 - **Body Small** (0.8125rem): facts, row subtitles, sizes, credit status lines, and the permanence statement.
 - **Label, Action** (500, 0.8125rem, 0.16em, uppercase): button labels. Send uses weight 600.
 - **Label, Nav** (0.75rem, 0.2em, uppercase): top-right links. The step index uses 0.24em.
-- **Caption** (0.75rem): estimates and field labels. (The no-network promise line that once sat in the foot was removed at the owner's request; the promise stands in PRODUCT.md and SECURITY.md, not as window chrome.)
+- **Caption** (0.75rem): estimates and field labels.
 
 ### Named Rules
 **The Title Card Rule.** The display face sets title lines, the wordmark and the drop veil. It is never used for an operable control, a row, a number, or a sentence.
@@ -210,15 +210,15 @@ Near-black ink and warm bone, with two accents: champagne (proven) and blood (fa
 ## Layout
 
 The window is one grid: a 64px top bar, a stage, and a 64px foot (52px when the viewport is under 700px tall). The ink field spans all three rows on the left, and its width follows the view:
-- clamp(40%, 100% − 716px, 52%) on card views (Watch, Name the playlist, Start over): 52% on a wide window, giving way only as far as the title column needs to hold "FORERUNNER 165 MUSIC" (609px) on one line at 34px / 0.28em. The 716px reserve covers the title, the 40px right gutter and the stage's left inset at its largest (64px), so the line holds through the 1280–1460 band where that inset still grows with 4vw. Measured one line at 1280, 1360, 1440, 1460 and 1600, including every frame of the title entrance. The silhouette sits at optical centre, and the title column is vertically centred with a max width of 620px; it scrolls rather than clips when "What it runs" is open.
+- clamp(40%, 100% − 716px, 52%) on card views (Watch, Name the playlist, Clear the watch): 52% on a wide window, giving way only as far as the title column needs to hold "FORERUNNER 165 MUSIC" (609px) on one line at 34px / 0.28em. The 716px reserve covers the title, the 40px right gutter and the stage's left inset at its largest (64px), so the line holds through the 1280-1460 band where that inset still grows with 4vw. Measured one line at 1280, 1360, 1440, 1460 and 1600, including every frame of the title entrance. The silhouette sits at optical center, and the title column is vertically centered with a max width of 620px; it scrolls rather than clips when "What it runs" is open.
 - 48% on Send and Done, which gives the credits a little more room.
 - clamp(200px, 27%, 380px) on list views (Library, Review, On the watch, Ledger), where the field becomes a column and the stage holds a header, scrolling hairline rows, and a bottom bar.
 
-Review splits into a track list and a 250–300px side column. Permanence and Send are sticky at the foot of that column and stay in view together.
+Review splits into a track list and a 250-300px side column. Permanence and Send are sticky at the foot of that column and stay in view together.
 
 The outer gutter is 40px (28px under 1100px). The stage's inner left edge is clamp(24px, 4vw, 64px). Vertical rhythm comes from a small set of steps: 10px rows, 14px gaps, 18px, 22px, 28px blocks, and 36px above an action row. Under 820px the frame stacks. The field becomes a 240px band behind the top bar with a 200px watch, the stage flows below it with 16px gutters.
 
-The foot holds only the step index (Watch · Choose · Review · Send; in Start over, Erases · Back up · Reset · Confirm). A hairline travels under the current step (360 ms). Nothing else sits in the foot.
+The foot holds only the step index (Watch · Choose · Review · Send; in Clear the watch, Erases · Back up · Reset · Confirm). A hairline travels under the current step (360 ms). Nothing else sits in the foot.
 
 ## Elevation & Depth
 
@@ -231,11 +231,11 @@ The system is flat. Depth comes from the ink itself, a plume of lit, domain-warp
 **The Still Chrome Rule.** Ink moves; chrome does not. UI transitions use the exponential ease-out (cubic-bezier(0.16, 1, 0.3, 1)) at 180 ms, with entrances no longer than 520 ms, and then stop. The canvas animates only while a bloom is live, pauses when the window is hidden, and bakes to its residue under prefers-reduced-motion. The breathing plume is the one loop at rest (see Overview), and it is paused with no watch, with the window hidden, under reduced motion and under `?still`.
 
 **The Entrance Grammar.** Entrances use the Web Animations API, so a re-render never replays them, and every call is guarded by reduced motion.
-- A title card's title line opens from its centre out of a 6px blur (clip-path inset from 50% to fully open, with opacity, 520 ms). It never animates tracking, size or any layout property, so the line is laid out once at its final width and cannot re-wrap mid-motion.
+- A title card's title line opens from its center out of a 6px blur (clip-path inset from 50% to fully open, with opacity, 520 ms). It never animates tracking, size or any layout property, so the line is laid out once at its final width and cannot re-wrap mid-motion.
 - The lines beneath it settle 8px up, staggered 34 ms from 90 ms, capped at the sixth.
 - List views fade their header in (240 ms) and bring rows in as a list (220 ms, 16 ms stagger, capped at 14). A folder's contents unfold under it the same way.
 - A reordered playlist row slides into its new place.
-- The bezel clicks 6° anticlockwise per proven track and rests where the send left it; the room arc sweeps in on first read and gives up each proven track's room as it lands.
+- The bezel clicks 6° counterclockwise per proven track and rests where the send left it; the room arc sweeps in on first read and gives up each proven track's room as it lands.
 
 ## Shapes
 
@@ -245,14 +245,14 @@ The shape language is a hairline and a right angle. Buttons and inputs have a 1p
 
 ### Buttons
 - **Shape:** optically square (1px radius), 44px minimum height, 22px side padding, label in tracked capitals.
-- **Quiet (default):** transparent, with a 1px bone border at 50% and bone text. Every flow action except Send uses it, for example "Choose music" and "Stop after this track".
+- **Quiet (default):** transparent, with a 1px bone border at 50% and bone text. Every flow action except Send uses it, for example "Choose music" and "Stop after this song".
 - **Hover / Active:** a bone wash at 7% (12% when pressed) and a full bone border, over 180 ms.
 - **Send:** a champagne fill with ink text at weight 600, full width in the review side column. It lifts to Champagne Lift on hover. There is one Send per screen.
 - **Disabled:** transparent with a strong-hairline border and faint-bone text. A disabled Send loses its champagne, and a dim caption beneath it says why.
 - **Text button:** dim bone, 0.8125rem, underlined with a hairline offset 5px. It brightens to bone on hover.
 
 ### Navigation
-- **Top-right links** (On the watch · Ledger) and the **step index** (Watch · Choose · Review · Send) are tracked capital words separated by faint middle dots. At rest they are dim or faint. The current item turns bone; the current page link also gets a hairline underline offset 6px. There are no tabs, pills or icons.
+- **Top-right links** (On the watch · Ledger · Clear the watch) and the **step index** (Watch · Choose · Review · Send) are tracked capital words separated by faint middle dots. At rest they are dim or faint. The current item turns bone; the current page link also gets a hairline underline offset 6px. There are no tabs, pills or icons.
 
 ### Inputs / Fields
 - **Style:** Raised Ink fill, 1px strong-hairline border, 1px radius, 38px tall (34px in the Review overrides grid).
@@ -261,7 +261,7 @@ The shape language is a hairline and a right angle. Buttons and inputs have a 1p
 - **Checkboxes:** native, 16px, with a bone accent.
 
 ### Notice
-- A single band pinned above the stage: Raised Ink, strong-hairline border, a mark plus a bold capitalised word (Note, Problem) and then the sentence. On error the border turns blood.
+- A single band pinned above the stage: Raised Ink, strong-hairline border, a mark plus a bold capitalized word (Note, Problem) and then the sentence. On error the border turns blood.
 
 ### The USB Rule
 - Shown in the no-watch states when the udev rule is missing or outdated (a permission problem, or no watch found). It is then the view's one quiet action, "Install the USB rule", and Check again drops to a text button. It is not champagne: installing a file proves nothing.
@@ -269,7 +269,7 @@ The shape language is a hairline and a right angle. Buttons and inputs have a 1p
 - While the password prompt is open the button is disabled, busy, and reads "Waiting for your password" after the in-flight mark. A cancel or failure lands as one line with a mark under the button; a failure's mark is blood-text beside the words "Not installed". After an install that still leaves the watch unreachable, the title becomes "Unplug and replug the watch".
 
 ### State Marks
-- **Mark plus word:** each state is a stroked 14px mark followed by its word in weight 600 (Verified, Skipped, Failed, Converting, Sending). Colour follows the state: champagne for verified or ledger, dim bone for pending, skipped or foreign, bone for in flight, and blood-text for failed, refused or stub.
+- **Mark plus word:** each state is a stroked 14px mark followed by its word in weight 600 (Verified, Skipped, Failed, Converting, Sending). Color follows the state: champagne for verified or ledger, dim bone for pending, skipped or foreign, bone for in flight, and blood-text for failed, refused or stub.
 
 ### The Credits Roll (signature)
 - During Send, each track is a credit: its name at 1.0625rem in bone, with a status line beneath of a mark, a word, and detail (a hash prefix, or the failure reason).
@@ -280,11 +280,11 @@ The shape language is a hairline and a right angle. Buttons and inputs have a 1p
 - The roll fades only in its outer 12px and 40px, and it hides its scrollbar.
 
 ### The Watch Silhouette (signature)
-A dive watch in the Seamaster manner (owner, 2026-09-26: "the silhouette of an Omega, class it up"), drawn as an authored SVG silhouette only: no name, logo, dial text or index. Its parts, in the 320 × 360 viewBox with the case centred at (160, 240):
+A dive watch in the Seamaster manner (owner, 2026-09-26: "the silhouette of an Omega, class it up"), drawn as an authored SVG silhouette only: no name, logo, dial text or index. Its parts, in the 320 × 360 viewBox with the case centered at (160, 240):
 - **Case and bezel.** A 118 case under a 124 unidirectional bezel with 30 shallow scallops. A pip at 12 on the bezel (bone 16%) is the one interior mark, so the bezel's turn reads. A dial ring at r 105 (bone 7%) marks where the bezel insert meets the dial, so the head reads round even with nothing lit.
 - **Lyre lugs.** One slim blade, mirrored four ways: it leaves the case at the flank and sweeps up to a narrow (15-unit) tip beside the end link, with air between it and the bracelet. One facet hairline (bone 10%) runs from the inner side at the tip to the outer side at the shoulder, which is what makes it read twisted.
 - **Crowns.** A guarded crown at 3 and a conical helium-valve crown at 10.
-- **Bracelet.** Three-link, tapering from 112 at the case to 100, running off the field's top and bottom edges. The links are hairlines on the silhouette, not cuts (bone 8%): a narrow polished centre link (bone 3% wash) and outer links set half a pitch off it, so it reads as a bracelet, not a grid.
+- **Bracelet.** Three-link, tapering from 112 at the case to 100, running off the field's top and bottom edges. The links are hairlines on the silhouette, not cuts (bone 8%): a narrow polished center link (bone 3% wash) and outer links set half a pitch off it, so it reads as a bracelet, not a grid.
 - **One opaque shape.** Case, lugs, crowns and bracelet are drawn twice, stroked then filled over, so only the outer edge carries bone (7%); the bezel's scalloped edge is drawn once more over the end links, so the head stays round at 12 and 6. The whole silhouette is painted over the ink canvas, so no ink (not even the red thread) crosses it.
 - **Lit.** Only the champagne room arc, riding the bezel at r 115, which eases over 900 ms. The bezel turns 6° per proven track. No counter, no brand.
 - **No watch.** The fill becomes ink and the edge a continuous bone hairline at 22% (never dotted), with the dial ring at 18% and the lug facets at 14%: an empty but unmistakably round dive watch. Links, pip and arc are hidden, the field dims to 40%, and the plume stops breathing.
@@ -308,7 +308,7 @@ Make a playlist opens a title card, "Name the playlist": one line saying the son
 A row skipped as already on the watch offers Send again. Once chosen, it reads "Send again · another copy, under a new name" with Keep skipped beside it. A run-wide toggle, "Send every skipped song again", sits in Review's side column.
 
 ### The Permanence Statement
-One statement in two lengths, used on On the watch, Review (beside Send) and the first Start over card: nothing can be deleted from the watch one song at a time; the only way to clear it is a factory reset, and that erases everything on the watch: activities, health data, settings, Garmin Pay and music. It is set in Body Small bone, never red: it is a fact, not a failure.
+One statement in two lengths, used on On the watch, Review (beside Send) and the first Clear the watch card: nothing can be deleted from the watch one song at a time; the only way to clear it is a factory reset, and that erases everything on the watch: activities, health data, settings, Garmin Pay and music. It is set in Body Small bone, never red, because it states a fact. Wherever it appears it ends in an inline link to Clear the watch ("How to clear the watch", "How to clear it"), and a send that does not fit offers the same link: the moment someone learns a song cannot be deleted is the moment they look for the way out. The inline link takes the sentence's size and color, with the text button's hairline underline.
 
 ### Start Over (factory-reset walkthrough)
 Four title cards with their own step index in the foot (Erases · Back up · Reset · Confirm). Pelican never resets the watch.
@@ -320,11 +320,11 @@ Four title cards with their own step index in the foot (Erases · Back up · Res
 ## Do's and Don'ts
 
 ### Do:
-- **Do** give every state a mark and a word. Colour is never the only signal.
+- **Do** give every state a mark and a word. Color is never the only signal.
 - **Do** keep one title line per view in the display face, tracked 0.28em in uppercase, and one action (or one Send) beneath it.
 - **Do** separate rows with hairlines (bone at 10%) and leave the rows themselves unfilled.
 - **Do** set every size, count and hash in tabular lining figures.
-- **Do** keep UI transitions to 150–250 ms exponential ease-out and entrances within 520 ms. Let only the ink field move at length, and stop it when idle or under reduced motion.
+- **Do** keep UI transitions to 150-250 ms exponential ease-out and entrances within 520 ms. Let only the ink field move at length, and stop it when idle or under reduced motion.
 - **Do** vendor every font and asset. The window makes no network request.
 
 ### Don't:

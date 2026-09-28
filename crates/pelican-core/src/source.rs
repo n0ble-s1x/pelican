@@ -3,7 +3,7 @@
 //! Only ever reads. The one thing it records beyond the file itself is
 //! *how it was found*: a file named directly has no root, a file found by
 //! walking a directory carries that directory. Tag resolution needs the
-//! difference — only inside a directory the user pointed at is the folder
+//! difference: only inside a directory the user pointed at is the folder
 //! above an album trusted to be the artist (see
 //! [`crate::transcode::tags::Resolved`]).
 
@@ -19,8 +19,8 @@ use crate::transcode::is_audio;
 pub struct Source {
     /// Absolute path. Absolute because ffmpeg reads a relative `proto:…`
     /// argument as a URL. A named file is canonicalized; a walked one keeps
-    /// the path it was found at under its (canonical) root — for a symlink,
-    /// the link, not its target — because the folders around it are what
+    /// the path it was found at under its (canonical) root (for a symlink,
+    /// the link, not its target) because the folders around it are what
     /// its tags fall back to.
     pub path: PathBuf,
     /// The directory on the command line this was found under, canonical;
@@ -58,7 +58,7 @@ pub fn expand(paths: &[PathBuf]) -> Result<Vec<Source>> {
             push(&mut out, &mut seen, canon, None)?;
         } else {
             bail!(
-                "{} is not an audio file Pelican recognises (by extension)",
+                "{} is not an audio file Pelican recognizes (by extension)",
                 p.display()
             );
         }

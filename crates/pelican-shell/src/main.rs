@@ -3,8 +3,8 @@
 //! A Tauri 2 shell over `pelican-core`, serving the checked-in `ui/`
 //! frontend: plain HTML, CSS and JS, with no npm, no bundler and no
 //! `node_modules`, so the whole dependency surface stays inside what
-//! `cargo deny` and `cargo audit` can see. There is no network either — no
-//! telemetry, no updater, no remote font — and the CSP in `tauri.conf.json`
+//! `cargo deny` and `cargo audit` can see. There is no network either (no
+//! telemetry, no updater, no remote font), and the CSP in `tauri.conf.json`
 //! makes that structural rather than a promise.
 //!
 //! `commands.rs` is the IPC surface and says why no command does its work
@@ -45,8 +45,6 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::status,
-            commands::library_root,
-            commands::set_library_root,
             commands::library_list,
             commands::places,
             commands::preview,

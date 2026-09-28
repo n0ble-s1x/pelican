@@ -1,6 +1,6 @@
 [package]
 name = "pelican-core"
-description = "Pelican's engine — Garmin USB/MTP transport and the transcode pipeline. No UI."
+description = "Pelican's engine: Garmin USB/MTP transport and the transcode pipeline. No UI."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

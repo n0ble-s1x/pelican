@@ -1,27 +1,29 @@
-# Flatpak / Cosmic Store packaging
+# Flatpak packaging
 
-Pelican is **not on Flathub yet** — submission is planned (see "When ready",
-below, and `README.md`). Once it is, it appears automatically in:
-
-- **Cosmic Store** (Pop!_OS 24.04+)
-- GNOME Software
-- KDE Discover
-- Elementary AppCenter
-- Any other Flathub-aware software center
+Pelican is **not on Flathub**. The manifest here packages the command-line
+tool only, and it has never been built as committed: the application icon
+does not exist yet, and the offline cargo sources have not been generated.
+The desktop app (`pelican-app`) is not packaged here; it needs a runtime with
+webkit2gtk-4.1 (such as `org.gnome.Platform`) and its desktop entry.
 
 ## Files
 
-- `com.krypteia.Pelican.yaml` — Flathub manifest (build recipe)
-- `com.krypteia.Pelican.metainfo.xml` — AppStream metadata (the listing page)
-- `com.krypteia.Pelican.svg` — application icon (TODO: design + add)
+- `com.krypteia.Pelican.yaml`: the manifest (build recipe).
+- `com.krypteia.Pelican.metainfo.xml`: AppStream metadata (the store listing).
+- `com.krypteia.Pelican.svg`: the application icon. Not created yet.
 
 ## Local test build
 
+Use the current `org.freedesktop.Platform` release (26.08 as of 2026-09;
+check `flatpak remote-info flathub org.freedesktop.Platform//26.08` or the
+Freedesktop SDK release notes for anything newer) and match the manifest's
+`runtime-version`.
+
 ```sh
 flatpak install --user flathub \
-  org.freedesktop.Platform//23.08 \
-  org.freedesktop.Sdk//23.08 \
-  org.freedesktop.Sdk.Extension.rust-stable//23.08
+  org.freedesktop.Platform//26.08 \
+  org.freedesktop.Sdk//26.08 \
+  org.freedesktop.Sdk.Extension.rust-stable//26.08
 
 cd <repo root>
 flatpak-builder --user --install \
@@ -29,29 +31,31 @@ flatpak-builder --user --install \
   packaging/flatpak/com.krypteia.Pelican.yaml \
   --force-clean
 
-flatpak run com.krypteia.Pelican
+flatpak run com.krypteia.Pelican status
 ```
+
+Inside a Flatpak the app cannot install the udev rule; the rule has to be
+installed on the host (see the README).
 
 ## Submitting to Flathub
 
-When ready (post v0.1.0 release):
+Once the manifest builds, has an icon, and a release is tagged:
 
-1. Fork https://github.com/flathub/flathub
-2. Create branch `new-pr` (Flathub's required name)
-3. Add this manifest as `com.krypteia.Pelican.yaml`
-4. Generate cargo sources for offline build:
+1. Fork https://github.com/flathub/flathub.
+2. Create a branch named `new-pr` (Flathub's required name).
+3. Add the manifest as `com.krypteia.Pelican.yaml`, with its source changed
+   from `type: dir` to a `type: git` source pinned to the release tag and
+   commit.
+4. Generate the cargo sources for the offline build:
    `python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py Cargo.lock -o cargo-sources.json`
-5. Open PR against `flathub/flathub:new-pr`
-6. Flathub bot validates; reviewers approve; auto-merges to its own repo
-7. Once merged, `com.krypteia.Pelican` is live on Flathub and downstream stores
+5. Open a PR against `flathub/flathub:new-pr`.
+6. Flathub's bot builds it and reviewers approve it. Once merged, the app is
+   published from its own `flathub/com.krypteia.Pelican` repository, and
+   appears in GNOME Software, KDE Discover, the COSMIC Store and other
+   Flathub-aware software centers.
 
-## Why Flatpak (and not native packages first)
+## Other packages
 
-- One manifest covers every Linux software store
-- Sandboxing limits what a compromised dep can do (USB-only, no network)
-- Updates happen via Flathub regardless of distro release cycle
-- Cosmic Store specifically prefers Flathub apps
-- Native `.deb`/AUR are also offered for users who avoid Flatpak — the AUR
-  `PKGBUILD` is in `packaging/aur/`, and the Debian package is configured in
-  `[package.metadata.deb]` in `crates/pelican/Cargo.toml` (build it with
-  `cargo deb --release -p pelican`; there is no `packaging/debian/` directory)
+The AUR `PKGBUILD` is in `packaging/aur/`. The Debian package is configured
+in `[package.metadata.deb]` in `crates/pelican/Cargo.toml` (build it with
+`cargo deb --release -p pelican`). Both package the command-line tool only.

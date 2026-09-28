@@ -1,18 +1,16 @@
 //! Reading source tags, and writing the strict tag Garmin will accept.
 //!
 //! Garmin's music indexer silently rejects files whose tag carries
-//! non-standard frames — custom Vorbis fields like `QBZ:TID`, `DISCTOTAL`,
+//! non-standard frames: custom Vorbis fields like `QBZ:TID`, `DISCTOTAL`,
 //! the `℗` glyph inside `COPYRIGHT`, embedded cover art. So we never carry a
 //! source tag across; we read what we want, drop everything else, and write
 //! a fresh tag from a seven-field allowlist.
 //!
-//! Reading used to mean spawning `ffprobe` and parsing its JSON, which made
-//! tag support hostage to an external binary and needed a hand-rolled guard
-//! against a tag value forging extra output lines. `lofty` reads ID3v2,
+//! `lofty` reads ID3v2,
 //! Vorbis comments, MP4 atoms and APE tags in-process, on every platform,
 //! for every format it knows. For the ones it does not (WMA among them) a
 //! read failure is not a refusal: the file still has a path, and the path
-//! is enough to name it — see [`Resolved`].
+//! is enough to name it (see [`Resolved`]).
 
 use std::path::Path;
 
@@ -57,7 +55,7 @@ impl Tags {
     }
 
     fn from_tagged(tagged: &lofty::file::TaggedFile) -> Self {
-        // Primary tag first, then any other tag the file carries — an MP3
+        // Primary tag first, then any other tag the file carries: an MP3
         // can hold both ID3v2 and APE, and a FLAC both Vorbis comments and
         // ID3v2. Falling through means a half-tagged file still works.
         let tags: Vec<_> = tagged
@@ -71,12 +69,11 @@ impl Tags {
             )
             .collect();
 
-        // `clean` runs INSIDE the search, not after it. Cleaning afterwards
-        // made the fallthrough above a lie: `find_map` stops at the first tag
-        // that carries the key *at all*, so a tag holding "   " — or a bare
-        // ℗ that `sanitize_tag_value` strips to nothing — won the search and
-        // was then discarded, and the tag holding the real value was never
-        // read. A blank value is not a value; keep looking.
+        // `clean` runs inside the search, not after it: `find_map` stops at
+        // the first tag that carries the key at all, so a tag holding "   "
+        // (or a bare ℗ that `sanitize_tag_value` strips to nothing) would win
+        // and hide the tag holding the real value. A blank value is not a
+        // value; keep looking.
         let first = |f: &dyn Fn(&lofty::tag::Tag) -> Option<String>| -> Option<String> {
             tags.iter().find_map(|t| f(t).and_then(clean))
         };
@@ -115,7 +112,7 @@ pub struct Overrides {
 /// The tag that will be written, every field decided.
 ///
 /// A file that reaches the watch without a title or artist is on the
-/// storage and absent from the music app — the WAV in
+/// storage and absent from the music app; the WAV in
 /// `garmin-library-persistence.md` § Results is exactly that. So nothing is
 /// left to chance: each field resolves **override → source tag → path**,
 /// and a file whose title still comes out empty is refused rather than sent
@@ -126,7 +123,7 @@ pub struct Overrides {
 ///   `02_`, `02.`, `2 `);
 /// - track: that leading number;
 /// - album: the parent directory's name;
-/// - artist: the grandparent's name — **only** when the file was found by
+/// - artist: the grandparent's name, **only** when the file was found by
 ///   walking a directory named on the command line and the grandparent lies
 ///   strictly inside it. Otherwise the grandparent is whatever happened to
 ///   hold the album (a NAS share, `~/Downloads`), which says nothing about
@@ -142,13 +139,13 @@ pub struct Resolved {
     /// under one album.
     pub album_artist: Option<String>,
     pub album: Option<String>,
-    /// Just the number, without a `/total` — the watch sorts by it.
+    /// Just the number, without a `/total`; the watch sorts by it.
     pub track: Option<String>,
     pub date: Option<String>,
     pub genre: Option<String>,
 }
 
-/// A user-ordered set of songs sent as one album — the watch rejects MTP
+/// A user-ordered set of songs sent as one album. The watch rejects MTP
 /// playlists (`docs/playlists.md`), so an album is the only order it keeps.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Mix {
@@ -227,7 +224,7 @@ impl Resolved {
     /// Re-resolve as song `position` (1-based) of `mix`: the album is the
     /// mix, the album artist [`MIX_ALBUM_ARTIST`], the track number the
     /// position. Title and artist stay the song's own. Year and genre come
-    /// only from `ov` — a song's own year says nothing about the mix.
+    /// only from `ov`: a song's own year says nothing about the mix.
     ///
     /// Refused if the mix name sanitizes to nothing: an album with no name
     /// is not one the watch can show.
@@ -273,11 +270,11 @@ fn pick(ov: &Option<String>, tag: &Option<String>) -> Option<String> {
 
 /// Split a leading track number off a filename stem.
 ///
-/// Recognises one to three digits followed by a separator — `01 - `, `01_`,
-/// `01.`, `1 ` — and returns the number and what follows. Capped at three
+/// Recognizes one to three digits followed by a separator (`01 - `, `01_`,
+/// `01.`, `1 `) and returns the number and what follows. Capped at three
 /// digits so a title that *starts* with a year, like `2001 A Space Odyssey`,
 /// keeps it. Without a separator (`1999`) there is no prefix. If stripping
-/// would leave nothing, there is no prefix either — the digits are the name.
+/// would leave nothing, there is no prefix either: the digits are the name.
 fn split_track_prefix(stem: &str) -> (Option<u32>, &str) {
     let digits = stem.bytes().take_while(u8::is_ascii_digit).count();
     if digits == 0 || digits > 3 {

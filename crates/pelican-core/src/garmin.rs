@@ -3,7 +3,7 @@ use nusb::MaybeFuture;
 
 pub const GARMIN_VENDOR_ID: u16 = 0x091E;
 
-/// The product id a Garmin watch shows while it is not speaking MTP — seen
+/// The product id a Garmin watch shows while it is not speaking MTP, seen
 /// on a Forerunner 165 right after a reboot, as "Garmin GPS usb/tty
 /// converter". A watch stuck there answers no MTP request until replugged.
 pub const SERIAL_MODE_PRODUCT_ID: u16 = 0x0003;

@@ -2,7 +2,7 @@
 //! sent: every file with its tags, its verdict and an estimate of its size
 //! on the watch, the totals, and whether it all fits.
 //!
-//! The verdicts are [`transfer::preview`]'s — the same call the run makes —
+//! The verdicts are [`transfer::preview`]'s (the same call the run makes),
 //! so what is shown is what would happen. The sizes are **estimates**: the
 //! exact size of a transcode is only known once ffmpeg has made it, and the
 //! run's own capacity check uses the exact numbers.
@@ -30,7 +30,7 @@ pub const EST_OVERHEAD: u64 = 4 << 10;
 
 /// Estimated size of `src` once transcoded: its duration at the profile's
 /// bitrate, plus [`EST_OVERHEAD`]. When the duration cannot be read, a
-/// guess from the source's size and format family — see [`estimate`].
+/// guess from the source's size and format family (see [`estimate`]).
 pub fn estimate_bytes(src: &Path, source_bytes: u64) -> u64 {
     estimate(duration(src), source_bytes, src)
 }
@@ -40,7 +40,7 @@ pub fn estimate_bytes(src: &Path, source_bytes: u64) -> u64 {
 /// Without a duration, uncompressed PCM shrinks to 192/1411 of its size,
 /// lossless-compressed audio to about a quarter, and a lossy source is
 /// assumed to grow by half (a 128 kbps file re-encoded at 192). Rough on
-/// purpose — the run checks the real sizes before any write.
+/// purpose: the run checks the real sizes before any write.
 pub fn estimate(duration: Option<Duration>, source_bytes: u64, src: &Path) -> u64 {
     if let Some(d) = duration.filter(|d| !d.is_zero()) {
         let audio = (d.as_secs_f64() * PROFILE_BPS as f64 / 8.0).ceil() as u64;
@@ -147,7 +147,7 @@ pub fn build(
     build_with(entries, ledger, &transfer::Resend::from(resend), room)
 }
 
-/// [`build`] with a per-file [`transfer::Resend`] — what a review's
+/// [`build`] with a per-file [`transfer::Resend`], which is what a review's
 /// per-track "send again" asks for.
 pub fn build_with(
     entries: &[PlanEntry],

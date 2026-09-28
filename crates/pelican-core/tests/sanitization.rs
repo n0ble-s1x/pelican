@@ -1,14 +1,8 @@
 //! End-to-end logic tests for the Garmin-quirk workarounds. These are the
-//! parts of the pipeline most likely to regress silently — they encode hard-
+//! parts of the pipeline most likely to regress silently. They encode hard-
 //! won knowledge about what the watch firmware accepts. If any of these
 //! ever fails, double-check against `docs/garmin-mtp.md` before
-//! "fixing" the test.
-//!
-//! These used to assert against constants re-declared inside this file,
-//! because `pelican` was a binary crate and an integration test could not
-//! see into it. That made them documentation that could not fail. Now that
-//! the engine is a library they bind to the real implementation, so drift
-//! in `transcode` breaks the build instead of passing quietly.
+//! "fixing" the test. They bind to the real `transcode` implementation.
 
 use std::path::Path;
 
@@ -26,7 +20,7 @@ fn filename_cap_holds_against_the_firmware_limit() {
     // since some firmware trims at 60 inclusive of the dot-extension.
     assert!(STEM_CAP + ".mp3".len() <= 60);
 
-    // And the implementation actually honours it, for input far over the
+    // And the implementation actually honors it, for input far over the
     // limit and for input that is pure punctuation.
     for raw in [
         "11 - Iva Davies, Christopher Gordon, Richard Tognetti - Ghost of Time - Tognetti Into the Fog",
@@ -81,7 +75,7 @@ fn tag_values_are_stripped_of_what_the_indexer_rejects() {
     // Control bytes would let a crafted tag forge lines in terminal output.
     let out = transcode::sanitize_tag_value("Track\x1b[31m\x07Name\n");
     assert!(!out.chars().any(char::is_control), "{out:?}");
-    // But real text must survive intact — over-sanitizing mangles libraries.
+    // But real text must survive intact; over-sanitizing mangles libraries.
     assert_eq!(
         transcode::sanitize_tag_value("  Café Tacvba  "),
         "Café Tacvba"

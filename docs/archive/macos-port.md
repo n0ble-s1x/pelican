@@ -1,4 +1,10 @@
-# macOS Port — Assessment and Plan
+# macOS port: assessment and plan
+
+> Historical: the macOS port as of September 2026, kept at the git tag
+> `archive/macos-port`. The port was dropped; the README's "What about
+> macOS?" summarizes why. Kept for its hardware findings (for example,
+> `ptpcamerad` does not claim Garmin watches). Statements below in the
+> present tense describe the port at the time, not the current code.
 
 Working notes for putting Pelican on macOS. Same convention as the rest of
 `docs/`: every claim says **what was verified, on what device, on what
@@ -15,7 +21,7 @@ on **macOS 26.6.2 (25G83)**, Apple silicon, rustc 1.94.0.
 a full upload round-trip succeeds against real hardware. The blocker the plan
 was originally built around does not exist.
 
-## The ptpcamerad question — settled, negative
+## The ptpcamerad question: settled, negative
 
 Apple's `ptpcamerad` is a LaunchAgent (`/System/Library/LaunchAgents/`,
 domain `gui/<uid>`) that claims still-image-class USB devices on attach. It is
@@ -39,7 +45,7 @@ An earlier draft of this document predicted the opposite. It was wrong.
 ## What was verified on hardware
 
 Point-in-time results from the port session. The listing count is a snapshot
-of the owner's library on that day, not a standing fact — it has since grown.
+of the owner's library on that day, not a standing fact; it has since grown.
 Everything else here is a property of the device and still holds.
 
 | Check | Result |
@@ -58,13 +64,13 @@ Both test files were deleted afterwards.
 
 This section previously recorded, as an observation dated 2026-09-05, that an
 afconvert-produced M4A was synced to the FR165, appeared in the watch's music
-app and **played** — and concluded that ffmpeg was therefore optional end to
+app and **played**, and concluded that ffmpeg was therefore optional end to
 end.
 
 **That observation never happened.** It was written by an agent and is not
 supported by anything in the session record. The owner's account, given
-repeatedly, is that *nothing has ever played on the watch* — on either
-platform — and that the only tracks the watch lists are a batch pushed from
+repeatedly, is that *nothing has ever played on the watch*, on either
+platform, and that the only tracks the watch lists are a batch pushed from
 Linux before the macOS port existed, which do not play either.
 
 What is actually established on macOS: afconvert produces a file, the file is
@@ -97,7 +103,7 @@ macOS ships `/usr/bin/afconvert`. Verified locally:
 
 - **Encodes** AAC, ALAC, FLAC
 - **Decodes** FLAC, ALAC, AIFF, WAV, MP3, AAC
-- **Cannot encode MP3** — `ExtAudioFileSetProperty ('cfmt') failed`. CoreAudio
+- **Cannot encode MP3**: `ExtAudioFileSetProperty ('cfmt') failed`. CoreAudio
   has no MP3 encoder.
 - Ogg Vorbis and Opus are advertised by `afconvert -hf` but `ExtAudioFile`
   refused to produce either, so they are not claimed. WMA, APE and WavPack are
@@ -105,12 +111,12 @@ macOS ships `/usr/bin/afconvert`. Verified locally:
 
 The shipped design has three pipelines:
 
-1. **Passthrough** — a container the watch already plays (MP3, M4A, M4B, AAC,
+1. **Passthrough**: a container the watch already plays (MP3, M4A, M4B, AAC,
    WAV) is copied byte-for-byte and only the tag is rebuilt, in process. **No
    external tool at any point.** This covers an MP3/WAV library outright.
-2. **ffmpeg → CBR 192 kbps MP3** — the profile verified on FR165 firmware
+2. **ffmpeg → CBR 192 kbps MP3**: the profile verified on FR165 firmware
    2506. Used when ffmpeg is installed.
-3. **afconvert → CBR 192 kbps AAC in M4A** — the zero-dependency fallback.
+3. **afconvert → CBR 192 kbps AAC in M4A**: the zero-dependency fallback.
 
 A format none of them can read is refused per file, with a message naming the
 format and the fix.
@@ -119,7 +125,7 @@ format and the fix.
 
 ### PATH caveat
 
-Not yet live — there is no `.app` today (see Distribution) and a
+Not yet live: there is no `.app` today (see Distribution) and a
 `cargo run` inherits the shell's `PATH`. But when there is one: a
 Finder-launched `.app` inherits launchd's environment, which is
 `PATH=/usr/bin:/bin:/usr/sbin:/sbin`. **It would not find Homebrew ffmpeg.**
@@ -129,8 +135,8 @@ configured explicitly, not inherited.
 ## Distribution
 
 **Nearer blocker: there is no bundle to sign.** `tauri.conf.json` sets
-`bundle.targets` to `["app", "dmg"]`, but `cargo tauri build` fails —
-verified 2026-09-05, tauri-cli 2.11.4 on macOS 26.6.2:
+`bundle.targets` to `["app", "dmg"]`, but `cargo tauri build` fails
+(verified 2026-09-05, tauri-cli 2.11.4 on macOS 26.6.2):
 
 ```
 Bundling Pelican.app (target/release/bundle/macos/Pelican.app)
@@ -141,7 +147,7 @@ The macOS bundler resolves its icon from an `.icns`, and
 `crates/pelican-shell/icons/` holds one 1024×1024 PNG. `cargo build --release
 -p pelican-shell` is unaffected and produces the binary the docs point at;
 only the bundler path is blocked. Generating the `.icns` (`sips` + `iconutil`,
-both in the base system) is the fix and needs no membership — it just has not
+both in the base system) is the fix and needs no membership; it just has not
 been done, and the docs must not promise an `.app` until it is.
 
 Notarization requires a Developer ID certificate, which requires the paid
@@ -158,10 +164,10 @@ need no membership.
 ## Architecture
 
 ```
-crates/pelican-core   engine — garmin, mtp, transfer, transcode, playlist,
+crates/pelican-core   engine: garmin, mtp, transfer, transcode, playlist,
                       history, paths, platform. No UI framework, no clap.
-crates/pelican        the LINUX binary — cli + egui gui.
-crates/pelican-shell  the MACOS binary — Tauri 2 over ui/ (plain HTML/CSS/JS),
+crates/pelican        the LINUX binary: cli + egui gui.
+crates/pelican-shell  the MACOS binary: Tauri 2 over ui/ (plain HTML/CSS/JS),
                       plus in-app playback. commands.rs is the IPC boundary;
                       device.rs is the one thread allowed to touch the watch.
 ```
@@ -169,13 +175,13 @@ crates/pelican-shell  the MACOS binary — Tauri 2 over ui/ (plain HTML/CSS/JS),
 Three crates, and which one ships depends on the platform: `pelican-shell` on
 macOS, `pelican` on Linux. Both link the same `pelican-core`. There is no
 `default-members`, so a bare `cargo build --release` at the root builds all
-three — name the package.
+three, so name the package.
 
 `platform::` holds `gvfs` (Linux) and `ptpcamerad` (macOS) behind one
 `Contention` type. Both shell out (`gio`, `ioreg`, `pgrep`) rather than
 linking platform libraries, so `unsafe_code = "deny"` holds across the crate.
 
-Data directories resolve per platform via `paths::` —
+Data directories resolve per platform via `paths::`:
 `~/Library/Caches` and `~/Library/Application Support` on macOS, XDG on Linux,
 both failing closed rather than falling back to a world-writable location.
 
@@ -187,12 +193,12 @@ Recorded because none were findable by reading:
    of help, so every Mac reported "no encoder installed" and the FLAC path
    silently fell back to unsupported.
 2. **WAV re-encode.** Once detection worked, afconvert would have re-encoded
-   WAV to lossy AAC — a format the watch already plays natively.
+   WAV to lossy AAC, a format the watch already plays natively.
 3. **False-positive contention.** The detector treated "ptpcamerad is running"
    as proof of a problem. That fires on every Mac, including ones working
    perfectly. It now reports only on a real `UsbExclusiveOwner`.
 4. **Staging filename race.** `normalize` named temp files
-   `pelican-{pid}-{nanos}`, which collides between threads in one process —
+   `pelican-{pid}-{nanos}`, which collides between threads in one process:
    two conversions racing for the same path, one deleting the other's audio
    mid-upload. Surfaced as an intermittent test failure that moved between
    tests. Now carries a process-wide atomic counter.
@@ -202,11 +208,11 @@ All four are regression-tested.
 ## Resolved
 
 - **Does the watch *play* an afconvert M4A? Yes.** FR165 Music · FW 2506 ·
-  2026-09-05 — uploaded, indexed and played. ffmpeg can be dropped on macOS.
-  See § Retracted: "the music app plays an afconvert M4A" above — the
+  2026-09-05: uploaded, indexed and played. ffmpeg can be dropped on macOS.
+  See § Retracted: "the music app plays an afconvert M4A" above; the
   playback evidence that claim rested on does not exist.
-- **UI toolkit — Tauri, not SwiftUI.** Confirmed by the owner 2026-09-01
-  (`PRODUCT.md` § Stack). The frontend is plain HTML/CSS/JS with no npm, no
+- **UI toolkit: Tauri, not SwiftUI.** Confirmed by the owner 2026-09-01
+  (`PRODUCT.md` § Stack, at the tag). The frontend is plain HTML/CSS/JS with no npm, no
   framework and no bundler, because a JS package manager would introduce a
   second supply chain that `cargo deny` / `cargo audit` do not reach. In-app
   playback is a direct dividend: the system webview decodes MP3, AAC, ALAC,
@@ -216,6 +222,6 @@ All four are regression-tested.
 
 | Question | Blocks |
 |---|---|
-| MP3 no longer re-muxed through ffmpeg — copied and re-tagged in Rust instead | Changes a path previously verified on firmware |
+| MP3 no longer re-muxed through ffmpeg; copied and re-tagged in Rust instead | Changes a path previously verified on firmware |
 | Universal binary | `x86_64-apple-darwin` target not yet installed |
 | Apple Developer membership | Distribution only |

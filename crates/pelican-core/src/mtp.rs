@@ -23,7 +23,7 @@ pub struct RemoteEntry {
     pub path: String,
     pub size: u64,
     pub is_folder: bool,
-    /// True if `GetObjectInfo` failed for this handle — we know the handle
+    /// True if `GetObjectInfo` failed for this handle: we know the handle
     /// exists on the device but can't read its metadata. Almost always a
     /// broken stub from a previous partial / rejected / colliding upload.
     /// Its `name` is synthetic (`‹unreadable #N›`) because the real one is
@@ -52,7 +52,7 @@ pub struct Uploaded {
 /// the watch.
 ///
 /// `sent == len` means the whole file crossed the wire and the failure was in
-/// the PTP *response* phase — the object is quite possibly on the watch.
+/// the PTP *response* phase, so the object is quite possibly on the watch.
 /// `sent < len` means the data phase itself was cut short, and whatever is on
 /// the device is not the file. Either way the name is burned and the file is
 /// retried under a new one; the difference is for whoever reads the ledger.
@@ -77,11 +77,9 @@ impl std::fmt::Display for UploadPhase {
 ///
 /// `/Music` is FAT-derived and case-insensitive: `Track.mp3` and `track.mp3`
 /// are one file to the firmware and two different strings to Rust. Every
-/// comparison — folder resolution, the handle cache, taken-name checks,
-/// the ledger — goes through this function, so no two call sites can
-/// disagree about what "the same name" means. They used to: folders were
-/// matched byte-exact while files were folded, and file keys were folded
-/// with `to_ascii_lowercase` in one place and `to_lowercase` in another.
+/// comparison (folder resolution, the handle cache, taken-name checks,
+/// the ledger) goes through this function, so no two call sites can
+/// disagree about what "the same name" means.
 ///
 /// Full `to_lowercase`, not the ASCII fold: our names are ASCII by
 /// construction (`transcode::sanitize_filename_stem`) but the device side is
@@ -100,7 +98,7 @@ pub trait Backend: Send {
     ///
     /// The FR165 declares no USB product string descriptor (`iProduct = 0`),
     /// so `nusb::DeviceInfo::product_string()` has nothing to return and the
-    /// real name — "Forerunner 165 Music" — exists only here. `GetDeviceInfo`
+    /// real name ("Forerunner 165 Music") exists only here. `GetDeviceInfo`
     /// is fetched and cached during `open`, so this costs no device I/O.
     ///
     /// `None` when the device gives no model, which keeps the caller's
@@ -138,7 +136,7 @@ pub trait Backend: Send {
 pub fn open(device: &Device) -> Result<Box<dyn Backend>> {
     match mtp_rs_impl::MtpRsBackend::open(device) {
         Ok(b) => Ok(Box::new(b)),
-        // A timeout on open is the watch not answering — typically right
+        // A timeout on open is the watch not answering, typically right
         // after it rebooted. Only a replug clears it, and the error says so.
         Err(e) if crate::error::is_wedged(&e) => Err(e.context(crate::error::Wedged)),
         // "could not open interface for exclusive access" tells the user
@@ -185,7 +183,7 @@ mod mtp_rs_impl {
         rt: Runtime,
         device: MtpDevice,
         storage: Storage,
-        // Both caches are keyed by `key(path)` — trimmed and case-folded — so
+        // Both caches are keyed by `key(path)` (trimmed and case-folded), so
         // `Music` and `music` resolve to the one folder the firmware sees.
         // folded path → folder handle (None = root)
         folder_cache: HashMap<String, Option<ObjectHandle>>,
@@ -336,8 +334,8 @@ mod mtp_rs_impl {
                 .metadata()
                 .with_context(|| format!("statting {}", local.display()))?
                 .len();
-            // Stream chunks lazily from disk — avoids holding the full file +
-            // a parallel chunked Vec in memory (was 2× the file size).
+            // Stream chunks lazily from disk rather than holding the file and a
+            // chunked copy of it in memory at once.
             //
             // `sent` counts what the stream actually yielded. mtp-rs writes the
             // PTP data-container header from the declared `len` *before* pulling
@@ -388,8 +386,8 @@ mod mtp_rs_impl {
                 len,
             })?;
             if streamed != len {
-                // The object exists on the device — mtp-rs returned Ok and the
-                // data phase is closed — but it is not the file. It stays: the
+                // The object exists on the device (mtp-rs returned Ok and the
+                // data phase is closed), but it is not the file. It stays: the
                 // name is burned either way, and the read-back hash is what
                 // records the failure. Nothing here tries to remove it.
                 anyhow::bail!(
@@ -423,8 +421,8 @@ mod mtp_rs_impl {
             // 2. GetObjectInfo per handle → real entry on success, synthetic
             //    "unreadable" entry on failure.
             //
-            // A stub still occupies a name on the device — just one we cannot
-            // read — so it has to be surfaced for the naming rules to account
+            // A stub still occupies a name on the device (just one we cannot
+            // read), so it has to be surfaced for the naming rules to account
             // for, and for `ls` to show.
             let (handles, infos): (Vec<_>, Vec<_>) = self
                 .rt
@@ -452,7 +450,7 @@ mod mtp_rs_impl {
                 match info_result {
                     Ok(info) => {
                         // CRITICAL: `session.get_object_info` does NOT populate
-                        // `info.handle` — that's a field only `ObjectListing`
+                        // `info.handle`; that's a field only `ObjectListing`
                         // backfills. Use the loop variable `handle` for caching
                         // and downstream operations, not `info.handle`.
                         let is_folder = info.is_folder();
@@ -489,7 +487,7 @@ mod mtp_rs_impl {
                 tracing::warn!(
                     path = %path,
                     broken = broken_count,
-                    "{} unreadable entries surfaced — orphan stubs from prior failed uploads",
+                    "{} unreadable entries surfaced: orphan stubs from earlier failed uploads",
                     broken_count
                 );
             }
@@ -552,10 +550,10 @@ mod mtp_rs_impl {
 mod tests {
     use super::{fold_name, same_file};
 
-    /// `/Music` is FAT-derived. Two spellings, one file — and the byte-equal
-    /// comparison this replaced reported "not found" for a file that was
-    /// right there, which as a pre-write guard would miss precisely the
-    /// collisions a case-insensitive filesystem creates.
+    /// `/Music` is FAT-derived. Two spellings, one file. A byte-equal
+    /// comparison would report "not found" for a file that is right there,
+    /// and as a pre-write guard would miss exactly the collisions a
+    /// case-insensitive filesystem creates.
     #[test]
     fn names_differing_only_in_case_are_the_same_file() {
         assert!(same_file("Track.mp3", "track.mp3"));

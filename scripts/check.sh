@@ -5,10 +5,10 @@
 # runs on YOUR machine, where you can audit it. Contributors are expected to
 # run this before opening a PR; the maintainer runs it before merge.
 #
-# Quick mode (default — fast, suitable for pre-commit):
+# Quick mode (the default; fast, suitable for pre-commit):
 #   ./scripts/check.sh
 #
-# Full mode (slow — suitable for pre-push / pre-release):
+# Full mode (slow; suitable for pre-push and pre-release):
 #   ./scripts/check.sh --full
 #
 # What runs:
@@ -34,7 +34,7 @@ fail() { printf "%s✕ %s%s\n" "${RED}" "$1" "${RESET}"; exit 1; }
 
 require() {
     if ! command -v "$1" >/dev/null 2>&1; then
-        fail "missing tool: $1 — install with: $2"
+        fail "missing tool: $1 (install with: $2)"
     fi
 }
 
@@ -49,10 +49,10 @@ require cargo "rustup default stable"
 step "invariants"
 
 # SECURITY.md promises the binary bundles no HTTP/TLS code. The lockfile
-# alone cannot be the evidence — what is actually *compiled* is checked.
+# alone cannot be the evidence, so what is actually *compiled* is checked.
 for crate in reqwest hyper tower-http; do
     if [[ -n "$(cargo tree -e normal -i "$crate" 2>/dev/null)" ]]; then
-        fail "$crate is compiled into the binary — the no-network claim in SECURITY.md is broken"
+        fail "$crate is compiled into the binary: the no-network claim in SECURITY.md is broken"
     fi
 done
 
@@ -61,15 +61,15 @@ done
 # (docs/rebuild-plan.md). The Backend trait has no such method; this keeps
 # the mtp-rs call from creeping back in underneath it.
 if git grep -nE '(storage|session)\.delete\(|delete_object' -- 'crates/*.rs'; then
-    fail "a device delete call is back in the tree — Pelican has no delete"
+    fail "a device delete call is back in the tree: Pelican has no delete"
 fi
 
-# The window's IPC surface is three lists that must agree: the commands the
-# build script ACL-gates, the ones `generate_handler!` registers, and the
-# ones the capability grants. A command registered but not gated is callable
+# The window's IPC surface is four lists that must agree: the commands the
+# build script ACL-gates, the ones `generate_handler!` registers, the ones
+# the capability grants, and the ones `ui/app.js` invokes. A command registered but not gated is callable
 # by anything in the webview; one granted but not registered is a grant
-# nobody reviewed. The capability may add only event listening — never a
-# `*:default` set — and the CSP may name no remote origin and no
+# nobody reviewed. The capability may add only event listening (never a
+# `*:default` set), and the CSP may name no remote origin and no
 # 'unsafe-inline'.
 shell=crates/pelican-shell
 gated=$(sed -n '/commands(&\[/,/\])/p' "$shell/build.rs" | grep -oE '"[a-z_]+"' | tr -d '"' | sort)
@@ -79,6 +79,11 @@ if [[ "$gated" != "$handled" || "$gated" != "$granted" ]]; then
     diff <(echo "$gated") <(echo "$handled") || true
     diff <(echo "$gated") <(echo "$granted") || true
     fail "pelican-shell: build.rs, generate_handler! and capabilities/main.json list different commands"
+fi
+invoked=$(grep -oE 'api\.invoke\("[a-z_]+"' ui/app.js | grep -oE '"[a-z_]+"' | tr -d '"' | sort -u)
+if [[ "$gated" != "$invoked" ]]; then
+    diff <(echo "$gated") <(echo "$invoked") || true
+    fail "pelican-shell: the commands ui/app.js invokes differ from the ones build.rs gates"
 fi
 extra=$(grep -oE '"[a-z-]+:[a-z:-]+"' "$shell/capabilities/main.json" | tr -d '"' \
     | grep -vxE 'core:event:allow-(listen|unlisten)' || true)

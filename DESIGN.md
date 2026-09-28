@@ -210,7 +210,7 @@ Near-black ink and warm bone, with two accents: champagne (proven) and blood (fa
 ## Layout
 
 The window is one grid: a 64px top bar, a stage, and a 64px foot (52px when the viewport is under 700px tall). The ink field spans all three rows on the left, and its width follows the view:
-- clamp(40%, 100% − 716px, 52%) on card views (Watch, Name the playlist, Start over): 52% on a wide window, giving way only as far as the title column needs to hold "FORERUNNER 165 MUSIC" (609px) on one line at 34px / 0.28em. The 716px reserve covers the title, the 40px right gutter and the stage's left inset at its largest (64px), so the line holds through the 1280-1460 band where that inset still grows with 4vw. Measured one line at 1280, 1360, 1440, 1460 and 1600, including every frame of the title entrance. The silhouette sits at optical center, and the title column is vertically centered with a max width of 620px; it scrolls rather than clips when "What it runs" is open.
+- clamp(40%, 100% − 716px, 52%) on card views (Watch, Name the playlist, Clear the watch): 52% on a wide window, giving way only as far as the title column needs to hold "FORERUNNER 165 MUSIC" (609px) on one line at 34px / 0.28em. The 716px reserve covers the title, the 40px right gutter and the stage's left inset at its largest (64px), so the line holds through the 1280-1460 band where that inset still grows with 4vw. Measured one line at 1280, 1360, 1440, 1460 and 1600, including every frame of the title entrance. The silhouette sits at optical center, and the title column is vertically centered with a max width of 620px; it scrolls rather than clips when "What it runs" is open.
 - 48% on Send and Done, which gives the credits a little more room.
 - clamp(200px, 27%, 380px) on list views (Library, Review, On the watch, Ledger), where the field becomes a column and the stage holds a header, scrolling hairline rows, and a bottom bar.
 
@@ -218,7 +218,7 @@ Review splits into a track list and a 250-300px side column. Permanence and Send
 
 The outer gutter is 40px (28px under 1100px). The stage's inner left edge is clamp(24px, 4vw, 64px). Vertical rhythm comes from a small set of steps: 10px rows, 14px gaps, 18px, 22px, 28px blocks, and 36px above an action row. Under 820px the frame stacks. The field becomes a 240px band behind the top bar with a 200px watch, the stage flows below it with 16px gutters.
 
-The foot holds only the step index (Watch · Choose · Review · Send; in Start over, Erases · Back up · Reset · Confirm). A hairline travels under the current step (360 ms). Nothing else sits in the foot.
+The foot holds only the step index (Watch · Choose · Review · Send; in Clear the watch, Erases · Back up · Reset · Confirm). A hairline travels under the current step (360 ms). Nothing else sits in the foot.
 
 ## Elevation & Depth
 
@@ -252,7 +252,7 @@ The shape language is a hairline and a right angle. Buttons and inputs have a 1p
 - **Text button:** dim bone, 0.8125rem, underlined with a hairline offset 5px. It brightens to bone on hover.
 
 ### Navigation
-- **Top-right links** (On the watch · Ledger) and the **step index** (Watch · Choose · Review · Send) are tracked capital words separated by faint middle dots. At rest they are dim or faint. The current item turns bone; the current page link also gets a hairline underline offset 6px. There are no tabs, pills or icons.
+- **Top-right links** (On the watch · Ledger · Clear the watch) and the **step index** (Watch · Choose · Review · Send) are tracked capital words separated by faint middle dots. At rest they are dim or faint. The current item turns bone; the current page link also gets a hairline underline offset 6px. There are no tabs, pills or icons.
 
 ### Inputs / Fields
 - **Style:** Raised Ink fill, 1px strong-hairline border, 1px radius, 38px tall (34px in the Review overrides grid).
@@ -308,7 +308,7 @@ Make a playlist opens a title card, "Name the playlist": one line saying the son
 A row skipped as already on the watch offers Send again. Once chosen, it reads "Send again · another copy, under a new name" with Keep skipped beside it. A run-wide toggle, "Send every skipped song again", sits in Review's side column.
 
 ### The Permanence Statement
-One statement in two lengths, used on On the watch, Review (beside Send) and the first Start over card: nothing can be deleted from the watch one song at a time; the only way to clear it is a factory reset, and that erases everything on the watch: activities, health data, settings, Garmin Pay and music. It is set in Body Small bone, never red, because it states a fact.
+One statement in two lengths, used on On the watch, Review (beside Send) and the first Clear the watch card: nothing can be deleted from the watch one song at a time; the only way to clear it is a factory reset, and that erases everything on the watch: activities, health data, settings, Garmin Pay and music. It is set in Body Small bone, never red, because it states a fact. Wherever it appears it ends in an inline link to Clear the watch ("How to clear the watch", "How to clear it"), and a send that does not fit offers the same link: the moment someone learns a song cannot be deleted is the moment they look for the way out. The inline link takes the sentence's size and color, with the text button's hairline underline.
 
 ### Start Over (factory-reset walkthrough)
 Four title cards with their own step index in the foot (Erases · Back up · Reset · Confirm). Pelican never resets the watch.

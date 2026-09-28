@@ -521,6 +521,10 @@ body.dragging .veil {
   flex-direction: column;
   justify-content: center;
   max-width: 620px;
+  /* The title's -0.28em margin (cancelling its trailing letter-spacing)
+     makes it 0.28em wider than the card. A card that scrolls vertically
+     would otherwise scroll sideways by that much of empty tracking. */
+  overflow-x: hidden;
 }
 
 .view:not([data-card]) {
@@ -666,6 +670,18 @@ code {
 .text-btn:hover {
   color: var(--bone);
   text-decoration-color: var(--bone-dim);
+}
+
+/* A link inside a sentence: it takes the sentence's size and line. */
+.text-btn.inline {
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+.text-btn.inline:hover {
+  color: var(--bone);
 }
 
 .text-btn:disabled {

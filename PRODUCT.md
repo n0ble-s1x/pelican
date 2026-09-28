@@ -92,7 +92,7 @@ Dropping folders on the window still works.
 - **Back up the watch** (read-only): copies the watch's whole `GARMIN` folder
   (activities, sleep, health monitoring, records, settings) to
   `~/Documents/Pelican/<model> backup <date>`. Never writes to the watch.
-- **Start over** after a factory reset: a four-step walkthrough (what a reset
+- **Clear the watch**: a four-step factory-reset walkthrough, reachable from the header and linked wherever the app says a song cannot be deleted (what a reset
   erases → back up first → the reset steps on the watch → plug back in).
   Pelican reads `/Music` itself and resets its ledger for that watch only if
   no audio remains; otherwise it refuses and says why. Pelican never resets
@@ -113,7 +113,7 @@ audio + album). The IPC keeps the core's name, `mix`.
 - **Permanence.** A track sent to the watch stays in its music library until a
   factory reset. MTP delete frees space but leaves a dead library entry, so
   Pelican has **no delete**. This must be felt *before* sending, not footnoted.
-  Said the same way everywhere (Review, On the watch, Start over): nothing can
+  Said the same way everywhere (Review, On the watch, Clear the watch): nothing can
   be deleted one song at a time; only a factory reset clears the watch, and it
   erases **everything**: activities, health data, settings, Garmin Pay and
   music.

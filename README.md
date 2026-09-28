@@ -131,7 +131,7 @@ Verified on a Forerunner 165 Music (firmware 2506) on Linux, 2026-09-26: a
 again by an independent libmtp read-back, and played on the watch. Details in
 [`docs/status.md`](docs/status.md). Playlists as albums, the
 backup and sending from the app were verified on the same watch on
-2026-09-27. Start over has been checked on hardware only as far as refusing
+2026-09-27. Clear the watch has been checked on hardware only as far as refusing
 a watch that still holds music; the step after a real factory reset has been
 tested against a simulated watch.
 
@@ -165,7 +165,7 @@ across, and with which tags, before anything touches the watch.
 
 ### Starting over
 
-When you do want a clean watch, **On the watch → Start over** walks you
+When you do want a clean watch, **Clear the watch** (at the top of the window, and linked wherever the app says a song cannot be deleted) walks you
 through it:
 
 1. **What a reset erases:** activities, sleep and health data, settings,
@@ -182,7 +182,7 @@ through it:
    remains, it tells you and changes nothing.
 
 <p align="center">
-  <img src="docs/images/reset-1.png" alt="Start over, step one: what a reset erases (activities, health data, settings, Garmin Pay and music), with a Back up first button" width="820" />
+  <img src="docs/images/reset-1.png" alt="Clear the watch, step one: what a reset erases (activities, health data, settings, Garmin Pay and music), with a Back up first button" width="820" />
 </p>
 
 Also not supported:
@@ -213,7 +213,7 @@ reports, including broken ones, is treated as taken too.
 
 The ledger also means a track you already sent is skipped next time (Send
 again, or `--resend`, overrides this under a new name). After a factory reset
-and the Start over check, the ledger gains a `reset` line: older names no
+and the Clear the watch check, the ledger gains a `reset` line: older names no
 longer count as taken, and the numbering keeps rising.
 
 **Keep the ledger.** It is the only memory of which names are safe. It lives

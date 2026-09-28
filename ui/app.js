@@ -509,7 +509,7 @@
     ruleMsg: null, // { text, error } after a canceled or failed install
     bezel: 0, // clicks the dive bezel has turned
     roomFree: null, // free bytes as a send takes them, until status is read again
-    reset: null, // the Start over walkthrough, while it is open
+    reset: null, // the Clear the watch walkthrough, while it is open
   };
 
   const STEP_OF = { watch: 0, library: 1, playlist: 1, review: 2, send: 3, done: 3 };
@@ -632,7 +632,7 @@
         const ok = !cur && n <= S.reset.reached && !S.reset.checking && S.reset.step !== "done";
         return `<li><button type="button" data-rstep="${n}"${cur ? ' aria-current="step"' : ""}${ok ? "" : " disabled"}>${name}</button></li>`;
       }).join("");
-      $(".steps-nav").setAttribute("aria-label", "Start over");
+      $(".steps-nav").setAttribute("aria-label", "Clear the watch");
     } else {
       const step = STEP_OF[S.view];
       const have = S.chosen.length > 0;
@@ -666,7 +666,7 @@
     const busy = running();
     renderSteps();
     $$(".aside-nav .link").forEach((b) => {
-      const cur = b.dataset.go === S.view || (b.dataset.go === "onwatch" && S.view === "reset");
+      const cur = b.dataset.go === S.view || (b.dataset.act === "reset-open" && S.view === "reset");
       if (cur) b.setAttribute("aria-current", "page");
       else b.removeAttribute("aria-current");
       b.disabled = busy;
@@ -1412,7 +1412,7 @@
           }
           </div>
           <div class="commit">
-            <p class="permanence">${esc(NO_DELETE_SHORT)}</p>
+            <p class="permanence">${esc(NO_DELETE_SHORT)} <button type="button" class="text-btn inline" data-act="reset-open">How to clear it</button></p>
             ${sendBlock(p)}
           </div>
         </div>
@@ -1456,7 +1456,7 @@
         <span class="dim">About <span class="gold">${esc(bytes(Math.max(0, left)))}</span> will remain · ${after.toLocaleString("en")} of ${st.max_objects ?? MAX_OBJECTS} tracks after</span></div>`;
     }
     return `<div class="fit s-failed">${mark("failed")}<span class="word">Does not fit</span>
-      <span class="dim">${esc(f.reason || "")} Leave some songs out and review again.</span></div>`;
+      <span class="dim">${esc(f.reason || "")} Leave some songs out and review again, or <button type="button" class="text-btn inline" data-act="reset-open">clear the watch</button>.</span></div>`;
   }
 
   function sendBlock(p) {
@@ -1881,12 +1881,12 @@
     v.innerHTML = `<div class="head">
         <h1 class="title" id="t-onwatch" tabindex="-1">On the watch</h1>
         <p class="quiet">${esc(summary)}</p>
-        <p class="honest">${esc(NO_DELETE)}</p>
+        <p class="honest">${esc(NO_DELETE)} <button type="button" class="text-btn inline" data-act="reset-open">How to clear the watch</button></p>
       </div>
       ${body}
       <div class="bar"><span class="count">Other: put there by another app or computer.</span>
         <button type="button" class="text-btn" data-act="back-flow">Back</button>
-        <button type="button" class="act" data-act="reset-open">Start over</button></div>`;
+        <button type="button" class="act" data-act="reset-open">Clear the watch</button></div>`;
   }
 
   // --- Ledger ----------------------------------------------------------
@@ -1954,15 +1954,23 @@
         <button type="button" class="text-btn" data-act="back-flow">Back</button></div>`;
   }
 
-  // --- Start over: the factory-reset walkthrough -----------------------
+  // --- Clear the watch: the factory-reset walkthrough ------------------
   //
   // Four title cards: what a reset erases, back up first, the steps
   // on the watch, and the check. Pelican never resets anything itself; it
   // copies the watch's files (read-only) and, at the end, reads /Music and
   // starts a fresh ledger only if the watch really is empty.
 
+  // Reachable from the header, On the watch, Review and a send that does
+  // not fit, so Not now returns to wherever it was opened. A walkthrough
+  // left mid-way (a backup copying, say) is resumed, not started over.
   function openReset() {
+    if (S.reset) {
+      if (S.view !== "reset") show("reset");
+      return;
+    }
     S.reset = {
+      from: S.view,
       step: 1,
       reached: 1,
       dest: null,
@@ -2446,10 +2454,12 @@
       case "reset-step":
         resetStep(Number(el.dataset.n));
         break;
-      case "reset-close":
+      case "reset-close": {
+        const from = (S.reset && S.reset.from) || "onwatch";
         S.reset = null;
-        go("onwatch");
+        go(from);
         break;
+      }
       case "reset-confirm":
         confirmClean();
         break;

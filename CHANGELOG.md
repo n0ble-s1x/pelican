@@ -15,7 +15,7 @@ does not do.
 **Hardware acceptance passed on 2026-09-26:** 24 tracks sent to a Forerunner
 165 Music on firmware 2506, 24 verified by read-back hash, confirmed by an
 independent libmtp read-back, and played on the watch. On 2026-09-27 playlists sent as albums, the backup and
-a send from the app passed on the same watch; Start over has been checked
+a send from the app passed on the same watch; Clear the watch has been checked
 on hardware only as far as its refusal while music remains.
 
 ### Added
@@ -25,9 +25,10 @@ on hardware only as far as its refusal while music remains.
   Review (tags, sizes, whether it fits, run-wide tag overrides, Send again)
   and Send (tracks roll up like credits as each is proven). "On the watch"
   lists `/Music` and the ledger.
-- **Start over**: a walkthrough for a factory reset that backs up the watch
+- **Clear the watch**: a walkthrough for a factory reset that backs up the watch
   first and resets the ledger only after reading `/Music` and finding no
-  audio.
+  audio. It is in the header, and linked from every place the app says a
+  song cannot be deleted and from a send that does not fit.
 - **Install the USB rule** button: installs `udev/70-garmin-mtp.rules`
   through polkit with one fixed command; refused inside a Flatpak, where the
   window shows the command instead.

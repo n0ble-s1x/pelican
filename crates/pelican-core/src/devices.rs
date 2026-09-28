@@ -4,7 +4,7 @@
 //! object per line, append-only like the ledger:
 //!
 //! ```json
-//! {"v":1,"at":"2026-09-27T20:00:00Z","event":"name","serial":"0000d221c983","name":"Mav's 165","model":"Forerunner 165 Music"}
+//! {"v":1,"at":"2026-09-27T20:00:00Z","event":"name","serial":"0000abcd1234","name":"Mav's 165","model":"Forerunner 165 Music"}
 //! ```
 //!
 //! - A device is keyed by its USB serial, the same key as its ledger
@@ -245,14 +245,14 @@ mod tests {
         let d = tmp.path();
         let first = set_name(
             d,
-            "0000d221c983",
+            "0000abcd1234",
             Some("Forerunner 165 Music"),
             "  Mav's 165 ",
         )
         .unwrap();
         assert_eq!(first.name, "Mav's 165");
         assert_eq!(first.renamed_at, None);
-        let again = set_name(d, "0000d221c983", None, "Mav's run watch").unwrap();
+        let again = set_name(d, "0000abcd1234", None, "Mav's run watch").unwrap();
         assert_eq!(again.name, "Mav's run watch");
         assert_eq!(
             again.model.as_deref(),
@@ -262,7 +262,7 @@ mod tests {
         assert_eq!(again.named_at, first.named_at);
 
         let reg = Registry::read(d).unwrap();
-        assert_eq!(reg.name_of("0000d221c983"), Some("Mav's run watch"));
+        assert_eq!(reg.name_of("0000abcd1234"), Some("Mav's run watch"));
         let text = std::fs::read_to_string(Registry::path_in(d)).unwrap();
         assert_eq!(text.lines().count(), 2, "append-only: {text}");
     }

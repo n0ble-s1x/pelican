@@ -68,12 +68,12 @@ mod tests {
     #[test]
     fn xdg_wins_and_home_is_the_fallback() {
         assert_eq!(
-            file_from(Some("/x/conf".into()), Some("/home/six".into())),
+            file_from(Some("/x/conf".into()), Some("/home/user".into())),
             Some(PathBuf::from("/x/conf/pelican/config.json"))
         );
         assert_eq!(
-            file_from(None, Some("/home/six".into())),
-            Some(PathBuf::from("/home/six/.config/pelican/config.json"))
+            file_from(None, Some("/home/user".into())),
+            Some(PathBuf::from("/home/user/.config/pelican/config.json"))
         );
     }
 
@@ -84,8 +84,8 @@ mod tests {
     fn empty_or_relative_bases_are_unset() {
         for v in ["", "conf", "./conf", "~/.config"] {
             assert_eq!(
-                file_from(Some(v.into()), Some("/home/six".into())),
-                Some(PathBuf::from("/home/six/.config/pelican/config.json")),
+                file_from(Some(v.into()), Some("/home/user".into())),
+                Some(PathBuf::from("/home/user/.config/pelican/config.json")),
                 "{v:?}"
             );
         }
@@ -97,14 +97,14 @@ mod tests {
     fn the_default_library_is_music_under_home() {
         let c = Config::default();
         assert_eq!(
-            c.library_root_or(Some(Path::new("/home/six"))),
-            Some(PathBuf::from("/home/six/Music"))
+            c.library_root_or(Some(Path::new("/home/user"))),
+            Some(PathBuf::from("/home/user/Music"))
         );
         let c = Config {
             library_root: Some("/mnt/nas/Music".into()),
         };
         assert_eq!(
-            c.library_root_or(Some(Path::new("/home/six"))),
+            c.library_root_or(Some(Path::new("/home/user"))),
             Some(PathBuf::from("/mnt/nas/Music"))
         );
     }

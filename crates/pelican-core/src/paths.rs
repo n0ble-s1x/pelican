@@ -174,8 +174,8 @@ mod tests {
         }
         assert_eq!(absolute(None), None);
         assert_eq!(
-            absolute(Some("/home/six/.local/share".into())),
-            Some(PathBuf::from("/home/six/.local/share"))
+            absolute(Some("/home/user/.local/share".into())),
+            Some(PathBuf::from("/home/user/.local/share"))
         );
     }
 

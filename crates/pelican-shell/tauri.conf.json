@@ -1,10 +1,14 @@
 {
   "productName": "Pelican",
   "version": "0.1.0",
-  "identifier": "com.krypteia.pelican",
+  "identifier": "io.github.n0ble-s1x.pelican",
   "mainBinaryName": "pelican-app",
   "build": {
     "frontendDist": "../../ui",
+    "beforeBuildCommand": {
+      "script": "cargo build --release --locked -p pelican",
+      "cwd": "../.."
+    },
     "removeUnusedCommands": true
   },
   "app": {
@@ -30,14 +34,20 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "appimage"],
+    "targets": ["appimage"],
     "icon": ["icons/icon.png"],
-    "category": "Audio",
+    "category": "Music",
     "shortDescription": "Put music on a Garmin watch, and prove it arrived.",
     "longDescription": "Pelican sends music from this computer to a Garmin watch over USB and reads every file back to prove it arrived intact. No account, no network, no telemetry.",
+    "publisher": "Krypteia Security",
+    "homepage": "https://github.com/n0ble-s1x/pelican",
+    "license": "MIT OR Apache-2.0",
+    "copyright": "Copyright (c) 2026 Krypteia Security LLC",
     "linux": {
-      "deb": {
-        "depends": ["ffmpeg"]
+      "appimage": {
+        "files": {
+          "/usr/share/icons/hicolor/scalable/apps/io.github.n0ble_s1x.Pelican.svg": "../../packaging/icons/io.github.n0ble_s1x.Pelican.svg"
+        }
       }
     }
   }

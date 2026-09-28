@@ -68,9 +68,10 @@ If your change adds an `invoke()` in `ui/`, add the command to `build.rs`,
   playlist to a watch would show whether it uses the vendor MTP operations
   (`0x9000-0x900B`, `0x9810`, `0x9811`). See `docs/vendor-ops.md`. Do not
   probe those operations blind: it wedges the watch until it is replugged.
-- **Packaging.** Finish and test the Flatpak manifest in `packaging/flatpak/`
-  (it has never been built), and package the app for AUR and Debian. Other
-  distributions and a NixOS module are welcome too.
+- **Packaging.** Try the Flatpak (`packaging/flatpak/`) with a watch on
+  your distribution, or build an AppImage in an Ubuntu 22.04 container
+  (`RELEASING.md`, Possible later work). Other distributions and a NixOS
+  module are welcome too.
 - **A macOS test of the current core.** See "What about macOS?" in the
   README for what was tried before and what failed.
 - **Bug fixes and tests.** Always welcome. Reports from real hardware

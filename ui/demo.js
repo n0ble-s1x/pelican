@@ -5,6 +5,7 @@
  * The URL hash jumps to a state: #watch, #nowatch, #permission, #wedged,
  * #library, #chosen, #playlist, #review, #review-playlist, #send, #done,
  * #send-wedged, #onwatch, #ledger, #reset-1 to #reset-4, #reset-refused,
+ * #unnamed (a watch plugged in for the first time, not yet named),
  * #reset-done. Add ?still to settle every entrance for a screenshot.
  */
 window.PelicanDemo = (app) => {
@@ -151,8 +152,10 @@ window.PelicanDemo = (app) => {
     onWatch.push({ status: "foreign", name: "Morning Intervals.mp3", bytes: 5244012 });
     onWatch.push({ status: "stub", name: "\u2039unreadable #6021\u203a" }, { status: "stub", name: "\u2039unreadable #6022\u203a" });
 
+    const DEMO_NAME = "Trail watch";
     const status = {
       connected: true,
+      name: DEMO_NAME,
       model: "Forerunner 165 Music",
       serial: "3456789012",
       free_bytes: 2300000000,
@@ -474,6 +477,13 @@ window.PelicanDemo = (app) => {
           setTimeout(() => backupRun(id, args.dest), 20);
           return { run_id: id };
         }
+        case "name_watch": {
+          const n = String(args.name || "").trim();
+          if (!n) throw "a device name cannot be empty";
+          if ([...n].length > 40) throw `a device name can be at most 40 characters; this one is ${[...n].length}`;
+          status.name = n;
+          return n;
+        }
         case "reset_check":
           if (!connected) throw new Error("No watch found. Connect it and try again.");
           return wiped ? { audio_objects: 0, clean: true } : { audio_objects: onWatch.length, clean: false };
@@ -529,6 +539,10 @@ window.PelicanDemo = (app) => {
         setWiped: (w) => {
           wiped = w;
         },
+        setNamed: (n) => {
+          if (n) status.name = DEMO_NAME;
+          else delete status.name;
+        },
         MISMATCH,
         preview,
         drive,
@@ -555,6 +569,7 @@ window.PelicanDemo = (app) => {
       name === "permission" ? "missing" : "current",
     );
     D.setWiped(name === "reset-4" || name === "reset-done");
+    D.setNamed(name !== "unnamed");
     S.ruleBusy = false;
     S.ruleInstalled = false;
     S.ruleMsg = null;
@@ -584,6 +599,7 @@ window.PelicanDemo = (app) => {
       case "permission":
       case "wedged":
       case "watch":
+      case "unnamed":
         show("watch", { focus: false });
         break;
       case "library":

@@ -137,10 +137,8 @@ Verified on a Forerunner 165 Music (firmware 2506) on Linux, 2026-09-26: a
 24-track album sent in under a minute, every file hash-verified, confirmed
 again by an independent libmtp read-back, and played on the watch. Details in
 [`docs/status.md`](docs/status.md). Playlists as albums, the
-backup and sending from the app were verified on the same watch on
-2026-09-27. Clear the watch has been checked on hardware only as far as refusing
-a watch that still holds music; the step after a real factory reset has been
-tested against a simulated watch.
+backup, sending from the app and Clear the watch, through a real factory
+reset, were verified on the same watch on 2026-09-27.
 
 ---
 

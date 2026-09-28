@@ -822,15 +822,7 @@
     // A watch seen for the first time is offered a name once per session.
     if (st.name && st.model) facts.unshift(st.model);
     const naming = S.renaming || (!st.name && st.serial && !S.nameLater.has(st.serial));
-    const nameForm = naming
-      ? `<form class="name-form watch-name" data-form="watch-name" autocomplete="off">
-          <label class="name-label" for="watch-name">${S.renaming ? "Rename this watch" : "Name this watch"}</label>
-          <input class="field-input name-input" id="watch-name" name="name" value="${esc(S.renaming ? st.name || "" : "")}" placeholder="Trail watch" spellcheck="false" maxlength="40"${S.nameError ? ' aria-invalid="true" aria-describedby="watch-name-err"' : ""}>
-          <button type="submit" class="act">Save</button>
-        </form>
-        ${S.nameError ? `<p class="why-not" id="watch-name-err">${esc(S.nameError)}</p>` : ""}
-        <p class="facts">So you can tell your watches apart. The name is kept on this computer with this watch's ledger; nothing is written to the watch.</p>`
-      : "";
+    const nameForm = naming ? nameFormHtml(st) : "";
     const later = naming
       ? `<button type="button" class="text-btn" data-act="${S.renaming ? "name-cancel" : "name-later"}">${S.renaming ? "Cancel" : "Not now"}</button>`
       : st.serial
@@ -846,6 +838,23 @@
         ${S.chosen.length ? `<button type="button" class="text-btn" data-go="review">Review what is chosen</button>` : ""}
         ${later}
       </div>`;
+  }
+
+  // The name form, on the Watch view and on Clear the watch's last card.
+  function nameFormHtml(st) {
+    return `<form class="name-form watch-name" data-form="watch-name" autocomplete="off">
+        <label class="name-label" for="watch-name">${S.renaming ? "Rename this watch" : "Name this watch"}</label>
+        <input class="field-input name-input" id="watch-name" name="name" value="${esc(S.renaming ? st.name || "" : "")}" placeholder="Trail watch" spellcheck="false" maxlength="40"${S.nameError ? ' aria-invalid="true" aria-describedby="watch-name-err"' : ""}>
+        <button type="submit" class="act">Save</button>
+      </form>
+      ${S.nameError ? `<p class="why-not" id="watch-name-err">${esc(S.nameError)}</p>` : ""}
+      <p class="facts">So you can tell your watches apart. The name is kept on this computer with this watch's ledger; nothing is written to the watch.</p>`;
+  }
+
+  // After naming, redraw whichever view holds the form.
+  function renderNamed() {
+    if (S.view === "reset") renderReset();
+    else renderWatch();
   }
 
   function focusNameInput() {
@@ -2112,7 +2121,7 @@
         ${r.error ? `<p class="empty-line">${errorBlock(r.error, "Plug the watch in, then try again.")}</p>` : ""}
         <div class="actions">
           <button type="button" class="act" data-act="reset-confirm"${busy ? ' disabled aria-busy="true"' : ""}>${
-            busy ? `${mark("active")}Reading the music folder` : "The watch is clean"
+            busy ? `${mark("active")}Reading the music folder` : "Check the watch"
           }</button>
           ${busy ? "" : back(3)}
         </div>
@@ -2140,11 +2149,22 @@
         <p class="tally"><span class="state s-verified">${mark("verified")}Verified clean · no songs in its music folder</span></p>
         <p class="lede">${esc(o.message || "The watch is clean. Pelican has started a fresh record for it, so every song can be sent again.")}</p>
         <p class="quiet">The ledger keeps its history; new names keep counting up from where they were.</p>
+        ${resetNameHtml()}
         <div class="actions">
           <button type="button" class="act" data-act="reset-done">Choose music</button>
           <button type="button" class="text-btn" data-go="ledger">Open the ledger</button>
         </div>`;
     }
+  }
+
+  // Clear the watch's last card: a reset does not change the watch's USB
+  // serial, so a name given before carries over. Offer to change it, or to
+  // give one if it never had a name.
+  function resetNameHtml() {
+    const st = S.status;
+    if (!st || !st.connected || !st.serial) return "";
+    if (S.renaming || !st.name) return nameFormHtml(st);
+    return `<p class="facts">It keeps its name, <b>${esc(st.name)}</b>. <button type="button" class="text-btn inline" data-act="name-edit">Rename it</button></p>`;
   }
 
   // The backup block on step 2: the offer, the copy in progress, or what
@@ -2497,18 +2517,18 @@
         S.renaming = !!(S.status && S.status.name);
         if (!S.renaming && S.status && S.status.serial) S.nameLater.delete(S.status.serial);
         S.nameError = null;
-        renderWatch();
+        renderNamed();
         focusNameInput();
         break;
       case "name-later":
         if (S.status && S.status.serial) S.nameLater.add(S.status.serial);
         S.nameError = null;
-        renderWatch();
+        renderNamed();
         break;
       case "name-cancel":
         S.renaming = false;
         S.nameError = null;
-        renderWatch();
+        renderNamed();
         break;
       case "reset-step":
         resetStep(Number(el.dataset.n));
@@ -2592,11 +2612,11 @@
         if (S.status) S.status.name = name;
         S.renaming = false;
         S.nameError = null;
-        renderWatch();
+        renderNamed();
         announce(`Named ${name}.`);
       } catch (err) {
         S.nameError = errText(err);
-        renderWatch();
+        renderNamed();
         focusNameInput();
       }
       return;

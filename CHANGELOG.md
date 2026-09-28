@@ -15,8 +15,8 @@ does not do.
 **Hardware acceptance passed on 2026-09-26:** 24 tracks sent to a Forerunner
 165 Music on firmware 2506, 24 verified by read-back hash, confirmed by an
 independent libmtp read-back, and played on the watch. On 2026-09-27 playlists sent as albums, the backup and
-a send from the app passed on the same watch; Clear the watch has been checked
-on hardware only as far as its refusal while music remains.
+a send from the app passed on the same watch, and so did Clear the watch,
+through a real factory reset.
 
 ### Added
 - **Device names**: name a watch ("Mav's 165") the first time it is plugged

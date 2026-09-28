@@ -40,8 +40,13 @@ macOS is out of scope for the rebuild.
 - **Desktop app**: a five-song playlist from two folders sent through
   `pelican-app`: 5 verified, libmtp read-back matched, tracks 1 to 5.
 - **Clear the watch**: `reset-ledger` against a watch with 27 audio objects
-  refused and left the ledger byte-identical. The other half (a `reset`
-  line after a real factory reset) is not yet hardware-tested.
+  refused and left the ledger byte-identical. After a real factory reset
+  (Delete Data and Reset Settings), the app's check read `/Music` with 0
+  audio objects and appended one `reset` line with the counter at 34;
+  nothing before it changed. `pelican status` then showed 0 of 500 objects
+  and a fresh epoch, an independent libmtp listing found 48 objects and no
+  audio file, and the USB serial was unchanged, so the watch's ledger and
+  name carry over.
 
 ## What it does
 

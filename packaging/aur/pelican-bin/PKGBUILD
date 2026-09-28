@@ -1,0 +1,37 @@
+# Maintainer: Krypteia <krypteia.annex447@8alias.com>
+#
+# Installs the prebuilt binaries from the GitHub release tarball.
+# packaging/aur/PKGBUILD builds the same files from source.
+pkgname=pelican-bin
+_pkgname=pelican
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="Put music on a Garmin watch over USB and verify every file (desktop app and CLI, prebuilt)"
+arch=('x86_64')
+url="https://github.com/n0ble-s1x/pelican"
+license=('MIT' 'Apache-2.0')
+depends=('ffmpeg' 'webkit2gtk-4.1' 'gtk3' 'glib2' 'cairo' 'gdk-pixbuf2' 'libsoup3'
+         'libgcc' 'glibc' 'hicolor-icon-theme')
+provides=("$_pkgname=$pkgver")
+conflicts=("$_pkgname")
+options=('!strip' '!debug')
+source_x86_64=("https://github.com/n0ble-s1x/pelican/releases/download/v$pkgver/$_pkgname-$pkgver-linux-$CARCH.tar.gz")
+# Placeholder until the v0.2.0 release tarball exists. Run `updpkgsums` after
+# the GitHub release is published.
+sha256sums_x86_64=('0000000000000000000000000000000000000000000000000000000000000000')
+
+package() {
+    cd "$_pkgname-$pkgver-linux-$CARCH"
+    install -Dm755 pelican "$pkgdir/usr/bin/pelican"
+    install -Dm755 pelican-app "$pkgdir/usr/bin/pelican-app"
+    install -Dm644 70-garmin-mtp.rules "$pkgdir/usr/lib/udev/rules.d/70-garmin-mtp.rules"
+    install -Dm644 com.krypteia.Pelican.desktop \
+        "$pkgdir/usr/share/applications/com.krypteia.Pelican.desktop"
+    install -Dm644 com.krypteia.Pelican.svg \
+        "$pkgdir/usr/share/icons/hicolor/scalable/apps/com.krypteia.Pelican.svg"
+    install -Dm644 com.krypteia.Pelican.metainfo.xml \
+        "$pkgdir/usr/share/metainfo/com.krypteia.Pelican.metainfo.xml"
+    install -Dm644 LICENSE-MIT "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
+    install -Dm644 LICENSE-APACHE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

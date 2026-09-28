@@ -78,9 +78,13 @@ Out of scope:
   comment.
 - `main` is protected: changes land through pull requests, force-pushes and
   branch deletion are blocked, the rules apply to admins, and merges are
-  squash-only. Every commit on `main` must carry a verified signature. The
-  maintainer signs with a dedicated, passphrase-protected SSH key kept apart
-  from any authentication key.
+  squash-only. Every commit on `main` must carry a verified signature: each
+  is a squash merge, signed by GitHub when the pull request is merged.
+  Commits on branches are not signed.
+- Every release tag is signed by the maintainer with a dedicated,
+  passphrase-protected SSH key kept apart from any authentication key.
+  GitHub marks a tag Verified when it was signed with a signing key
+  registered on the maintainer's account.
 - The udev rule (`udev/70-garmin-mtp.rules`) adds only `TAG+="uaccess"`: an
   ACL on Garmin devices for the user at the active seat. No mode change, no
   group, no daemon, no setuid binary.

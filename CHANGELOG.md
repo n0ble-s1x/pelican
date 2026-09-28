@@ -6,68 +6,101 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
-The rebuild (`docs/rebuild-plan.md`, R1–R12): Pelican is now a core library
-and a CLI, and it does one thing — transcode to one known-good profile, push
-under a name that has never been used, and prove each file landed intact.
-**Not yet run against a watch**; everything below is proven against the fake
-MTP backend and a real ffmpeg. `docs/status.md` has what it does and does not
-do.
+Pelican was rebuilt for Linux around one promise: transcode to one known-good
+profile, send each file under a name the watch has never seen, and prove it
+arrived intact (`docs/rebuild-plan.md`, R1-R12). It is now a core library, a
+command-line tool and a desktop app. `docs/status.md` has what it does and
+does not do.
+
+**Hardware acceptance passed on 2026-09-26:** 24 tracks sent to a Forerunner
+165 Music on firmware 2506, 24 verified by read-back hash, confirmed by an
+independent libmtp read-back, and played on the watch. On 2026-09-27 playlists sent as albums, the backup and
+a send from the app passed on the same watch; Clear the watch has been checked
+on hardware only as far as its refusal while music remains.
 
 ### Added
-- **The ledger** — `$XDG_DATA_HOME/pelican/ledger-<serial>.jsonl`, append-only
-  JSON Lines of every name ever used on a watch (`reserve`, `verified`,
-  `failed`). The reserve line is fsync'd before the upload starts, the file is
-  locked for the run, and an unparsable line is a hard error (R4).
-- **Names that are never reused** — `pl{counter:05}-{slug}.mp3`, the counter
+- **`pelican-app`**, a Tauri 2 desktop app for Linux (`crates/pelican-shell`)
+  with a plain HTML/CSS/JS interface in `ui/` (no npm). A send is four steps:
+  Watch, Choose (a folder explorer with network shares and removable drives),
+  Review (tags, sizes, whether it fits, run-wide tag overrides, Send again)
+  and Send (tracks roll up like credits as each is proven). "On the watch"
+  lists `/Music` and the ledger.
+- **Clear the watch**: a walkthrough for a factory reset that backs up the watch
+  first and resets the ledger only after reading `/Music` and finding no
+  audio. It is in the header, and linked from every place the app says a
+  song cannot be deleted and from a send that does not fit.
+- **Install the USB rule** button: installs `udev/70-garmin-mtp.rules`
+  through polkit with one fixed command; refused inside a Flatpak, where the
+  window shows the command instead.
+- **The ledger**: `$XDG_DATA_HOME/pelican/ledger-<serial>.jsonl`, an
+  append-only log of every name ever used on a watch (`reserve`, `verified`,
+  `failed`, and `reset`). The reserve line is fsync'd before the upload
+  starts, the file is locked for the run, and an unparsable line is a hard
+  error (R4).
+- **Names that are never reused**: `pl{counter:05}-{slug}.mp3`, the counter
   above every name in the ledger, on the device, and past every unreadable
   stub. No overwrite and no rename-on-collision branch (R3).
-- **Read-back proof** — every upload is downloaded and its SHA-256 compared
+- **Read-back proof**: every upload is downloaded and its SHA-256 compared
   with the local transcode. A mismatch or error is recorded as `failed`, the
   name stays burned, and the file is retried once under a fresh name (R6).
-- **Skip what is already there** — a source the ledger has as `verified` is
-  skipped unless `--resend`; a repeat within one run is sent once (R5).
-- **Capacity check before any write** — free space with a 2 MiB margin, and
-  Garmin's 500-audio-object limit, for the run and again for each retry (R7).
-- **Tags that are always there** — title, artist, album_artist, album, track,
-  date, genre, each resolved override → source tag → path; an empty title is
-  refused (R2).
-- **CLI**: `pelican push`, `status`, `ls`, `ledger` (R9). `push --dry-run`
-  goes through the same decision code as a real run.
-- **API for the coming UI** — `transfer::preview` (per-file verdict, no
-  device, no transcode), `transfer::push` with owned, `Serialize` `Progress`
-  events including per-attempt `sending` and byte-level `uploading`, and
-  `watch::read` / `Snapshot::{counts, rows}` for status and listing.
+- **Skip what is already there**: a source the ledger has as `verified` in
+  the same album is skipped unless `--resend`; a repeat within one run is
+  sent once (R5).
+- **Capacity check before any write**: free space with a 2 MiB margin, and
+  Garmin's 500-track limit, for the run and again for each retry (R7).
+- **Tags that are always there**: title, artist, album_artist, album, track,
+  date and genre, each resolved from an override, then the source tag, then
+  the folder layout; an empty title is refused (R2).
+- **CLI**: `pelican push`, `status`, `ls`, `ledger`, `backup` and
+  `reset-ledger` (R9). `push --dry-run` goes through the same decision code
+  as a real run. `push --mix NAME` sends a playlist as an album, in the order
+  given.
+- **Back up the watch**: copies the watch's `GARMIN` folder, read-only on the
+  watch, to `~/Documents/Pelican/<model> backup <date>` or a folder you name.
+- **Stop between files**: a stop handle checked before each transcode and
+  each send, never inside a file.
+- **A watch that stops answering** is recognized (timeouts, or the watch
+  showing up as `091e:0003`) and reported with one instruction: unplug it,
+  wait five seconds, plug it back in.
 - `udev/70-garmin-mtp.rules` (R10).
 
 ### Changed
-- **One output profile**: every source is re-encoded by ffmpeg to CBR 192 kbps
-  44.1 kHz stereo MP3, ID3v2.3, no art (R1).
+- **One output profile**: every source is re-encoded by ffmpeg to CBR 192
+  kbps, 44.1 kHz stereo MP3, ID3v2.3, no art (R1).
 - **Transcode everything, then one MTP session per run** (R6, R8), instead of
   a session per file. Staging lives in `$XDG_CACHE_HOME/pelican/staging/` and
   is removed however the run ends; a Ctrl-C leftover is swept at next start.
 - One case fold (`mtp::fold_name`) for every name comparison (R11.2, R11.3).
 - An empty or relative `XDG_DATA_HOME`, `XDG_CACHE_HOME` or `HOME` is treated
   as unset, so the ledger's location never depends on the current directory.
+- The Tauri shell was rebuilt for Linux on the new core, with a new
+  interface.
 - MSRV 1.89 (`std::fs::File::lock`).
 
 ### Removed
-- **Delete, in every form.** The `Backend` trait has no delete method. Deleting
-  an object does not take a track out of the watch's library, and a
-  delete-then-write is how a name gets reused (R6, R9).
+- **Delete, in every form.** The `Backend` trait has no delete method.
+  Deleting an object does not take a track out of the watch's library, and a
+  delete followed by a write is how a name gets reused (R6, R9).
 - Playlist writes and local playlists (`playlist.rs`, `history.rs`).
-- The egui GUI, the macOS Tauri shell (`crates/pelican-shell`) and `ui/`. The
-  UI is rebuilt later against the core. The desktop launcher is no longer
-  packaged.
+- The egui GUI, and the macOS port with its Tauri shell and interface. The
+  port is kept at the tag `archive/macos-port`; the README's "What about
+  macOS?" explains why it was dropped.
 - The afconvert encoder and native-format passthrough.
-- `udev/99-garmin-music.rules` — at 99 its `uaccess` tag arrives after systemd
+- `udev/99-garmin-music.rules`: at 99 its `uaccess` tag arrives after systemd
   has decided the ACL, so it never worked.
 - Hardware examples that write or delete (`wipe_music`, `wipe_stubs`,
-  `test_delete`, `probe_vendor_ops`, `usb_reset`, …). The five read-only ones
-  stay.
+  `test_delete`, `probe_vendor_ops`, `usb_reset` and others). The five
+  read-only ones stay.
 
 ### Fixed
-- `platform::gvfs::tests::shell_quote_neutralises_embedded_quotes` asserted
-  the wrong thing (R11.1).
+- A backup stopped at the first empty file on the watch and left it not
+  answering until a replug: the FR165 answers a download of a 0-byte file
+  with an empty response and the session never recovers. Empty files are
+  now copied from the listing without asking the watch for them.
+- The `gio mount -u` command offered for a gvfs-held watch quoted the
+  device-controlled host in a way fish could break out of. The host is now
+  checked against udev's character set and left out of the command when it
+  fails (R11.1).
 - Folder lookups compared names byte-exact while files compared
   case-insensitively (R11.2).
 - Size-only verification, where zero counted as success, is replaced by the
@@ -76,22 +109,22 @@ do.
 
 ## Pre-rebuild work (never released)
 
-Kept as history. Most of it — the GUI, the macOS shell, delete, playlists,
-afconvert — was removed or superseded by the rebuild above.
+Kept as history. Most of it (the GUI, the macOS shell, delete, playlists,
+afconvert) was removed or superseded by the rebuild above.
 
 ### Added
 - **macOS support, verified on hardware.** Forerunner 165 Music · FW 2506 on
   macOS 26.6.2 (Apple silicon): session open, `/Music` listing, upload and
-  read-back all succeed. `docs/macos-port.md` has the measured table. Apple's
-  `ptpcamerad` does **not** claim Garmin watches — the watch presents
-  `bDeviceClass = 0` — so macOS needs no udev equivalent, no sudo step and no
+  read-back all succeed. `docs/archive/macos-port.md` has the measured table. Apple's
+  `ptpcamerad` does **not** claim Garmin watches (the watch presents
+  `bDeviceClass = 0`), so macOS needs no udev equivalent, no sudo step and no
   SIP change.
 - **Workspace split into three crates** (`54a9f72`): `pelican-core` (engine,
   no UI framework, no clap), `pelican` (the Linux cli + egui binary),
   `pelican-shell` (the macOS binary). Note there is no `default-members`, so
-  a bare `cargo build --release` builds all three — name the package.
+  a bare `cargo build --release` builds all three; name the package.
 - **`pelican-shell`, the macOS Tauri 2 shell** (`dc7b6a8`) and the **`ui/`
-  frontend** (`55dd47e`) — plain HTML/CSS/JS, no npm, no framework, no
+  frontend** (`55dd47e`): plain HTML/CSS/JS, no npm, no framework, no
   bundler. Watch wall, capacity gauge, live transfer report.
 - **Pelican is now a local player that also syncs.** In-app playback through
   the system webview, cover art read out of the user's own file at play time,
@@ -102,7 +135,7 @@ afconvert — was removed or superseded by the rebuild above.
   zero-dependency macOS fallback. Three pipelines now, picked per file:
   passthrough (native containers copied byte-for-byte, tag rebuilt in
   process, no external tool), ffmpeg → CBR 192 kbps MP3, afconvert → M4A.
-  `ffmpeg` is no longer an unconditional requirement — but `AFCONVERT_DECODES`
+  `ffmpeg` is no longer an unconditional requirement, but `AFCONVERT_DECODES`
   does not cover OGG, Opus, WMA, APE or WV, so those still need it.
 - **Name-collision guard on the upload path.** A same-name write destroys
   *both* copies and the wreckage cannot be deleted (`docs/garmin-mtp.md` §6,
@@ -115,19 +148,19 @@ afconvert — was removed or superseded by the rebuild above.
   not grow with the plan; a name is reserved when the write lands and also
   when the bytes drained without a confirmation, because that file may be
   aboard. Neither layer has been exercised against hardware. Closes
-  `docs/audit-2026-05-03.md` finding #4.
-- `examples/probe_objprops.rs` — the probe behind the object-property finding
+  `docs/archive/audit-2026-05-03.md` finding #4.
+- `examples/probe_objprops.rs`: the probe behind the object-property finding
   below. `examples/probe_platform.rs` for the contention detectors.
-- `examples/probe_playlist.rs` — automated playlist write-format probe
+- `examples/probe_playlist.rs`: automated playlist write-format probe
   (six variants: path styles × format codes).
-- `examples/probe_vendor_ops.rs` — sweep Garmin vendor opcodes
+- `examples/probe_vendor_ops.rs`: sweep Garmin vendor opcodes
   `0x9000-0x900B` + `0x9810`/`0x9811`. Logs to `target/probe_vendor_ops.log`.
-- `examples/wipe_stubs.rs` — find and delete unreadable handles in `/Music`.
-- `examples/dump_file.rs` — hex-dump a single file pulled from the watch.
-- `docs/` directory — protocol reference, vendor-op probe results,
+- `examples/wipe_stubs.rs`: find and delete unreadable handles in `/Music`.
+- `examples/dump_file.rs`: hex-dump a single file pulled from the watch.
+- `docs/` directory: protocol reference, vendor-op probe results,
   playlist failure log, code-audit findings, dated research log,
   references snapshots from `better-sync` / `go-mtpfs`.
-- `scripts/check.sh` — local QA gate (fmt, clippy, build, test, audit, deny).
+- `scripts/check.sh`: local QA gate (fmt, clippy, build, test, audit, deny).
   It also enforces two invariants a type checker cannot: no `async fn` in
   `commands.rs`, and a 1:1 match between the granted capabilities and the
   `invoke()` calls in `ui/app.js`.
@@ -135,21 +168,21 @@ afconvert — was removed or superseded by the rebuild above.
 - `unsafe_code = "deny"` lint at crate root (one documented exception, a
   `geteuid` syscall, now at `crates/pelican-core/src/platform/gvfs.rs`).
 - Test count is now **122** (`cargo test --workspace`, macOS,
-  2026-09-06) — see `docs/status.md` for the per-target split. Includes 25 new
+  2026-09-06); see `docs/status.md` for the per-target split. Includes 25 new
   sanitizer/classification/playlist tests from the pre-split work, plus the
   collision guard's own suite driven through a fake `Backend`.
 
 ### Fixed
 - **The watch *can* report its own tags** (`ec9cd3d`). The UI and DESIGN.md
   both claimed the opposite. Verified 2026-09-02 on FR165 / FW 2506 via
-  `examples/probe_objprops.rs`: the watch declares operations `0x9801`–`0x9805`
+  `examples/probe_objprops.rs`: the watch declares operations `0x9801`-`0x9805`
   and answers `GetObjectPropValue` with Name, Artist, AlbumName, AlbumArtist,
-  Duration and Track — including for files Pelican never uploaded. Grouping
+  Duration and Track, including for files Pelican never uploaded. Grouping
   still keys off the local journal, which is correct for *provenance*; the
   copy now says that rather than denying a capability the device has.
 - `mtp::remote_size` compared filenames byte-for-byte. `/Music` is
   FAT-derived and case-insensitive, so `Track.mp3` and `track.mp3` are one
-  file to the firmware — the probe silently reported "landed" for a file it
+  file to the firmware, so the probe silently reported "landed" for a file it
   had failed to find. Now compares with full `to_lowercase`.
 - `--no-transcode` uploads now share the 56-char filename cap with the
   transcode path. Previously, direct uploads of MP3/M4A/AAC/WAV with long
@@ -162,14 +195,14 @@ afconvert — was removed or superseded by the rebuild above.
   every Mac reported "no encoder"), WAV re-encoded to lossy AAC when the watch
   plays WAV natively, false-positive contention on every Mac running
   `ptpcamerad`, and a staging-filename race between threads in one process.
-  All four are regression-tested. `docs/macos-port.md`.
+  All four are regression-tested. `docs/archive/macos-port.md`.
 
 ### Changed
 - `ffprobe` is gone on both platforms; `lofty` reads tags and audio
   properties in process.
 - `transfer::run` is now a two-line wrapper over `transfer::run_with`, which
-  takes the backend opener as an argument. The transfer loop — including the
-  write-time collision refusal — is testable without a watch.
+  takes the backend opener as an argument. The transfer loop, including the
+  write-time collision refusal, is testable without a watch.
 - `transfer::run_cancellable` polls a caller-supplied predicate between files,
   and `pelican-shell` now hands the engine the **whole plan in one call**
   instead of one call per file. A call per file re-read `/Music` for every
@@ -182,19 +215,19 @@ afconvert — was removed or superseded by the rebuild above.
 - `transcode::sanitize_filename_stem` is now public so the filename rules
   can be reused by both upload paths.
 - `playlist::serialize_for_device` takes a `PathStyle` enum (variants
-  `BareCasePreserved` and `UppercaseWithPrefix`) — documented seam for
+  `BareCasePreserved` and `UppercaseWithPrefix`), a documented seam for
   future playlist-protocol work.
-- MSRV bumped from 1.78 → 1.85 (transitive deps require `edition2024`).
+- MSRV bumped from 1.78 to 1.85 (transitive deps require `edition2024`).
 - Dependabot cooldown set to 48 h: no PR opens for any release younger than
   two days, so a poisoned upstream has time to surface before it reaches us.
 - Repository hardening (server-side, not in source diff):
-  - GitHub Actions disabled at repo level — local-CI contract via
+  - GitHub Actions disabled at repo level; local-CI contract via
     `scripts/check.sh`.
   - Branch protection on `main`: PRs required, no force-push, no deletion,
     conversation resolution required, admins enforced.
   - Auto-merge disabled. Squash-only merges. Web commit sign-off required.
   - Secret scanning + push protection + Dependabot security updates enabled.
-  - **Signed commits enforced on `main`** — `required_signatures=true` in
+  - **Signed commits enforced on `main`**: `required_signatures=true` in
     branch protection. Maintainer signs from a dedicated, passphrase-
     protected ssh-ed25519 key (separate from any authentication key);
     GitHub displays a green "Verified" badge on each commit.
@@ -212,17 +245,17 @@ afconvert — was removed or superseded by the rebuild above.
 - Filename collisions during upload corrupt **both** files (existing +
   new) instead of cleanly overwriting. The guard listed under Added is the
   response; it has not itself been run against a watch.
-- The watch answers per-object property queries — see Fixed, above.
+- The watch answers per-object property queries; see Fixed, above.
 
 ### Security
 - **The macOS shell puts the system WKWebView in front of the engine.** That
-  is new attack surface and `SECURITY.md` § The macOS shell documents it in
-  full: `withGlobalTauri: true` exposes the whole `window.__TAURI__` namespace
+  is new attack surface, documented at the time in `SECURITY.md` (as of the
+  `archive/macos-port` tag): `withGlobalTauri: true` exposes the whole `window.__TAURI__` namespace
   to the page, mitigated by a CSP with no `unsafe-inline`, no remote origin
   and no `connect-src` that leaves the machine.
 - **The Tauri ACL is the boundary and it is committed.** `build.rs` declares
   an app manifest naming every command; `capabilities/main.json` grants
-  exactly the commands `ui/app.js` calls and **no `core:default`** — no
+  exactly the commands `ui/app.js` calls and **no `core:default`**: no
   window, fs, shell, http or event permission. `scripts/check.sh` diffs the
   two lists in both directions.
 - **The asset-protocol grant is real.** In-webview playback needs the webview
@@ -232,7 +265,7 @@ afconvert — was removed or superseded by the rebuild above.
   ships an empty scope, and every command that accepts a path re-checks it
   against a granted root.
 - **Media decoding is OS surface `cargo-deny` cannot reach.** Playback hands a
-  path to WKWebView, which decodes through AVFoundation and CoreAudio —
+  path to WKWebView, which decodes through AVFoundation and CoreAudio,
   Apple's parsers, not in the dependency graph, not auditable by us.
 - **+254 lockfile entries** for the port: 373 → 627 `[[package]]` blocks
   between `dc7b6a8^` and `ec9cd3d`, 256 added and 2 removed. Tauri, wry and
@@ -240,7 +273,7 @@ afconvert — was removed or superseded by the rebuild above.
   for features this build does not enable and are **not compiled in**;
   `scripts/check.sh` fails if `cargo tree -e normal -i` ever finds them.
 - Dropped `egui_extras` (unused; pulled in `ureq` + `rustls` + `ring` +
-  `webpki-roots` + ~40 transitive crates — a full HTTP/TLS stack in a tool
+  `webpki-roots` + ~40 transitive crates: a full HTTP/TLS stack in a tool
   with no network surface). Dependency count at the time: 497 → 449.
 - `transcode::cache_dir()` now writes to `$XDG_CACHE_HOME/pelican` (fallback
   `$HOME/.cache/pelican`; `~/Library/Caches/com.krypteia.pelican` on macOS)
@@ -274,15 +307,15 @@ afconvert — was removed or superseded by the rebuild above.
   format code (vendor-specific path not yet reverse-engineered)
 - Broken-stub deletion via `DeleteObject` returns GeneralError; watch
   GCs them on power-cycle
-- Garmin's indexed music library is not exposed via MTP — only the
+- Garmin's indexed music library is not exposed via MTP; only the
   staging folder is browseable[^objprops]
 
-[^objprops]: Half of this is now known to be wrong, and per `docs/README.md`'s
-convention the shipped entry is left standing with the correction attached.
-Verified 2026-09-02 on FR165 / FW 2506 (`examples/probe_objprops.rs`): there
+[^objprops]: Half of this is now known to be wrong. The released entry is
+kept as released, with the correction attached. Verified 2026-09-02 on
+FR165 / FW 2506 (`crates/pelican-core/examples/probe_objprops.rs`): there
 is indeed no MTP call that *enumerates* the indexed library, but the watch
-declares operations `0x9801`–`0x9805` and answers `GetObjectPropValue` for any
-handle in `/Music` — Name, Artist, AlbumName, AlbumArtist, Duration and Track,
-including for files Pelican never uploaded. See `docs/garmin-mtp.md`
+declares operations `0x9801`-`0x9805` and answers `GetObjectPropValue` for any
+handle in `/Music` (Name, Artist, AlbumName, AlbumArtist, Duration and Track,
+including for files Pelican never uploaded). See `docs/garmin-mtp.md`
 "Object properties". The local journal remains the source of *provenance*,
 which is a different question from whether the tags are readable.

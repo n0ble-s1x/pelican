@@ -7,12 +7,14 @@ labels: bug
 
 ## What happened
 
-<!-- One or two sentences. What did you try, what did the tool do? -->
+<!-- One or two sentences. What did you try, what did Pelican do?
+     Security problems go through the Security tab, not here; see SECURITY.md. -->
 
 ## Environment
 
 - Garmin model + firmware:
-- OS + version (e.g. "macOS 26.6.2" or "Pop!_OS 24.04"):
+- Linux distribution and kernel (e.g. "CachyOS, kernel 7.2" or "Pop!_OS 24.04"):
+- The app (`pelican-app`) or the command line:
 - `pelican --version`:
 - ffmpeg version (`ffmpeg -version` first line):
 

@@ -36,14 +36,14 @@ fn main() {
             want.len()
         );
         if got == want {
-            println!("  IDENTICAL — the transport is not the problem for this file");
+            println!("  IDENTICAL: the transport is not the problem for this file");
         } else if got.is_empty() {
-            println!("  EMPTY on the watch — the write never delivered data");
+            println!("  EMPTY on the watch: the write never delivered data");
         } else if want.starts_with(&got) {
             println!("  TRUNCATED at {} of {} bytes", got.len(), want.len());
         } else {
             let n = got.iter().zip(&want).take_while(|(a, b)| a == b).count();
-            println!("  DIFFERS — first {n} bytes match, then diverges");
+            println!("  DIFFERS: first {n} bytes match, then diverges");
         }
         return;
     }

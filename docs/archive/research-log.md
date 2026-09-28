@@ -1,6 +1,9 @@
 # Research Log
 
-Dated entries — what we looked at, what we learned, why we made each
+> Historical: dated research notes from May 2026, from the egui era. Kept
+> as the only record of the vendor-opcode probe results.
+
+Dated entries: what we looked at, what we learned, why we made each
 decision. New entries at the bottom.
 
 ---
@@ -10,7 +13,7 @@ decision. New entries at the bottom.
 - Decision: pure-Rust stack on `mtp-rs` + `nusb`; UI on `eframe`/`egui`.
 - Found `set_split_header_data(true)` is required against Garmin. Without
   it, sessions hang. Verified on FR165 Music FW 2506.
-- Found newly-created `/Music/<album>/` subfolders are unreliable to list —
+- Found newly-created `/Music/<album>/` subfolders are unreliable to list;
   switched default behavior to flatten uploads into `/Music/` directly.
 - Established the MP3 transcoding profile that lands cleanly:
   `-vn -ac 2 -ar 44100 -b:a 192k -map_metadata 0 -id3v2_version 3 -write_id3v1 0`.
@@ -38,16 +41,16 @@ one:
 |----------|-----------------|
 | `0x9000` | DATA phase      |
 | `0x9001` | SHORT response  |
-| `0x9002`–`0x900B` | TIMEOUT (5s) |
-| `0x9810`–`0x9811` | TIMEOUT (5s) |
+| `0x9002`-`0x900B` | TIMEOUT (5s) |
+| `0x9810`-`0x9811` | TIMEOUT (5s) |
 
 Implication: 0x9000 and 0x9001 are real ops with no-arg signatures; the
 others need parameters we don't yet know. Vendor ops are not blocking
-playlist work — proceed with standard ops first.
+playlist work; proceed with standard ops first.
 
-### Playlist breakthrough — `better-sync`
+### Playlist breakthrough: `better-sync`
 
-Discovered https://github.com/Schachte/better-sync — Go CLI that does what
+Discovered https://github.com/Schachte/better-sync, a Go CLI that does what
 Pelican does, has working playlist support on FR family + Venu since 2024.
 Key recipe (snapshotted in `references/better-sync-playlist.go.txt`):
 
@@ -60,10 +63,10 @@ Key recipe (snapshotted in `references/better-sync-playlist.go.txt`):
 
 ### Other useful refs
 
-- **libmtp `music-players.h`** — every Garmin device tagged with
+- **libmtp `music-players.h`**: every Garmin device tagged with
   `DEVICE_FLAGS_ANDROID_BUGS`. FR165 Music (`0x091E:0x5151`) is **not yet
   in the table**; we should file an upstream entry.
-- **go-mtpfs PR #1 (CodyJung)** — documents Garmin's split-header /
+- **go-mtpfs PR #1 (CodyJung)**: documents Garmin's split-header /
   short-data-phase quirks. We already handle the split-header side via
   `set_split_header_data(true)`.
 - **Garmin support page** lists accepted formats:
@@ -73,8 +76,8 @@ Key recipe (snapshotted in `references/better-sync-playlist.go.txt`):
 ### Decisions
 
 1. v0.3 playlist work proceeds via **standard MTP `SendObjectInfo` +
-   `SendObject` with format `0xBA05`** — mirror better-sync.
-2. Vendor opcode reverse-engineering deferred — not on the playlist path.
+   `SendObject` with format `0xBA05`**, mirroring better-sync.
+2. Vendor opcode reverse-engineering deferred; it is not on the playlist path.
 3. Add **uppercase Garmin-style track paths** to our `playlist::serialize`.
 4. Documentation directory `docs/` created; future protocol work (v0.4
    transcoding, v0.5 Win/Mac, anything beyond music) lands here.
@@ -82,15 +85,15 @@ Key recipe (snapshotted in `references/better-sync-playlist.go.txt`):
 ### Source snapshots for offline reference
 
 Saved under `docs/references/`:
-- `better-sync-playlist.go.txt` — the canonical SendObjectInfo+SendObject pair
-- `better-sync-sanitize.go.txt` — filename + path-style logic
-- `go-mtpfs-pr1.md` — summary of the split-header / short-read fix
+- `better-sync-playlist.go.txt`: the canonical SendObjectInfo+SendObject pair
+- `better-sync-sanitize.go.txt`: filename + path-style logic
+- `go-mtpfs-pr1.md`: summary of the split-header / short-read fix
 
-## 2026-05-03 (later) · FR165 playlist probe — hypothesis revised
+## 2026-05-03 (later) · FR165 playlist probe: hypothesis revised
 
 Built `examples/probe_playlist.rs` that runs six write variants (path styles
 × format codes) against the watch in one session. **All six were silently
-rejected** — left broken stubs in `/Music`, none surfaced as readable
+rejected**: each left broken stubs in `/Music`, none surfaced as readable
 playlists. Detail in `docs/playlists.md`.
 
 Revised hypothesis: **FR165 Music firmware likely does not accept MTP
@@ -100,11 +103,11 @@ not MTP. better-sync's success was on older generations (FR945, FR255,
 Venu, FR645).
 
 Pivot for v0.3:
-- Stop iterating MTP playlist-format variants on FR165 — no clear way
+- Stop iterating MTP playlist-format variants on FR165; there is no clear way
   forward without a wire-level reference.
 - Capture Garmin Express writing a playlist (Windows VM + USBPcap) to get
   ground truth on what the protocol actually looks like.
-- Test on a borrowed FR945 / FR255 if possible — if it works there and
+- Test on a borrowed FR945 / FR255 if possible. If it works there and
   not on FR165, hypothesis confirmed and we should document it as a
   hardware constraint rather than a bug.
 - Investigate whether Garmin Connect Mobile uses BLE for playlist sync.

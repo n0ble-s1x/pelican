@@ -461,7 +461,7 @@ pub fn map_progress(p: Progress) -> Option<Payload> {
     })
 }
 
-/// Upload progress fires per chunk — thousands of events per album. Each
+/// Upload progress fires per chunk: thousands of events per album. Each
 /// one is a JSON message the webview parses to move a bar by a pixel, so
 /// the rate is capped. Every other event, and the last tick of each upload,
 /// always goes through, so the bar lands on full.

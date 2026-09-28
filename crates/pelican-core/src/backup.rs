@@ -8,7 +8,7 @@
 //! Metrics, Records, Totals, Settings, …) into `dest/GARMIN`, recreating
 //! the folder tree. The FIT files in there are what fitness apps import.
 //!
-//! It uses only [`Backend::list_dir`] and [`Backend::download_file`] —
+//! It uses only [`Backend::list_dir`] and [`Backend::download_file`];
 //! there is nothing else it could call that writes, and nothing on the
 //! local side is overwritten: every file is created new. It can be stopped
 //! between files, and a watch that stops answering ends it with the replug
@@ -67,12 +67,13 @@ pub struct Failed {
 struct Item {
     remote: String,
     local: PathBuf,
+    size: u64,
 }
 
 /// Copy every file under the watch's `GARMIN` folder into `dest/GARMIN`.
 ///
 /// `dest` is created if missing. Returns `Err` when the backup as a whole
-/// cannot go on — nothing under `GARMIN`, a local folder that cannot be
+/// cannot go on: nothing under `GARMIN`, a local folder that cannot be
 /// made, or a watch that stopped answering (the error carries
 /// [`crate::error::Wedged`]). A single file that will not copy is in
 /// [`Summary::failed`]; everything else is still copied.
@@ -109,7 +110,16 @@ pub fn backup(
             stopped = true;
             break;
         }
-        let data = match dev.download_file(&item.remote) {
+        // Never ask the watch for an empty file: a GetObject for 0 bytes
+        // comes back "Empty response" and every later call in the session
+        // fails, so one empty err_log.txt stopped the whole backup. The
+        // listing already said there is nothing to read.
+        let fetched = if item.size == 0 {
+            Ok(Vec::new())
+        } else {
+            dev.download_file(&item.remote)
+        };
+        let data = match fetched {
             Ok(d) => d,
             Err(e) if crate::error::is_wedged(&e) => {
                 return Err(e.context(crate::error::Wedged).context(format!(
@@ -188,6 +198,7 @@ fn walk(
             items.push(Item {
                 remote: child_remote,
                 local: child_local,
+                size: e.size,
             });
         }
     }
@@ -286,6 +297,34 @@ mod tests {
         dev.add_file("GARMIN", "Device.fit", b"d");
         dev.add_file("Music", "pl00001-A.mp3", b"not backed up");
         dev
+    }
+
+    #[test]
+    fn an_empty_file_is_copied_without_asking_the_watch_for_it() {
+        // The FR165's tree, 2026-09-27: an empty Debug/err_log.txt ahead of
+        // Goals.fit. Downloading it killed the session at file 47.
+        let tmp = tempfile::tempdir().unwrap();
+        let dest = tmp.path().join("backup");
+        let dev = FakeDevice::new();
+        dev.add_folder("GARMIN/Debug/Uploads");
+        dev.add_folder("GARMIN/Goals");
+        dev.add_file("GARMIN/Debug", "err_log.txt", b"");
+        dev.add_file("GARMIN/Goals", "Goals.fit", b"goals");
+        let s = backup(dev.backend().as_mut(), &dest, &Stop::new(), &mut |_| {}).unwrap();
+
+        assert_eq!((s.files, s.bytes), (2, 5));
+        assert!(s.failed.is_empty());
+        assert_eq!(
+            std::fs::read(dest.join("GARMIN/Debug/err_log.txt")).unwrap(),
+            b""
+        );
+        assert_eq!(
+            std::fs::read(dest.join("GARMIN/Goals/Goals.fit")).unwrap(),
+            b"goals"
+        );
+        assert!(!dev
+            .calls()
+            .contains(&Call::Download("GARMIN/Debug/err_log.txt".into())));
     }
 
     #[test]

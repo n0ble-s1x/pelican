@@ -1,8 +1,13 @@
 # The library that will not let go
 
-The open question that decides whether Pelican has a future, what the wider
-community has already established about it, and the experiments that have
-never been run. Written 2026-09-25, before moving the work to a Linux box.
+**Outcome (settled 2026-09-26).** A clean upload under a new name plays on
+the watch, and mtp-rs writes as cleanly as libmtp. The results are at the
+end of this file. They are why Pelican never reuses a name, reads every
+file back, and has no delete.
+
+The rest of this file is the question as it stood on 2026-09-25, before the
+work moved to Linux: what was unknown, what the community had established,
+and the experiments that settled it.
 
 ## The problem, stated honestly
 
@@ -11,11 +16,11 @@ On the reference **Forerunner 165 Music, firmware 2506**:
 1. A batch of tracks pushed from Linux (before the macOS port existed) appears
    in the watch's music app and **does not play**. The owner reports one track
    once produced audio at its start, and nothing since.
-2. `DeleteObject` over MTP removes files from `/Music` and reclaims space —
-   78.5 MB verified — but the watch's music app still lists the tracks.
+2. `DeleteObject` over MTP removes files from `/Music` and reclaims space
+   (78.5 MB verified), but the watch's music app still lists the tracks.
 3. Those entries survive a USB replug and a full watch reboot.
 4. Nothing Pelican has produced, on either platform, has ever been confirmed
-   to play on the watch. See `macos-port.md` § Retracted.
+   to play on the watch. See `archive/macos-port.md` § Retracted.
 
 So there are two distinct unknowns, and they have been repeatedly conflated:
 
@@ -30,7 +35,7 @@ device already carrying the wreckage from the first.
 ## What the community has established
 
 This is not a Pelican bug and not a macOS bug. It is a Garmin firmware
-behaviour, reported for years across the FR245, FR265, FR645, FR945, FR955,
+behavior, reported for years across the FR245, FR265, FR645, FR945, FR955,
 fēnix 6 and fēnix 8.
 
 **Ghost library entries are real, and a factory reset is the only confirmed
@@ -65,11 +70,12 @@ collide with a remembered name; no MTP track-metadata objects, letting the
 watch read tags from the file itself; and verifying afterwards that the object
 really is on the device at full size rather than trusting the success return.
 
-Pelican's Linux path already produces exactly the format those reports favour
-— ffmpeg, CBR 192 kbps MP3, ID3v2.3, strict tag allowlist. The macOS path
-produces AAC in M4A, which several reports specifically advise against.
+At the time, Pelican's Linux path already produced exactly the format those
+reports favor: ffmpeg, CBR 192 kbps MP3, ID3v2.3, strict tag allowlist. The
+macOS port (since removed, see `archive/macos-port.md`) produced AAC in M4A,
+which several reports specifically advise against.
 
-## Experiments never run
+## The experiments
 
 1. **Byte-level round trip.** `Backend::download_file` exists and works. Pull
    a track back off the watch and `sha256` it against the source. If Pelican's
@@ -78,7 +84,7 @@ produces AAC in M4A, which several reports specifically advise against.
 2. **A clean-device playback test.** One tagged MP3, a short unique name, onto
    a watch with no ghost entries, then play it.
 3. **A second, independent MTP stack.** `mtp-sendtr -q` from libmtp, and
-   `gio copy` over gvfs — the method the FR955 owner had working. If those
+   `gio copy` over gvfs, the method the FR955 owner had working. If those
    land whole files and `mtp-rs` does not, the defect is ours and fixable.
 4. **Watching Garmin Express on the wire.** `usbmon` plus Wireshark is easy on
    Linux, but Express does not run there; it needs a Windows guest with USB
@@ -100,7 +106,7 @@ Run experiment 1 first: it is read-only, costs nothing, and needs no reset.
 
 - **Uploads are truncated** → a real bug in our transport, fix it and retest.
 - **Uploads are byte-perfect and still do not play** → the format or the
-  ghost-collision is the cause. Factory reset (owner's call — it erases
+  ghost-collision is the cause. Factory reset (owner's call: it erases
   on-watch history; anything already in Garmin Connect survives), then
   experiment 2 with a short unique filename.
 - **A clean device plays a fresh MP3** → Pelican needs three changes: never
@@ -110,23 +116,18 @@ Run experiment 1 first: it is read-only, costs nothing, and needs no reset.
   something outside MTP's reach. Archive the project; the read-side work
   survives in agoge for pulling FIT files.
 
-## Standing constraint
-
-Only files an agent uploaded itself may be deleted. `wipe_music`,
-`wipe_stubs` and `test_delete` are never to be run against the owner's device.
-
-## Results — Linux, 2026-09-26
+## Results: Linux, 2026-09-26
 
 Run on the maintainer's workstation (CachyOS, kernel 7.2.7, libmtp 1.1.23, systemd 262) against the
 reference FR165 Music, FW 2506. Experiments 1 and 2 above, and the first half of 3.
 
 **Access.** libmtp does not list `091e:5151`; it still connects via the
 vendor-class interface probe ("UNKNOWN in libmtp", cosmetic). The node had no
-user ACL: `udev/99-garmin-music.rules` can never work on systemd, because
+user ACL: the former `99-garmin-music.rules` could never work on systemd, because
 `uaccess` is applied by `RUN{builtin}+="uaccess"` in `73-seat-late.rules` and a
 `TAG` added at 99 arrives after it. A rule at `70-` fixes it.
 
-**Experiment 1 — read-back of what is on the watch.** Three audio objects
+**Experiment 1: read-back of what is on the watch.** Three audio objects
 exist (`/Music` m4a + wav, `/Audiobooks/probe.mp3`), all Mac-era. Each came
 back at full listed size and decodes end to end with zero ffmpeg errors. The
 earlier Linux batch is no longer present as objects, so *its* integrity cannot
@@ -134,12 +135,12 @@ be rechecked.
 
 **Playback on the watch** (owner, same day): the m4a (AAC 192k) plays;
 `probe.mp3` (CBR 192k, ID3v2.3) plays from Audiobooks; the WAV is not listed
-(no ID3 title/artist — only BWF/REAPER tags). Every other entry in the music
+(no ID3 title/artist, only BWF/REAPER tags). Every other entry in the music
 app is a ghost with no object behind it, including duplicate "versions" of the
 same track and an entry named "6. 2". **The watch plays every intact file it
 has; the failures are ghosts and damaged writes.**
 
-**Experiment 2 — fresh upload.** A NAS WAV (an album never before on the
+**Experiment 2: fresh upload.** A NAS WAV (an album never before on the
 watch) → ffmpeg `-map_metadata -1 -c:a libmp3lame -b:a 192k -ar 44100 -ac 2
 -id3v2_version 3`, explicit title/artist/album_artist/album/track/date/genre →
 `mtp-sendfile pl0001.mp3 Music/pl0001.mp3` (plain object, no MTP track
@@ -150,12 +151,13 @@ through**.
 **Upstream corroboration found today.** libmtp issue #307 (2025-06, FR645):
 sending to a path that already exists turns both objects into stubs,
 DeleteObject on them errors, and the path stays poisoned for every later send,
-Windows included — factory reset only. That is this repo's "collision destroys
+Windows included; factory reset only. That is this repo's "collision destroys
 both files" and "stubs cannot be deleted", observed independently.
 
 **Verdict under the decision rule:** a clean upload plays, even on a device
 still carrying ghosts. Pelican continues, with three changes: never reuse a
 remote filename (persistent per-serial ledger), verify every upload by
 read-back hash, and state plainly that delete cannot clear the library.
-Still open: whether mtp-rs writes as cleanly as libmtp did — the hash check
-in the rebuild settles it on first run.
+Whether mtp-rs writes as cleanly as libmtp did was settled by the rebuild's
+first hardware run the same day: 24 of 24 files verified by read-back hash
+and confirmed by an independent libmtp read-back (`status.md`).

@@ -88,7 +88,7 @@ fn table(text: &str) -> impl Iterator<Item = (String, String)> + '_ {
 ///
 /// - A network filesystem ([`NETWORK_FS`]) anywhere is a share.
 /// - An `autofs` trigger is a share when `fstab` says what mounts there is
-///   a network filesystem — a systemd automount (`x-systemd.automount`) of
+///   a network filesystem: a systemd automount (`x-systemd.automount`) of
 ///   a NAS shows as `autofs` until first touched.
 /// - Anything mounted under `/run/media/<user>/` or `/media/<user>/` is a
 ///   removable drive.
@@ -220,7 +220,7 @@ pub fn places(library_root: Option<&Path>) -> Vec<Place> {
     merge(fixed, parse_mounts(&mounts, &fstab, &user))
 }
 
-/// `fixed` then `mounted` (shares before drives), each path once — the
+/// `fixed` then `mounted` (shares before drives), each path once; the
 /// first place to claim a path keeps it.
 fn merge(fixed: Vec<Place>, mounted: Vec<Place>) -> Vec<Place> {
     let (net, drives): (Vec<Place>, Vec<Place>) = mounted

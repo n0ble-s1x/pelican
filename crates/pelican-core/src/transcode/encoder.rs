@@ -1,6 +1,6 @@
 //! The one output profile, and the one tool that produces it.
 //!
-//! Every source — FLAC, WAV, ALAC/AAC in M4A, MP3, OGG, Opus, AIFF, WMA —
+//! Every source (FLAC, WAV, ALAC/AAC in M4A, MP3, OGG, Opus, AIFF, WMA)
 //! goes through ffmpeg to **CBR 192 kbps, 44.1 kHz, stereo MP3 with an
 //! ID3v2.3 tag and no ID3v1 trailer**. That is the profile proven on the
 //! reference FR165 (`garmin-library-persistence.md` § Results): uploaded,
@@ -63,7 +63,7 @@ fn missing() -> anyhow::Error {
 ///   eats keystrokes meant for us.
 /// - `-map 0:a:0 -vn`: the first audio stream only. Cover art rides along
 ///   as a video stream, and an oversized APIC gets a file refused.
-/// - `-map_metadata -1`: nothing from the source tag survives — Garmin's
+/// - `-map_metadata -1`: nothing from the source tag survives, because Garmin's
 ///   indexer rejects files with non-standard frames. Only the `-metadata`
 ///   pairs from [`Resolved`] are written.
 /// - `-c:a libmp3lame -b:a 192k -ar 44100 -ac 2`: the proven profile.

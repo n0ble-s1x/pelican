@@ -33,23 +33,17 @@
 
 <div class="frame">
 
-  <!-- The ink field: a bounded canvas, still at rest, one bloom per proven
-       track. The watch sits in it at optical centre, lit from behind. -->
+  <!-- The ink field: a bounded canvas, one bloom per proven track. The
+       watch sits in it at optical center, lit from behind. -->
   <div class="field" id="field" aria-hidden="true">
     <canvas id="ink"></canvas>
-    <!-- The watch is a dive watch in silhouette, in the classic manner:
-         scalloped unidirectional bezel, twisted lyre lugs, a guarded crown
-         at 3, a helium-valve crown at 10, a bracelet running off the
-         field's top and bottom edges. Silhouette only: no name, no logo,
-         no dial text. It is painted over the ink canvas, so no ink (not
-         even the red thread) crosses it. Lit on it: only the room-left arc,
-         riding the bezel. The bezel turns one click per proven track. -->
+    <!-- Dive-watch silhouette, no text or logo, painted over the ink
+         canvas. The bezel group rotates per verified track (app.js
+         turnBezel); the room-left arc is the only lit part. -->
     <svg id="watch" class="watch" viewBox="0 60 320 360" focusable="false">
       <defs>
-        <!-- The bracelet's links, as hairlines on the silhouette (not cuts:
-             nothing in the ink shows through the watch). Three-link: a
-             narrow polished centre link, and outer links set half a pitch
-             off it, the way a real bracelet's links are staggered. -->
+        <!-- Bracelet links as hairlines, outer links offset half a
+             pitch from the center link. -->
         <pattern id="links" width="320" height="24" patternUnits="userSpaceOnUse" y="4" fill="#ede8de" fill-opacity="0.08">
           <rect x="142" width="36" height="23" fill-opacity="0.03"/>
           <rect x="141" width="1" height="24"/>
@@ -132,6 +126,8 @@
       <button type="button" class="link" data-go="onwatch">On the watch</button>
       <span class="sep" aria-hidden="true">·</span>
       <button type="button" class="link" data-go="ledger">Ledger</button>
+      <span class="sep" aria-hidden="true">·</span>
+      <button type="button" class="link" data-act="reset-open">Clear the watch</button>
     </nav>
   </header>
 

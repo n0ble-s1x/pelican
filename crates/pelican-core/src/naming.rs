@@ -10,7 +10,7 @@
 //! "Taken" is still checked, belt and braces, against everything knowable:
 //! every name in `/Music` as listed at the start of the run, and every name
 //! in the ledger whatever its status. Stubs are counted but cannot be
-//! matched — their names are unreadable, which is exactly why the ledger,
+//! matched: their names are unreadable, which is exactly why the ledger,
 //! not the listing, is the record of what Pelican has written. The
 //! counter is also pushed one step past the highest known name for every
 //! stub; see [`Names::new`].
@@ -29,7 +29,7 @@ pub const EXT: &str = ".mp3";
 /// 56 leaves room for `.mp3`.
 pub const MAX_STEM: usize = 56;
 /// Device names whose counter is above this do not move the run's counter.
-/// Pelican gets nowhere near it — a watch holds 500 tracks — so such a name
+/// Pelican gets nowhere near it (a watch holds 500 tracks), so such a name
 /// was put there by something else, and following it would walk the
 /// counter to `u64::MAX` and off the end. The name itself is still taken.
 pub const MAX_DEVICE_COUNTER: u64 = 1_000_000_000;
@@ -37,7 +37,7 @@ pub const MAX_DEVICE_COUNTER: u64 = 1_000_000_000;
 /// The remote name for `counter`, slugged from `title`.
 ///
 /// The slug is the existing [`sanitize_filename_stem`] of the title, cut
-/// again so the whole stem — prefix included — stays within [`MAX_STEM`].
+/// again so the whole stem, prefix included, stays within [`MAX_STEM`].
 /// The prefix is never cut: it is what makes the name unique.
 pub fn remote_name(counter: u64, title: &str) -> String {
     let prefix = format!("{PREFIX}{counter:05}-");
@@ -82,7 +82,7 @@ impl Names {
     ///
     /// Stubs hide their names, so they cannot push the counter that way.
     /// A stub this ledger never saw is most likely one of the last writes
-    /// some other ledger made, just above the highest readable name — so
+    /// some other ledger made, just above the highest readable name, so
     /// the counter skips one step per stub, every stub. The ledger's own
     /// failed writes are not credited against them: a failed write may
     /// have left no object at all (it died before `SendObjectInfo`) or a
@@ -153,8 +153,8 @@ impl Names {
 
     /// A fresh `(counter, name)`, marked taken before it is returned.
     ///
-    /// The counter only moves forward. The loop never turns in practice —
-    /// every taken `pl` name is below the starting counter — but if some
+    /// The counter only moves forward. The loop never turns in practice
+    /// (every taken `pl` name is below the starting counter), but if some
     /// foreign file ever did hold a future name, this skips it rather than
     /// writing over it. Running out of counters is an error, never a wrap
     /// back to 0.
@@ -304,9 +304,8 @@ mod tests {
         assert_eq!(n.allocate("song").unwrap(), (3, "pl00003-song.mp3".into()));
     }
 
-    /// A foreign file named with an absurd counter used to make the next
-    /// counter `u64::MAX + 1`: a panic in debug, a wrap to 0 in release,
-    /// and every name after it below every earlier one.
+    /// A foreign file with an absurd counter must not push the next counter
+    /// past `u64::MAX` (a panic in debug, a wrap to 0 in release).
     #[test]
     fn an_absurd_device_counter_is_taken_but_not_followed() {
         let tmp = tempfile::tempdir().unwrap();

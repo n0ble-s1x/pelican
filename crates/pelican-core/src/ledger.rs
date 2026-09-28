@@ -5,8 +5,8 @@
 //! records never goes away either: a name once written to `/Music` is in the
 //! watch's library until a factory reset, and a second write under it turns
 //! both objects into stubs (libmtp #307). The device listing cannot be the
-//! only record — a stub's name is unreadable, and an upload cut off before
-//! its object info landed leaves nothing listable at all — so the ledger is
+//! only record: a stub's name is unreadable, and an upload cut off before
+//! its object info landed leaves nothing listable at all. The ledger is
 //! what makes "never reuse a name" hold.
 //!
 //! Three rules follow from that, and each is load-bearing:
@@ -24,7 +24,7 @@
 //! A factory reset is the one thing that empties the watch's library, and
 //! the ledger records it rather than forgetting: a `reset` line (appended
 //! and fsync'd like any other, written only after `/Music` was read back
-//! with no audio objects in it — see [`crate::reset`]) closes an *epoch*.
+//! with no audio objects in it; see [`crate::reset`]) closes an *epoch*.
 //! Names, verified sources and totals are answered from the current epoch
 //! only; [`Ledger::max_counter`] still spans every epoch, so no counter is
 //! ever handed out twice. Nothing before the reset line is rewritten.
@@ -170,7 +170,7 @@ impl Ledger {
             Ok(()) => {}
             Err(TryLockError::WouldBlock) => bail!(
                 "another Pelican run is already using the ledger for watch {serial} ({}). \
-                 Only one run per watch at a time — wait for it to finish.",
+                 Only one run per watch at a time. Wait for it to finish.",
                 path.display()
             ),
             Err(TryLockError::Error(e)) => {
@@ -194,7 +194,7 @@ impl Ledger {
 
     /// Read the ledger without writing: a shared lock, so a run in
     /// progress is never read mid-line. A ledger that does not exist is
-    /// empty — nothing has been sent to that watch from this machine.
+    /// empty: nothing has been sent to that watch from this machine.
     pub fn read(dir: &Path, serial: &str) -> Result<Self> {
         let path = Self::path_in(dir, serial)?;
         let file = match File::open(&path) {
@@ -286,7 +286,7 @@ impl Ledger {
     /// The caller proves the watch is clean first; [`crate::reset::reset_ledger`]
     /// is the only caller that should exist, and it re-reads `/Music`.
     /// Returns `false`, writing nothing, when the current epoch is already
-    /// empty — there is nothing to close.
+    /// empty: there is nothing to close.
     pub fn reset(&mut self, reason: &str) -> Result<bool> {
         if self.current().is_empty() {
             return Ok(false);
@@ -383,7 +383,7 @@ fn parse(path: &Path, mut file: &File) -> Result<Vec<Event>> {
         .with_context(|| format!("reading {}", path.display()))?;
     let corrupt = |n: usize, why: String| {
         anyhow!(
-            "the ledger {} is damaged at line {n}: {why}. Pelican will not guess past it — \
+            "the ledger {} is damaged at line {n}: {why}. Pelican will not guess past it: \
              the ledger is the only record of some names on the watch. Repair that line \
              by hand, then re-run.",
             path.display()

@@ -3,8 +3,8 @@
 //!
 //! The order is the design:
 //!
-//! 1. **Plan** ([`plan`]) — resolve every file's tags. Reads only.
-//! 2. **Hash and skip** ([`preview`]) — a source whose hash the ledger has
+//! 1. **Plan** ([`plan`]): resolve every file's tags. Reads only.
+//! 2. **Hash and skip** ([`preview`]): a source whose hash the ledger has
 //!    as `verified` is already on the watch (R5), unless `--resend`. Steps 1
 //!    and 2 are all `--dry-run` does, and they are the same code the run
 //!    uses, so the plan it prints is the run that would happen.
@@ -22,12 +22,12 @@
 //! can ask the run to end early through [`Env::stop`]; the run looks only
 //! between files, so no file is ever cut off mid-write.
 //!
-//! A [`Mix`] is a user-ordered set of songs sent as one album — see
+//! A [`Mix`] is a user-ordered set of songs sent as one album; see
 //! [`plan_with`].
 //!
 //! Nothing here deletes, and nothing writes a name twice. A failed write
-//! leaves an object on the watch that Pelican cannot remove — the music
-//! library keeps it until a factory reset whatever anyone does — so the
+//! leaves an object on the watch that Pelican cannot remove (the music
+//! library keeps it until a factory reset whatever anyone does), so the
 //! honest response is to record it and move on under a fresh name.
 
 use std::collections::HashMap;
@@ -52,7 +52,7 @@ use crate::watch::{audio_objects, MAX_OBJECTS};
 /// Headroom kept free on the watch beyond the planned bytes.
 pub const FREE_MARGIN: u64 = 2 << 20;
 
-/// One source and what its tag will say — or why it cannot be sent.
+/// One source and what its tag will say, or why it cannot be sent.
 #[derive(Debug, Clone)]
 pub struct PlanEntry {
     pub source: Source,
@@ -111,8 +111,8 @@ impl Stop {
         Self::default()
     }
 
-    /// Stop before the next file. The file in flight — including its
-    /// retries — finishes and is proven or failed as usual.
+    /// Stop before the next file. The file in flight (including its
+    /// retries) finishes and is proven or failed as usual.
     pub fn request(&self) {
         self.0.store(true, Ordering::SeqCst);
     }
@@ -128,7 +128,7 @@ pub struct Options {
     /// name.
     pub resend: bool,
     /// Send just these sources again, under a new name, even though the
-    /// ledger has them as verified — a per-track "send again". Matched
+    /// ledger has them as verified: a per-track "send again". Matched
     /// against the plan's source paths (as given, or canonical).
     pub resend_sources: Vec<PathBuf>,
     /// Further attempts after a failed one, each under a fresh name.
@@ -157,7 +157,7 @@ impl Options {
 /// A second copy is always safe to send: it goes under a name never used on
 /// the watch (the counter never repeats), so it lands as another entry in
 /// the library rather than touching the first. That is also how a song
-/// "joins" a playlist — a playlist is an album, and a song already on the
+/// "joins" a playlist: a playlist is an album, and a song already on the
 /// watch in another album is sent again, automatically, because the skip
 /// key is the audio *and* the album.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -229,7 +229,7 @@ pub enum Verdict {
     },
 }
 
-/// Steps 1–2 of a run, for every entry in plan order: hash each source and
+/// Steps 1 and 2 of a run, for every entry in plan order: hash each source and
 /// decide. Reads the sources and `ledger`; writes nothing.
 ///
 /// `ledger` is `None` when there is none to ask (a dry run that has not
@@ -402,7 +402,7 @@ pub enum Progress {
     },
     /// Every file is transcoded; the session is about to open.
     Connecting { files: usize, bytes: u64 },
-    /// An attempt is starting — `attempt` counts from 1. `remote` is
+    /// An attempt is starting; `attempt` counts from 1. `remote` is
     /// already burned in the ledger. `n` of `of` counts only the files
     /// being sent.
     Sending {
@@ -447,7 +447,7 @@ pub struct Env<'a> {
     /// `Send` because upload progress is reported from inside the
     /// backend's upload, which requires it.
     pub progress: &'a mut (dyn FnMut(Progress) + Send),
-    /// Checked before each file is transcoded and before each is sent —
+    /// Checked before each file is transcoded and before each is sent,
     /// never inside one. Files it leaves unsent end as
     /// [`Skip::Stopped`], and none of them has a ledger line.
     pub stop: Stop,
@@ -500,7 +500,7 @@ impl Out<'_> {
 /// `open` is called at most once, after every transcode, and only if
 /// something is left to send.
 ///
-/// Returns `Err` only when the run as a whole cannot go on — the session
+/// Returns `Err` only when the run as a whole cannot go on: the session
 /// will not open, `/Music` cannot be listed, the watch cannot fit the plan,
 /// the ledger cannot be written. Per-file trouble is in the [`Report`].
 /// Either way the staging directory is gone when this returns.
@@ -716,7 +716,7 @@ fn send_all(
                             reason: reason.clone(),
                             retrying: false,
                         });
-                        let why = format!("{reason} — {}", crate::error::REPLUG);
+                        let why = format!("{reason}. {}", crate::error::REPLUG);
                         out.done(
                             r.idx,
                             &r.source,
@@ -821,7 +821,7 @@ struct Later {
 }
 
 /// A retry is another write, so it gets the same capacity check the run
-/// got — against the watch as it is now, after the failed attempt, and
+/// got: against the watch as it is now, after the failed attempt, and
 /// with the room the queued files were promised still held back for them.
 /// Otherwise a retry spends a later file's slot and the run ends past 500
 /// having checked every write. `objects` already counts the failed attempt.

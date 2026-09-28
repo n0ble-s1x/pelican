@@ -4,7 +4,7 @@
 //! determined they return `None` rather than falling back to a world-
 //! writable directory. On a shared host `/tmp` is writable by every local
 //! user and `/tmp/.local` does not normally exist, so any local user could
-//! pre-create the chain and own our store — the ledger that decides which
+//! pre-create the chain and own our store: the ledger that decides which
 //! names are free, or the staging dir whose files get uploaded. Losing
 //! persistence is the strictly better failure.
 
@@ -45,7 +45,7 @@ fn home() -> Option<PathBuf> {
 /// empty or relative. The XDG Base Directory spec says an empty value is
 /// to be treated as unset and a relative one is invalid and ignored; taken
 /// verbatim either one resolves against the current directory, so a run
-/// started from `~/Music` would open a different — empty — ledger than a
+/// started from `~/Music` would open a different (empty) ledger than a
 /// run started from `~`, and every name only that ledger knew would stop
 /// being guarded.
 fn absolute(v: Option<std::ffi::OsString>) -> Option<PathBuf> {
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn dirs_are_home_anchored_or_none() {
         // Whatever the platform, we never hand back a path outside the
-        // user's own tree — that is the fail-closed promise the module
+        // user's own tree. That is the fail-closed promise the module
         // header makes, and the one an attacker would want to break.
         for d in [cache_dir_unchecked(), data_dir_unchecked()] {
             let Some(d) = d else { continue };
@@ -118,9 +118,8 @@ mod tests {
 
     #[test]
     fn empty_or_relative_values_are_unset() {
-        // `XDG_DATA_HOME=""` and `XDG_DATA_HOME=data` both used to become
-        // a path relative to the cwd; the ledger has to be the same file
-        // wherever the command is run from.
+        // Empty or relative XDG_DATA_HOME is ignored, so the ledger path does
+        // not depend on the cwd.
         for v in ["", "data", "./data", "pelican", "~/.local/share"] {
             assert_eq!(absolute(Some(v.into())), None, "{v:?}");
         }

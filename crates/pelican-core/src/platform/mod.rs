@@ -6,10 +6,9 @@
 //! so the detector names the culprit and hands back the exact command that
 //! frees the device.
 //!
-//! - **Linux** — `gvfs-mtp` auto-mounts the watch. The user owns the fix
+//! - **Linux**: `gvfs-mtp` auto-mounts the watch. The user owns the fix
 //!   (`gio mount -u`), no privileges needed.
-//! - Everything else — no detector. macOS is out of scope for the rebuild;
-//!   its `ptpcamerad` detector lives in git history.
+//! - Other platforms: no detector.
 
 #[cfg(target_os = "linux")]
 pub mod gvfs;
@@ -17,12 +16,12 @@ pub mod gvfs;
 /// Something on this machine is holding the Garmin device.
 #[derive(Debug, Clone)]
 pub struct Contention {
-    /// What is holding it, in words a user recognises.
+    /// What is holding it, in words a user recognizes.
     pub holder: String,
-    /// Where we saw it — a mount path.
+    /// Where we saw it: a mount path.
     pub detail: String,
-    /// The exact command that releases the device. Any device-controlled
-    /// text inside is already shell-quoted.
+    /// The command that releases the device, safe to paste into sh, bash,
+    /// zsh or fish.
     pub remedy: String,
 }
 
@@ -59,7 +58,7 @@ pub fn detect() -> Option<Contention> {
 /// something has actually gone wrong.
 pub fn explain_exclusive_access() -> String {
     let mut out = String::from("could not get exclusive access to the watch. Likely causes:");
-    out.push_str("\n  1. another Pelican session is still open — the watch allows one at a time");
+    out.push_str("\n  1. another Pelican session is still open (the watch allows one at a time)");
     if let Some(c) = detect() {
         out.push_str(&format!("\n  2. {} holds it: {}", c.holder, c.remedy));
     }

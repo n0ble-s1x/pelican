@@ -16,8 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info.product_id()
             );
             let dev = info.open().wait()?;
-            // Try to read the device descriptor — control transfer to EP0.
-            // If this works, USB is alive. If it hangs, the watch firmware is asleep.
+            // Read the device descriptor. If this hangs, the watch firmware is asleep.
             let req = ControlIn {
                 control_type: ControlType::Standard,
                 recipient: Recipient::Device,

@@ -3,8 +3,8 @@
 //! Every device error reaches the user through one of these kinds, so a
 //! front-end can show the fix without anyone reading a log. The one that
 //! matters most is [`DeviceErrorKind::Wedged`]: after the watch reboots it
-//! can come back half-alive — on the Forerunner 165 it briefly enumerates
-//! as `091e:0003` ("Garmin GPS usb/tty converter") — and every MTP open or
+//! can come back half-alive (on the Forerunner 165 it briefly enumerates
+//! as `091e:0003`, "Garmin GPS usb/tty converter"), and every MTP open or
 //! transfer then times out (30 s in mtp-rs) until it is physically
 //! re-plugged. Nothing in software brings it back, so the message says
 //! exactly what to do with your hands.
@@ -24,7 +24,7 @@ pub enum DeviceErrorKind {
     NotFound,
     /// The device node exists but this user may not open it (no udev rule).
     Permission,
-    /// Something else holds the watch — another Pelican session, or a
+    /// Something else holds the watch: another Pelican session, or a
     /// process this platform has no detector for.
     Busy,
     /// gvfs-mtp holds the watch; [`crate::platform::detect`] has the fix.
@@ -89,7 +89,7 @@ pub fn classify_with(err: &anyhow::Error, gvfs_holds_it: bool) -> DeviceErrorKin
 
 /// The message-text fallback: the concrete error types differ per
 /// platform and per layer (nusb, mtp-rs, anyhow context), and some arrive
-/// only as text. The order matters — a timeout is checked first because
+/// only as text. The order matters: a timeout is checked first because
 /// "timed out" is the one a person can fix with their hands.
 fn classify_text(msg: &str) -> DeviceErrorKind {
     let m = msg.to_lowercase();

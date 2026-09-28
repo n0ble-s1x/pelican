@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install git hooks that run scripts/check.sh on commit/push. Opt-in: this is
-# NOT auto-installed when you clone — you choose to run this script.
+# NOT auto-installed when you clone; you choose to run this script.
 #
 #   ./scripts/install-hooks.sh
 
@@ -10,7 +10,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOOKS="$ROOT/.git/hooks"
 
 if [[ ! -d "$HOOKS" ]]; then
-    echo "no .git/hooks directory — are you in a git working tree?"
+    echo "no .git/hooks directory: are you in a git working tree?"
     exit 1
 fi
 

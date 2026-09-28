@@ -1,6 +1,6 @@
 [package]
 name = "pelican"
-description = "Pelican — sync your music to a Garmin watch. A Krypteia tool. No telemetry, no cloud."
+description = "Sync your music to a Garmin watch over USB. No telemetry, no cloud."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -40,9 +40,10 @@ maintainer = "n0ble-s1x <krypteia.annex447@8alias.com>"
 copyright = "2026, Krypteia LLC"
 license-file = ["../../LICENSE-MIT", "4"]
 extended-description = """\
-Linux-first MTP sync for Garmin music watches. Drop music onto your watch
-without going through Garmin Express or any cloud service. No telemetry,
-no daemon, no network. A Krypteia tool."""
+Transcodes your music to one profile Garmin watches play, sends it to the
+watch over USB under names the watch has never seen, and reads every file
+back to prove it arrived. No Garmin Express, no account, no telemetry, no
+daemon, no network."""
 depends = "$auto, ffmpeg, libudev1"
 section = "sound"
 priority = "optional"

@@ -4,7 +4,7 @@
 //! on the real FR165, proven first where a failure costs nothing: names
 //! never reused, the reserve line on disk before the write, a bad read-back
 //! recorded and retried under a new name, capacity refused before the first
-//! byte, staging gone however the run ends — and no delete anywhere.
+//! byte, staging gone however the run ends, and no delete anywhere.
 //!
 //! The encoder is a stand-in (ffmpeg's own profile is proven in
 //! `ffmpeg_profile.rs`): it writes the title and the source bytes, which is
@@ -259,7 +259,7 @@ fn a_clean_run_verifies_every_file_in_one_session() {
     assert!(v.source.ends_with("02 - Maiden Voyage.wav"));
 }
 
-/// R4: the reserve line is on disk — not buffered, not pending — at the
+/// R4: the reserve line is on disk (not buffered, not pending) at the
 /// moment the upload starts. Observed from inside the fake's upload.
 #[test]
 fn the_reserve_line_is_on_disk_before_the_write() {
@@ -502,7 +502,7 @@ fn retries_run_out_and_the_file_fails() {
     assert_eq!(h.uploads(), ["pl00001-One.mp3"]);
 }
 
-/// R7: not enough space — refused before the first write, nothing
+/// R7: not enough space. Refused before the first write, nothing
 /// reserved, nothing sent.
 #[test]
 fn a_run_that_does_not_fit_is_refused_before_any_write() {
@@ -766,7 +766,7 @@ fn refused_and_unencodable_files_fail_without_touching_the_watch() {
 
 /// The event stream a front-end sees for one file that fails once and then
 /// verifies: every attempt announced with its burned name, upload bytes in
-/// between, and exactly one `Done` per planned file — the last event.
+/// between, and exactly one `Done` per planned file, as the last event.
 #[test]
 fn a_run_reports_each_attempt_as_it_happens() {
     let h = Harness::new();
@@ -847,7 +847,7 @@ fn a_run_reports_each_attempt_as_it_happens() {
         .ends_with("01 - One.wav"));
 }
 
-/// `preview` is steps 1–2 of the run, and touches nothing.
+/// `preview` is steps 1 and 2 of the run, and touches nothing.
 #[test]
 fn preview_decides_what_the_run_would_do() {
     let h = Harness::new();

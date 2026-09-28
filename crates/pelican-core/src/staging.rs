@@ -7,14 +7,14 @@
 //! MP3s exists on disk for the length of the run, so the directory has to
 //! go away however the run ends:
 //!
-//! - **success, failure, `?`, panic** — [`StagingDir`]'s `Drop` removes it.
-//! - **Ctrl-C, SIGKILL, power loss** — no destructor runs. Each staging
+//! - **success, failure, `?`, panic**: [`StagingDir`]'s `Drop` removes it.
+//! - **Ctrl-C, SIGKILL, power loss**: no destructor runs. Each staging
 //!   directory holds an exclusive lock on its own `.lock` file for as long
 //!   as the run lives, and the kernel drops that lock when the process
 //!   dies, however it dies. [`sweep`], run at every start, removes any
 //!   staging directory whose lock it can take: nobody is holding it, so
 //!   nobody is using it. A live run in another terminal keeps its lock and
-//!   is left alone — no pid files, no guessing from ages.
+//!   is left alone. No pid files, no guessing from ages.
 //!
 //! Sources are never written. Everything here lives under the per-user
 //! cache dir ([`crate::paths::cache_dir`]), never `/tmp`, so another local
@@ -59,7 +59,7 @@ impl StagingDir {
         fs::create_dir_all(&root).with_context(|| format!("creating {}", root.display()))?;
         // A sweep in another process can win the race for a directory we
         // have made but not yet locked. It only does that for a directory it
-        // could lock, and it removes it while holding the lock — so if ours
+        // could lock, and it removes it while holding the lock, so if ours
         // is gone once we hold it, try again under a new id.
         for _ in 0..3 {
             let run_id = run_id();

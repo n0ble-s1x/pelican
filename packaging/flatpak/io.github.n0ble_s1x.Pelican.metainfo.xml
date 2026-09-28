@@ -104,8 +104,7 @@
   </branding>
 
   <releases>
-    <!-- Placeholder date: set it to the tag date in the release PR. -->
-    <release version="0.2.0" date="2026-10-01">
+    <release version="0.2.0" date="2026-09-27">
       <url type="details">https://github.com/n0ble-s1x/pelican/releases/tag/v0.2.0</url>
       <description>
         <p>

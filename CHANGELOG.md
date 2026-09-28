@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-27
+
 Pelican was rebuilt for Linux around one promise: transcode to one known-good
 profile, send each file under a name the watch has never seen, and prove it
 arrived intact (`docs/rebuild-plan.md`, R1-R12). It is now a core library, a

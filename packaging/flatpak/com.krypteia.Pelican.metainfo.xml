@@ -1,55 +1,84 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Flathub / AppStream metadata for Pelican. This file is what Cosmic Store,
-  GNOME Software, KDE Discover, and other software-center apps read to render
-  the listing page. Validate with `appstreamcli validate <file>`.
+  AppStream metadata for Pelican: what GNOME Software, KDE Discover, the
+  COSMIC Store and Flathub show on the listing page.
+  Validate with appstreamcli validate, and with flatpak-builder-lint's
+  appstream check (packaging/flatpak/README.md has both commands).
 -->
-<component type="console-application">
+<component type="desktop-application">
   <id>com.krypteia.Pelican</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT OR Apache-2.0</project_license>
 
   <name>Pelican</name>
-  <summary>Put your own music on a Garmin watch. No account, no cloud, no telemetry.</summary>
-
-  <description>
-    <p>
-      Pelican moves your own music files onto a Garmin watch over a USB
-      cable. Point it at a folder of music and it tags, converts every file to
-      one known-good MP3 profile, uploads, and reads each file back to prove it
-      landed intact. It needs no Garmin Express, no cloud service and no
-      vendor account.
-    </p>
-    <p>
-      Privacy-first by design. The binary makes zero network connections.
-      Your music stays on your computer; your fitness data stays on your
-      watch. Nothing leaves either unless you decide.
-    </p>
-    <p>Features:</p>
-    <ul>
-      <li>FLAC, WAV, ALAC/AAC, MP3, OGG, Opus, AIFF, WMA and more are all converted to one profile: MP3, 192 kbps CBR, 44.1 kHz stereo, ID3v2.3</li>
-      <li>Tags missing from a file are filled from its folder and file name</li>
-      <li>Every file is sent under a name never used on that watch before, then read back and hashed</li>
-      <li>Per-device ledger of every name sent (persists across runs)</li>
-      <li>Backs up the watch's own files before a factory reset, and starts a fresh ledger after one</li>
-      <li>A command-line tool with no daemon and no telemetry</li>
-    </ul>
-  </description>
-
-  <url type="homepage">https://github.com/n0ble-s1x/pelican</url>
-  <url type="bugtracker">https://github.com/n0ble-s1x/pelican/issues</url>
-  <url type="vcs-browser">https://github.com/n0ble-s1x/pelican</url>
+  <summary>Put your own music on a Garmin watch</summary>
 
   <developer id="com.krypteia">
     <name>Krypteia</name>
   </developer>
+
+  <description>
+    <p>
+      Pelican moves your own music files onto a Garmin watch over a USB
+      cable. Choose the music, and it tags, converts every file to one
+      known-good MP3 profile, sends it, and reads each file back to prove it
+      arrived intact. It needs no Garmin Express, no cloud service and no
+      vendor account.
+    </p>
+    <p>
+      Pelican makes no network connections. Your music stays on your
+      computer, and your fitness data stays on your watch.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>FLAC, WAV, ALAC, AAC, MP3, OGG, Opus, AIFF, WMA and more are converted to one profile: MP3, 192 kbps CBR, 44.1 kHz stereo, ID3v2.3</li>
+      <li>Tags missing from a file are filled from its folder and file name</li>
+      <li>Every file is sent under a name never used on that watch before, then read back and hashed</li>
+      <li>A per-device ledger of every name sent, kept across runs</li>
+      <li>Backs up the watch's own files before a factory reset, and starts a fresh ledger after one</li>
+      <li>A command-line tool, pelican, for scripts and terminals</li>
+    </ul>
+    <p>
+      The watch has to be reachable by your user account. Pelican shows the
+      one-line command that installs its USB rule on the host the first time
+      it cannot open the watch.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">com.krypteia.Pelican.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>The connected watch, with free space and room for tracks</caption>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/watch.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Choosing music from the library</caption>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/playlist.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Reviewing what will be sent</caption>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/review.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Sending, with every file read back and verified</caption>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/send.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Backing up the watch before a factory reset</caption>
+      <image>https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/reset-1.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/n0ble-s1x/pelican</url>
+  <url type="bugtracker">https://github.com/n0ble-s1x/pelican/issues</url>
+  <url type="vcs-browser">https://github.com/n0ble-s1x/pelican</url>
 
   <content_rating type="oars-1.1" />
 
   <categories>
     <category>AudioVideo</category>
     <category>Audio</category>
-    <category>Utility</category>
   </categories>
 
   <keywords>
@@ -64,11 +93,31 @@
     <display_length compare="ge">768</display_length>
     <internet>offline-only</internet>
   </recommends>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
 
-  <!-- No <releases> entry until the rebuilt Pelican has a tagged release.
-       The 0.1.0 tag is the earlier egui app (see CHANGELOG.md). -->
+  <branding>
+    <color type="primary" scheme_preference="light">#ede8de</color>
+    <color type="primary" scheme_preference="dark">#16161a</color>
+  </branding>
+
+  <releases>
+    <!-- Placeholder date: set it to the tag date in the release PR. -->
+    <release version="0.2.0" date="2026-10-01">
+      <url type="details">https://github.com/n0ble-s1x/pelican/releases/tag/v0.2.0</url>
+      <description>
+        <p>
+          Pelican rebuilt for Linux: a desktop app alongside the command-line
+          tool, and every file sent is read back and verified.
+        </p>
+      </description>
+    </release>
+  </releases>
 
   <provides>
+    <binary>pelican-app</binary>
     <binary>pelican</binary>
   </provides>
 </component>

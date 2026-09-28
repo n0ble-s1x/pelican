@@ -1,85 +1,94 @@
-# Pelican: Flatpak manifest for the command-line tool only.
+# Pelican: Flatpak manifest for the desktop app (pelican-app) and the
+# command-line tool (pelican).
 #
-# It does not package the desktop app (pelican-app), which would need a
-# runtime with webkit2gtk-4.1, such as org.gnome.Platform, and a desktop
-# entry. It has never been built as committed.
-#
-# Test build locally:
-#   flatpak install flathub org.freedesktop.Platform//26.08 org.freedesktop.Sdk//26.08 org.freedesktop.Sdk.Extension.rust-stable//26.08
-#   flatpak-builder --user --install build/ packaging/flatpak/com.krypteia.Pelican.yaml --force-clean
+# Local test build (from the repository root; see README.md in this folder):
+#   flatpak-builder --user --install --force-clean \
+#     build-flatpak/ packaging/flatpak/com.krypteia.Pelican.yaml
 #   flatpak run com.krypteia.Pelican
+#   flatpak run --command=pelican com.krypteia.Pelican status
 #
-# Submit to Flathub: https://docs.flathub.org/docs/for-app-authors/submission
+# Flathub builds offline from a git tag. Before submitting, swap the `type: dir`
+# source below for the commented `type: git` one and regenerate
+# cargo-sources.json from the tagged Cargo.lock.
 
-app-id: com.krypteia.Pelican
-runtime: org.freedesktop.Platform
-# Freedesktop SDK 26.08 was released 2026-09-01. Check for a newer release
-# before submitting, and run the local test build above.
-runtime-version: "26.08"
-sdk: org.freedesktop.Sdk
+id: com.krypteia.Pelican
+runtime: org.gnome.Platform
+# GNOME 51 (Freedesktop SDK 26.08 base) is current as of 2026-09. It carries
+# webkit2gtk-4.1, which Tauri 2 needs, and ffmpeg with libmp3lame.
+runtime-version: "51"
+sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-command: pelican
+command: pelican-app
 
 finish-args:
-  # Wayland + X11 fallback
   - --socket=wayland
   - --socket=fallback-x11
   - --share=ipc
+  # WebKit renders with the GPU.
+  - --device=dri
 
-  # Direct USB access for the Garmin watch (vendor 091e)
-  - --device=usb=091e:*
+  # USB. Pelican speaks MTP to the watch itself (nusb over /dev/bus/usb), so
+  # it needs the raw USB nodes. --device=usb (Flatpak 1.15.11+) grants
+  # /dev/bus/usb only, which is narrower than --device=all. On an older
+  # Flatpak that does not know the usb device type, the conditional line
+  # falls back to --device=all. --usb lists the devices the app may
+  # enumerate through the USB portal: Garmin's vendor ID only.
+  - --device=usb
+  - --device-if=all:!has-usb-device
+  - --usb=vnd:091e
 
-  # Read access to music wherever it lives. Writes go to the watch over USB
-  # and to the app's own data and cache dirs, plus the backup folder.
+  # Music is read, never modified: the Music folder and removable or mounted
+  # drives. Flathub's linter rejects host:ro and home:ro without an
+  # exception, so a library elsewhere needs a user override, for example
+  #   flatpak override --user --filesystem=/srv/music:ro com.krypteia.Pelican
+  # Backups of the watch are written to Documents by default.
   - --filesystem=xdg-music:ro
-  - --filesystem=xdg-download:ro
-  - --filesystem=host:ro
-  - --filesystem=xdg-documents/Pelican:create
+  - --filesystem=/media:ro
+  - --filesystem=/run/media:ro
+  - --filesystem=/mnt:ro
+  - --filesystem=xdg-documents
+  # Pelican warns when the desktop's gvfs has mounted the watch (which makes
+  # it busy). That check reads /run/user/<uid>/gvfs.
+  - --filesystem=xdg-run/gvfs:ro
 
-  # No network. Pelican is fully local. Locked down here so a compromised
-  # dependency can't phone home from inside the sandbox.
-  # (Flathub will warn that --share=network is not requested. That is
-  # deliberate.)
+  # No network. Pelican makes no connections, and this keeps it that way.
 
 modules:
-  - name: ffmpeg
-    config-opts:
-      - --disable-doc
-      - --disable-debug
-      - --disable-network
-      - --disable-static
-      - --enable-shared
-      - --enable-libmp3lame
-    cleanup:
-      - /share/ffmpeg/examples
-    sources:
-      - type: archive
-        url: https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz
-        sha256: 40973d44970dbc83ef302b0609f2e74982be2d85916dd2ee7472d30678a7abe6
-
   - name: pelican
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/rust-stable/bin
       env:
         CARGO_HOME: /run/build/pelican/cargo
+        CARGO_NET_OFFLINE: "true"
     build-commands:
-      - cargo build --release -p pelican --offline
-      - install -Dm755 target/release/pelican /app/bin/pelican
-      # No desktop entry: this manifest ships only the CLI, and
-      # packaging/desktop/pelican.desktop launches pelican-app.
-      - install -Dm644 packaging/flatpak/com.krypteia.Pelican.metainfo.xml /app/share/metainfo/com.krypteia.Pelican.metainfo.xml
-      # No icon install line. packaging/flatpak/com.krypteia.Pelican.svg does
-      # not exist yet (see packaging/flatpak/README.md), and `install -Dm644`
-      # on a missing source is a hard build failure. Restore the line with the
-      # icon, not before:
-      #   - install -Dm644 packaging/flatpak/com.krypteia.Pelican.svg /app/share/icons/hicolor/scalable/apps/com.krypteia.Pelican.svg
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo --offline build --release --locked -p pelican -p pelican-shell
+      - install -Dm755 target/release/pelican-app -t ${FLATPAK_DEST}/bin/
+      - install -Dm755 target/release/pelican -t ${FLATPAK_DEST}/bin/
+      - install -Dm644 packaging/desktop/com.krypteia.Pelican.desktop -t ${FLATPAK_DEST}/share/applications/
+      - install -Dm644 packaging/flatpak/com.krypteia.Pelican.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo/
+      - install -Dm644 packaging/icons/com.krypteia.Pelican.svg -t ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/
+      - install -Dm644 LICENSE-MIT LICENSE-APACHE -t ${FLATPAK_DEST}/share/licenses/${FLATPAK_ID}/
+      # For reference only: a Flatpak cannot install a udev rule. The app
+      # shows the one-line host command instead (see README.md).
+      - install -Dm644 udev/70-garmin-mtp.rules -t ${FLATPAK_DEST}/share/pelican/
     sources:
+      # Local builds: the working tree.
       - type: dir
         path: ../..
-      # Cargo sources for the offline build, generated before submission by
-      # flatpak-cargo-generator.py (flatpak-builder-tools). Flathub builds
-      # offline, so this file is required there.
-      # - type: file
-      #   path: cargo-sources.json
+        skip:
+          - target
+          - build-flatpak
+          - .flatpak-builder
+      # Flathub: the release tag, pinned to its commit.
+      # - type: git
+      #   url: https://github.com/n0ble-s1x/pelican.git
+      #   tag: v0.2.0
+      #   commit: <full commit SHA of the v0.2.0 tag>
+      #   x-checker-data:
+      #     type: git
+      #     tag-pattern: ^v([\d.]+)$
+      # Offline crates, from flatpak-cargo-generator.py (see README.md).
+      - cargo-sources.json

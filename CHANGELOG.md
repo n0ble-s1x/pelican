@@ -63,6 +63,11 @@ on hardware only as far as its refusal while music remains.
   showing up as `091e:0003`) and reported with one instruction: unplug it,
   wait five seconds, plug it back in.
 - `udev/70-garmin-mtp.rules` (R10).
+- **Packages for the app and the CLI**: a `.deb` (both programs, the udev
+  rule, reloaded on install) and an AppImage from `cargo tauri build`; a
+  release tarball; AUR `pelican` (from source) and `pelican-bin` (prebuilt);
+  and a Flatpak manifest for `com.krypteia.Pelican` on the GNOME 51 runtime
+  with USB access limited to `/dev/bus/usb`. None is published yet.
 
 ### Changed
 - **One output profile**: every source is re-encoded by ffmpeg to CBR 192

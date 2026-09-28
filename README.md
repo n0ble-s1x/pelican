@@ -309,13 +309,15 @@ combination, and never over a value you have set.
 ### One-time USB permission (required)
 
 The watch needs a udev rule so your user can talk to it without root.
-The AUR `PKGBUILD` and the `.deb` config install the rule to
-`/usr/lib/udev/rules.d/` (neither is published yet). From a source build, the window
-offers an **Install the USB rule** button when the watch cannot be opened:
-it asks for your password once through polkit, writes this one file to
-`/etc/udev/rules.d/` and reloads udev, and shows exactly what it runs
-before you press it. (Inside a Flatpak it cannot, and shows the command
-instead.) Or do it by hand:
+The `.deb` and the AUR packages install the rule to
+`/usr/lib/udev/rules.d/`, so there is nothing more to do. The AppImage,
+the release tarball and a source build install no system files, so the
+window offers an **Install the USB rule** button when the watch cannot be
+opened: it asks for your password once through polkit, writes this one
+file to `/etc/udev/rules.d/` and reloads udev, and shows exactly what it
+runs before you press it. The Flatpak cannot write outside its sandbox, so
+there the window shows the same one-line command to run in a terminal
+instead. Or do it by hand:
 
 ```sh
 sudo install -m 644 udev/70-garmin-mtp.rules /etc/udev/rules.d/
@@ -332,12 +334,20 @@ watch, close it or eject the watch from its side bar.
 
 ### Packages
 
-An AUR `PKGBUILD` ([`packaging/aur/`](packaging/aur/)) and a Debian package
-config (`cargo deb -p pelican`) are in the tree for the command-line tool;
-neither is published yet, and neither packages the app yet. A Flatpak
-manifest for the command-line tool is in
-[`packaging/flatpak/`](packaging/flatpak/); it has not been built or
-submitted yet. See [Roadmap](#roadmap).
+Starting with v0.2.0 each release is meant to ship the app and the
+command-line tool as packages, so nobody has to build from source. None
+is published yet:
+
+- **Debian and Ubuntu:** a `.deb` on the GitHub release page (both
+  programs, the USB rule, the desktop entry). Needs `ffmpeg`.
+- **Any distribution:** an AppImage on the release page (the app only;
+  ffmpeg must be installed on the system), and a tarball with both
+  programs.
+- **Arch:** `pelican-bin` (prebuilt) and `pelican` (from source) on the
+  AUR, from [`packaging/aur/`](packaging/aur/).
+- **Flathub:** `com.krypteia.Pelican`, from
+  [`packaging/flatpak/`](packaging/flatpak/). The command-line tool is
+  inside it: `flatpak run --command=pelican com.krypteia.Pelican status`.
 
 ---
 

@@ -27,3 +27,10 @@ crates/pelican-shell/gen/schemas/*-schema.json
 .impeccable/questions/
 .impeccable/build/scaffold/
 .impeccable/build/comp-grid.png
+
+# Local Flatpak builds (packaging/flatpak/README.md).
+/build-flatpak/
+/.flatpak-builder/
+/repo-flatpak/
+# Release tarball staging (RELEASING.md).
+/dist/

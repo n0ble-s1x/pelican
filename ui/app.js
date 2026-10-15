@@ -2088,7 +2088,7 @@
     }
     if (r.step === 2) {
       v.innerHTML = `<h1 class="title" id="t-reset" tabindex="-1">Back up first</h1>
-        <p class="lede">Sync the watch with Garmin Connect so your activities upload. If you use another fitness app, sync your activities to it first.</p>
+        <p class="lede">Sync the watch with Garmin Connect so your activities upload. If you use Agoge or another fitness app, pull your activities into it first.</p>
         <div class="backup" id="backup"></div>
         <p class="facts">To keep your settings too, back them up to Garmin Connect from the watch. On a Forerunner 165: on the watch face, hold UP, then choose System, Back Up &amp; Restore, Back Up Now.</p>
         <div class="actions" id="backup-next"></div>`;

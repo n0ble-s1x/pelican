@@ -6,6 +6,25 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- Clear the watch could have reset a watch's ledger while songs were still
+  on it. Finding `/Music` skipped any entry the watch would not describe, so
+  one unreadable entry where the folder should be read as "no `/Music`",
+  which the reset check takes as a wiped watch. A lookup that meets an
+  unreadable entry now lists again once, then refuses with the replug
+  instruction rather than guessing; a send refuses the same way instead of
+  creating a second `Music` folder. The real reset on 2026-09-27 was
+  confirmed independently through libmtp, so it was not affected.
+- The backup's folder walk has a depth limit (32 below `GARMIN`), so a
+  folder the watch lists inside itself cannot keep it going forever. A
+  folder past the limit is reported, and the rest is still copied.
+
+### Changed
+- Backups are owner-only: files 0600, and the folders the backup creates
+  0700. They hold the watch's activities, location and health data.
+- The backup step names Agoge again: "If you use Agoge or another fitness
+  app, pull your activities into it first."
+
 ## [0.2.1] - 2026-09-27
 
 ### Fixed

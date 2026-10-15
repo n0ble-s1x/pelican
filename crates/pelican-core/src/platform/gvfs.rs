@@ -1,11 +1,8 @@
 //! Linux: `gvfs-mtp` auto-mounts the watch.
 //!
-//! On most Linux desktops, plugging in a Garmin watch causes gvfs-mtp to
-//! auto-mount it. While GVFS holds the device, USB-level MTP backends get
-//! `LIBUSB_ERROR_BUSY`. We surface this clearly rather than letting the
-//! underlying error confuse the user.
-//!
-//! The user can fix it with no privileges: `gio mount -u` is enough.
+//! On most Linux desktops, plugging in a Garmin watch makes gvfs-mtp mount
+//! it, and while gvfs holds the device Pelican cannot claim it. The user can
+//! free it with no privileges: `gio mount -u` is enough.
 
 use std::fs;
 
@@ -45,13 +42,12 @@ fn remedy(host: &str) -> String {
     }
 }
 
-/// Returns Some(mount) if a gvfs MTP mount appears to belong to a Garmin
-/// device.
+/// The gvfs MTP mount that appears to belong to a Garmin device, if any.
 pub fn detect_garmin_gvfs_mount() -> Option<GvfsMount> {
-    // SAFETY: geteuid is a side-effect-free POSIX syscall returning the
-    // effective uid. The only reason it's `unsafe` in libc is FFI-by-default;
-    // there's nothing to misuse. We localize the unsafe so the rest of the
-    // crate keeps `unsafe_code = "deny"`.
+    // SAFETY: geteuid takes no arguments, cannot fail and has no side
+    // effects. It is `unsafe` only because every libc call is FFI. The
+    // `allow` is scoped to this one line so the rest of the crate keeps
+    // `unsafe_code = "deny"`.
     #[allow(unsafe_code)]
     let uid = unsafe { libc::geteuid() };
     let base = format!("/run/user/{uid}/gvfs");

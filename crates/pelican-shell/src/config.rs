@@ -1,10 +1,11 @@
 //! The window's config file, which names the music library. The window
 //! reads it and never writes it.
 //!
-//! `$XDG_CONFIG_HOME/pelican/config.json`, else `~/.config/pelican/`. The
-//! same fail-closed rule as `pelican_core::paths`: an unset, empty or
-//! relative base is ignored rather than resolved against the working
-//! directory, and with no absolute `HOME` there is no config file at all.
+//! `$XDG_CONFIG_HOME/pelican/config.json`, else
+//! `~/.config/pelican/config.json`. The same fail-closed rule as
+//! `pelican_core::paths`: an unset, empty or relative base is ignored
+//! rather than resolved against the working directory, and with no absolute
+//! `HOME` there is no config file at all.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};

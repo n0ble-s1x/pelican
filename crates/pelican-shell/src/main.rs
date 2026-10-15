@@ -9,9 +9,10 @@
 //!
 //! `commands.rs` is the IPC surface and says why no command does its work
 //! on the thread it is called on; `device.rs` is the one-session-at-a-time
-//! lock; `dto.rs` is the contract's shapes; `run.rs` is a push; `env.rs` is the NVIDIA-on-Wayland
-//! workaround set before the webview exists; `udev.rs` is the one
-//! privileged action, installing the USB rule through polkit.
+//! lock; `dto.rs` is the contract's shapes; `run.rs` is a push; `config.rs`
+//! reads the library folder; `env.rs` is the NVIDIA-on-Wayland workaround
+//! set before the webview exists; `udev.rs` is the one privileged action,
+//! installing the USB rule through polkit.
 //!
 //! Run it with `cargo run -p pelican-shell`, **not** `cargo tauri dev`: a
 //! dev server is served over http with no CSP, so developing against it
@@ -34,8 +35,8 @@ use tauri::Manager;
 #[derive(Default)]
 pub struct Shell {
     pub watch: device::Watch,
-    /// `None` when there is no absolute `HOME` or `XDG_CONFIG_HOME`: the
-    /// library root is then not remembered, and setting one says why.
+    /// `None` when neither `XDG_CONFIG_HOME` nor `HOME` is absolute: there
+    /// is no config file to read.
     pub config_file: Option<PathBuf>,
 }
 

@@ -2,15 +2,14 @@
 //!
 //! Garmin's music indexer silently rejects files whose tag carries
 //! non-standard frames: custom Vorbis fields like `QBZ:TID`, `DISCTOTAL`,
-//! the `℗` glyph inside `COPYRIGHT`, embedded cover art. So we never carry a
-//! source tag across; we read what we want, drop everything else, and write
-//! a fresh tag from a seven-field allowlist.
+//! the `℗` glyph inside `COPYRIGHT`, embedded cover art. So no source tag
+//! is carried across: the fields wanted are read, everything else is
+//! dropped, and a fresh tag is written from a seven-field allowlist.
 //!
-//! `lofty` reads ID3v2,
-//! Vorbis comments, MP4 atoms and APE tags in-process, on every platform,
-//! for every format it knows. For the ones it does not (WMA among them) a
-//! read failure is not a refusal: the file still has a path, and the path
-//! is enough to name it (see [`Resolved`]).
+//! `lofty` reads ID3v2, Vorbis comments, MP4 atoms and APE tags
+//! in-process, for every format it knows. For the ones it does not (WMA
+//! among them) a read failure is not a refusal: the file still has a path,
+//! and the path is enough to name it (see [`Resolved`]).
 
 use std::path::Path;
 
@@ -38,10 +37,10 @@ pub struct Tags {
 impl Tags {
     /// Read a source file's tags, keeping only the allowlist.
     ///
-    /// Prefers `album_artist` as the ARTIST we write. Garmin's library groups
-    /// tracks by ARTIST+ALBUM, so per-track composer credits ("Iva Davies"
-    /// vs "Richard Tognetti") fragment one soundtrack into several albums.
-    /// The album-wide credit is the right grouping key.
+    /// Takes the album artist as the artist when the file has one. Garmin's
+    /// library groups tracks by artist and album, so per-track composer
+    /// credits ("Iva Davies" vs "Richard Tognetti") fragment one soundtrack
+    /// into several albums. The album-wide credit is the right grouping key.
     ///
     /// Cover art is not parsed: it is never written, and on a FLAC carrying a
     /// 1 MB JPEG it is almost the whole cost of the read.

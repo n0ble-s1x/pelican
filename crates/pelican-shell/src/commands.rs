@@ -55,8 +55,12 @@ fn err(e: anyhow::Error) -> String {
 }
 
 fn data_dir() -> Result<PathBuf> {
-    paths::data_dir()
-        .ok_or_else(|| anyhow!("no per-user data dir (neither XDG_DATA_HOME nor HOME is set)"))
+    paths::data_dir().ok_or_else(|| {
+        anyhow!(
+            "no per-user data dir: XDG_DATA_HOME and HOME are unset or not absolute paths, \
+             or the folder could not be created"
+        )
+    })
 }
 
 fn serial_of(device: &Device) -> Result<String> {
@@ -278,8 +282,12 @@ fn push_run(
     let device = pick(shell)?;
     let serial = serial_of(&device)?;
     let data = data_dir()?;
-    let cache = paths::cache_dir()
-        .ok_or_else(|| anyhow!("no per-user cache dir (neither XDG_CACHE_HOME nor HOME is set)"))?;
+    let cache = paths::cache_dir().ok_or_else(|| {
+        anyhow!(
+            "no per-user cache dir: XDG_CACHE_HOME and HOME are unset or not absolute paths, \
+             or the folder could not be created"
+        )
+    })?;
     run::push(
         entries,
         Target {

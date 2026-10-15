@@ -13,7 +13,8 @@ pub mod tags;
 
 use std::path::Path;
 
-/// Extensions Pelican will pick up when walking a directory. Everything here
+/// Extensions Pelican treats as audio: what a push takes and the library
+/// shows, and what counts toward the watch's track limit. Everything here
 /// is re-encoded by ffmpeg; nothing is sent as-is.
 pub const AUDIO_EXTS: &[&str] = &[
     "mp3", "m4a", "m4b", "aac", "wav", "flac", "ogg", "oga", "opus", "wma", "ape", "aiff", "aif",
@@ -27,11 +28,11 @@ pub fn is_audio(p: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Truncate + sanitize a filename stem for Garmin's `/Music` folder.
+/// Truncate and sanitize a filename stem for Garmin's `/Music` folder.
 /// FR165 firmware silently drops writes whose filename exceeds ~60 chars or
-/// contains certain punctuation. We keep ASCII letters/digits, spaces,
-/// dashes, dots, and underscores; collapse runs of unsafe chars into a
-/// single dash; truncate to 56 characters (leaving room for ".mp3").
+/// contains certain punctuation. Keeps ASCII letters and digits, spaces,
+/// dashes, dots and underscores; collapses runs of anything else into a
+/// single dash; truncates to 56 characters (leaving room for ".mp3").
 pub fn sanitize_filename_stem(raw: &str) -> String {
     let cleaned: String = raw
         .chars()

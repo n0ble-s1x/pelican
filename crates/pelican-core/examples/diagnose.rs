@@ -42,8 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         println!();
 
-        // Walk EVERY top-level folder, streaming so broken entries don't
-        // kill the listing. We're hunting for where the indexed music goes.
+        // Walk every top-level folder, streaming so broken entries don't
+        // kill the listing. The point is to find where indexed music goes.
         for top in root.iter().filter(|o| o.is_folder()) {
             println!("=== /{} (streaming, skip errors) ===", top.filename);
             let mut stream = storage.list_objects_stream(Some(top.handle)).await?;

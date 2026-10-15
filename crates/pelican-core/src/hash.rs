@@ -2,7 +2,8 @@
 //!
 //! Two jobs: the source hash is how the ledger recognizes a track it has
 //! already proven onto the watch (R5), and the transcode hash compared with
-//! the read-back is the proof itself (R6). Size-only checks pass a file whose bytes were damaged in flight.
+//! the read-back is the proof itself (R6). A size check alone passes a file
+//! whose bytes were damaged in flight.
 
 use std::fmt::Write as _;
 use std::fs::File;

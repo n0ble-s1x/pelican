@@ -115,7 +115,7 @@ pub trait Backend: Send {
     /// caller's job, and the backend does not second-guess it.
     ///
     /// `on_progress(bytes_transferred, total_bytes)` is called as data
-    /// flows; pass `&mut |_, _| {}` if you don't care.
+    /// flows; pass `&mut |_, _| {}` to ignore it.
     fn upload(
         &mut self,
         local: &Path,
@@ -449,10 +449,9 @@ mod mtp_rs_impl {
             for (handle, info_result) in handles.into_iter().zip(infos) {
                 match info_result {
                     Ok(info) => {
-                        // CRITICAL: `session.get_object_info` does NOT populate
-                        // `info.handle`; that's a field only `ObjectListing`
-                        // backfills. Use the loop variable `handle` for caching
-                        // and downstream operations, not `info.handle`.
+                        // `session.get_object_info` leaves `info.handle`
+                        // unset (only `ObjectListing` fills it in), so the
+                        // loop's `handle` is the one to cache and pass on.
                         let is_folder = info.is_folder();
                         let child_path = child(&info.filename);
                         if is_folder {

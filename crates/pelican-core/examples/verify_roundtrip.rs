@@ -3,8 +3,9 @@
 //!
 //! Community reports say MTP writes from Linux and macOS can land on Garmin
 //! watches empty or truncated while every call still returns success. That
-//! would explain a track the watch lists but will not play, and nothing in
-//! this repo has ever checked it.
+//! would explain a track the watch lists but will not play. A push now
+//! reads back every file it sends; this checks the objects already on the
+//! watch, whoever wrote them.
 //!
 //! Read-only. It lists `/Music`, downloads each object, and reports the size
 //! the listing claimed against the bytes actually received. Give it a local

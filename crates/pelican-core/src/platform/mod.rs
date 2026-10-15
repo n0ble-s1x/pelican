@@ -1,10 +1,10 @@
 //! Detecting the OS component that is holding the watch.
 //!
 //! Desktop Linux ships something that grabs MTP devices the moment they
-//! enumerate, and while it holds the device our USB backend gets
-//! `LIBUSB_ERROR_BUSY`. The underlying error tells the user nothing useful,
-//! so the detector names the culprit and hands back the exact command that
-//! frees the device.
+//! enumerate, and while it holds the device, claiming the watch's interface
+//! fails with `EBUSY` ("Device or resource busy"). That error tells the user
+//! nothing useful, so the detector names the culprit and hands back the
+//! exact command that frees the device.
 //!
 //! - **Linux**: `gvfs-mtp` auto-mounts the watch. The user owns the fix
 //!   (`gio mount -u`), no privileges needed.

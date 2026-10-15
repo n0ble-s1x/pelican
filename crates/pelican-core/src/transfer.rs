@@ -5,9 +5,10 @@
 //!
 //! 1. **Plan** ([`plan`]): resolve every file's tags. Reads only.
 //! 2. **Hash and skip** ([`preview`]): a source whose hash the ledger has
-//!    as `verified` is already on the watch (R5), unless `--resend`. Steps 1
-//!    and 2 are all `--dry-run` does, and they are the same code the run
-//!    uses, so the plan it prints is the run that would happen.
+//!    as `verified` in the same album is already on the watch (R5), unless
+//!    `--resend`. Steps 1 and 2 are all `--dry-run` does, and they are the
+//!    same code the run uses, so the plan it prints is the run that would
+//!    happen.
 //! 3. **Transcode all** into this run's staging dir (R8). The device is
 //!    not open yet, and afterwards the exact bytes to send are on disk.
 //! 4. **One session** (R6): list `/Music` once, refuse the run if it cannot
@@ -267,10 +268,9 @@ pub fn preview_with(
                 }
             };
             // "Already on the watch" is the more useful thing to say about
-            // a copy, so the ledger is asked first.
-            // Keyed on the album too: the same song inside a mix is a
-            // different entry in the watch's library from the one on its
-            // own album.
+            // a copy, so the ledger is asked first. It is keyed on the album
+            // too: the same song inside a mix is a different entry in the
+            // watch's library from the one on its own album.
             let album = e.tags.as_ref().ok().and_then(|t| t.album.as_deref());
             let on_watch = ledger
                 .filter(|_| !resend.covers(path))

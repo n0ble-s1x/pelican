@@ -1,5 +1,5 @@
-//! The command line. Pelican is CLI-only until the UI is rebuilt against
-//! this core.
+//! The command line: the same core as the desktop app, for scripts and
+//! terminals.
 //!
 //! There is no delete, playlist or tag-on-device command, and there will
 //! not be one: the `Backend` trait has no such capability to call.

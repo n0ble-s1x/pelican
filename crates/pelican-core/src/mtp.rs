@@ -123,6 +123,10 @@ pub trait Backend: Send {
         remote_name: &str,
         on_progress: &mut (dyn FnMut(u64, u64) + Send),
     ) -> Result<Uploaded>;
+    /// The folder's entries, stubs included. A folder that is not on the
+    /// watch lists as empty. One that may or may not be there, because an
+    /// entry beside it could not be read, is an error, never empty: an empty
+    /// `/Music` is what tells the reset check the watch was wiped.
     fn list_dir(&mut self, path: &str) -> Result<Vec<RemoteEntry>>;
     /// `(free, capacity)` in bytes for the storage we write to, re-read
     /// from the device so it reflects writes made in this session.
@@ -166,6 +170,36 @@ pub fn open(_device: &Device) -> Result<Box<dyn Backend>> {
     anyhow::bail!("built without an MTP backend (enable feature `mtp-backend`)")
 }
 
+/// What one listing says about a folder: it is there, it is not, or nobody
+/// can tell, because an entry the watch would not describe might be it.
+#[cfg(any(feature = "mtp-backend", test))]
+#[derive(Debug)]
+enum FolderScan<H, E> {
+    Found(H),
+    Absent,
+    Unreadable { count: usize, first: E },
+}
+
+#[cfg(any(feature = "mtp-backend", test))]
+impl<H, E> FolderScan<H, E> {
+    /// Fold in one listing entry, `(is_folder, name, handle)` or the error
+    /// the watch gave instead. `want` is already folded. A match wins over
+    /// everything; until one turns up, every unreadable entry is counted and
+    /// the first error kept, so a wedged watch still reads as wedged.
+    fn see(self, entry: std::result::Result<(bool, &str, H), E>, want: &str) -> Self {
+        match (self, entry) {
+            (found @ FolderScan::Found(_), _) => found,
+            (_, Ok((true, name, h))) if fold_name(name) == want => FolderScan::Found(h),
+            (scan, Ok(_)) => scan,
+            (FolderScan::Absent, Err(first)) => FolderScan::Unreadable { count: 1, first },
+            (FolderScan::Unreadable { count, first }, Err(_)) => FolderScan::Unreadable {
+                count: count + 1,
+                first,
+            },
+        }
+    }
+}
+
 #[cfg(feature = "mtp-backend")]
 mod mtp_rs_impl {
     use std::collections::HashMap;
@@ -176,7 +210,7 @@ mod mtp_rs_impl {
     use mtp::{MtpDevice, NewObjectInfo, ObjectHandle, Storage};
     use tokio::runtime::Runtime;
 
-    use super::{fold_name, Backend, RemoteEntry, Uploaded};
+    use super::{fold_name, Backend, FolderScan, RemoteEntry, Uploaded};
     use crate::garmin::Device;
 
     pub struct MtpRsBackend {
@@ -266,43 +300,69 @@ mod mtp_rs_impl {
                     parent = *h;
                     continue;
                 }
-                let storage = &self.storage;
-                let want = fold_name(component);
-                // Stream so a single broken-stub GetObjectInfo doesn't kill
-                // our walk before we even reach the folder we want.
-                //
                 // Folded, like every other name comparison: a byte-exact
                 // match here missed a `music` folder and created a second
                 // `Music` beside it on a filesystem that cannot hold both.
-                let found = self
-                    .rt
-                    .block_on(async {
-                        let mut stream = storage.list_objects_stream(parent).await?;
-                        while let Some(r) = stream.next().await {
-                            if let Ok(info) = r {
-                                if info.is_folder() && fold_name(&info.filename) == want {
-                                    return Ok::<_, mtp::Error>(Some(info.handle));
-                                }
-                            }
-                        }
-                        Ok(None)
-                    })
-                    .with_context(|| format!("listing {acc}"))?;
-                let handle = match found {
-                    Some(h) => h,
-                    None => {
-                        if !create {
-                            return Ok(None);
-                        }
-                        self.rt
-                            .block_on(storage.create_folder(parent, component))
-                            .with_context(|| format!("creating folder {acc}"))?
+                let want = fold_name(component);
+                // An entry the watch will not describe might be the folder
+                // we want, so a listing with one proves nothing about
+                // absence. Ask once more, then refuse rather than guess: a
+                // wrong "no /Music" reads as a wiped watch to the reset
+                // check, and as a folder to create to a push.
+                let mut scan = self.scan_for_folder(parent, &want, &acc)?;
+                if matches!(scan, FolderScan::Unreadable { .. }) {
+                    scan = self.scan_for_folder(parent, &want, &acc)?;
+                }
+                let handle = match scan {
+                    FolderScan::Found(h) => h,
+                    FolderScan::Absent if !create => return Ok(None),
+                    FolderScan::Absent => self
+                        .rt
+                        .block_on(self.storage.create_folder(parent, component))
+                        .with_context(|| format!("creating folder {acc}"))?,
+                    FolderScan::Unreadable { count, first } => {
+                        return Err(anyhow::Error::new(first).context(format!(
+                            "Pelican cannot tell whether /{acc} is on the watch: the watch \
+                             would not describe {count} of the items in the folder above it. \
+                             Nothing was changed. Unplug the watch, plug it back in, and \
+                             try again."
+                        )));
                     }
                 };
                 self.folder_cache.insert(acc_key, Some(handle));
                 parent = Some(handle);
             }
             Ok(Some(parent))
+        }
+
+        /// One streamed listing of `parent`, looking for the folder `want`
+        /// (folded) and stopping at the first match. Streamed so one stub
+        /// whose info errors does not end the listing early.
+        fn scan_for_folder(
+            &self,
+            parent: Option<ObjectHandle>,
+            want: &str,
+            what: &str,
+        ) -> Result<FolderScan<ObjectHandle, mtp::Error>> {
+            let storage = &self.storage;
+            self.rt
+                .block_on(async {
+                    let mut stream = storage.list_objects_stream(parent).await?;
+                    let mut scan = FolderScan::Absent;
+                    while let Some(r) = stream.next().await {
+                        scan = match r {
+                            Ok(info) => {
+                                scan.see(Ok((info.is_folder(), &info.filename, info.handle)), want)
+                            }
+                            Err(e) => scan.see(Err(e), want),
+                        };
+                        if matches!(scan, FolderScan::Found(_)) {
+                            break;
+                        }
+                    }
+                    Ok::<_, mtp::Error>(scan)
+                })
+                .with_context(|| format!("listing {what}"))
         }
     }
 
@@ -548,7 +608,7 @@ mod mtp_rs_impl {
 
 #[cfg(test)]
 mod tests {
-    use super::{fold_name, same_file};
+    use super::{fold_name, same_file, FolderScan};
 
     /// `/Music` is FAT-derived. Two spellings, one file. A byte-equal
     /// comparison would report "not found" for a file that is right there,
@@ -581,5 +641,43 @@ mod tests {
         assert_eq!(fold_name("Music"), fold_name("MUSIC"));
         assert_eq!(fold_name("Music"), fold_name("music"));
         assert_eq!(fold_name("ÅLBUM"), "ålbum");
+    }
+
+    fn scan(entries: &[Result<(bool, &str, u32), &'static str>]) -> FolderScan<u32, &'static str> {
+        entries
+            .iter()
+            .fold(FolderScan::Absent, |s, e| s.see(*e, &fold_name("Music")))
+    }
+
+    /// The reset check reads "no /Music" as a wiped watch. A listing where
+    /// some entry could not be read must never say that.
+    #[test]
+    fn an_unreadable_entry_means_unknown_not_absent() {
+        let s = scan(&[Ok((true, "GARMIN", 1)), Err("info failed"), Err("again")]);
+        assert!(
+            matches!(
+                s,
+                FolderScan::Unreadable {
+                    count: 2,
+                    first: "info failed"
+                }
+            ),
+            "{s:?}"
+        );
+    }
+
+    #[test]
+    fn a_match_wins_over_unreadable_entries() {
+        let s = scan(&[Err("info failed"), Ok((true, "music", 7)), Err("later")]);
+        assert!(matches!(s, FolderScan::Found(7)), "{s:?}");
+    }
+
+    #[test]
+    fn a_clean_listing_without_the_folder_is_absent() {
+        let s = scan(&[Ok((true, "GARMIN", 1)), Ok((false, "Music", 2))]);
+        assert!(
+            matches!(s, FolderScan::Absent),
+            "a file named Music is not the folder: {s:?}"
+        );
     }
 }

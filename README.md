@@ -348,8 +348,9 @@ nobody has to build from source. None is published yet:
 - **Any distribution:** Flathub, `io.github.n0ble_s1x.Pelican`, from
   [`packaging/flatpak/`](packaging/flatpak/). The command-line tool is
   inside it: `flatpak run --command=pelican io.github.n0ble_s1x.Pelican status`.
-- **Arch:** `pelican` on the AUR, built from the release tag, from
-  [`packaging/aur/`](packaging/aur/).
+- **Arch:** `krypteia-pelican` on the AUR, built from the release tag, from
+  [`packaging/aur/`](packaging/aur/). Arch's own `pelican` package is the
+  static site generator; both install `/usr/bin/pelican`, so they conflict.
 
 ---
 

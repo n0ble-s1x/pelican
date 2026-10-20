@@ -84,7 +84,9 @@ Out of scope:
   carries the signature, as in most open-source projects. The maintainer
   signs each release tag with a passphrase-protected SSH key, and GitHub
   marks the tag Verified because that key is registered on the maintainer's
-  account.
+  account. History was rewritten once, on 2026-10-20, to take a device
+  serial out of old commits; the release tags that existed then were
+  re-signed on the rewritten commits (`CHANGELOG.md`, 0.2.2).
 - The udev rule (`udev/70-garmin-mtp.rules`) adds only `TAG+="uaccess"`: an
   ACL on Garmin devices for the user at the active seat. No mode change, no
   group, no daemon, no setuid binary.

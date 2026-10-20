@@ -1,8 +1,10 @@
 # Maintainer: Krypteia Security <krypteia.annex447@8alias.com>
 #
-# Builds from the tagged source on the user's machine.
-pkgname=pelican
-pkgver=0.2.1
+# Builds from the tagged source on the user's machine. Arch's own `pelican`
+# is the static site generator, so this package is krypteia-pelican. Both
+# install /usr/bin/pelican, so they conflict.
+pkgname=krypteia-pelican
+pkgver=0.2.2
 pkgrel=1
 pkgdesc="Put music on a Garmin watch over USB and verify every file (desktop app and CLI)"
 arch=('x86_64' 'aarch64')
@@ -11,8 +13,9 @@ license=('MIT' 'Apache-2.0')
 depends=('ffmpeg' 'webkit2gtk-4.1' 'gtk3' 'glib2' 'cairo' 'gdk-pixbuf2' 'libsoup3'
          'libgcc' 'glibc' 'hicolor-icon-theme')
 makedepends=('cargo')
+conflicts=('pelican' 'pelican-git')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/n0ble-s1x/pelican/archive/v$pkgver.tar.gz")
-# Placeholder until the v0.2.0 tag exists. Run `updpkgsums` after tagging.
+# Run `updpkgsums` against the pushed tag (RELEASING.md).
 sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
 
 prepare() {

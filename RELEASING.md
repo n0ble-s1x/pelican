@@ -15,7 +15,7 @@ is built or uploaded by hand.
 | Channel | Contents | Built by |
 | --- | --- | --- |
 | Flathub `io.github.n0ble_s1x.Pelican` | app and CLI | Flathub, from `packaging/flatpak/` |
-| AUR `pelican` | app, CLI, udev rule | the user's machine, from the tag (`packaging/aur/PKGBUILD`) |
+| AUR `krypteia-pelican` | app, CLI, udev rule | the user's machine, from the tag (`packaging/aur/PKGBUILD`) |
 | GitHub release | the signed tag, source and release notes | `gh release create` |
 
 Why not a `.deb`, AppImage or prebuilt tarball: a binary runs only where
@@ -99,8 +99,11 @@ Do the stores after the GitHub release: both build from the tag.
 
 ### AUR
 
-One package, `pelican`, built from the tag on the user's machine, in its own
-repository `ssh://aur@aur.archlinux.org/pelican.git`:
+One package, `krypteia-pelican`, built from the tag on the user's machine, in
+its own repository `ssh://aur@aur.archlinux.org/krypteia-pelican.git`. The
+name is not `pelican` because Arch's official repositories already have one
+(the static site generator), and the AUR refuses a name an official package
+uses:
 
 ```sh
 # In the AUR clone

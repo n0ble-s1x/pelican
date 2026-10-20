@@ -12,8 +12,7 @@ app (`pelican-app`, the default command) and the command-line tool
 - `cargo-sources.json`: every crate in `Cargo.lock`, for the offline build.
   Generated; regenerate it whenever `Cargo.lock` changes.
 - `../desktop/io.github.n0ble_s1x.Pelican.desktop`: the desktop entry.
-- `../icons/io.github.n0ble_s1x.Pelican.svg`: the application icon. Not drawn
-  yet; the build fails until it exists.
+- `../icons/io.github.n0ble_s1x.Pelican.svg`: the application icon.
 
 ## Decisions
 
@@ -113,15 +112,24 @@ fbt/bin/python flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
 ## First Flathub submission
 
 Flathub's process is at
-https://docs.flathub.org/docs/for-app-authors/submission. Before starting:
+https://docs.flathub.org/docs/for-app-authors/submission. Read its
+requirements first (https://docs.flathub.org/docs/for-app-authors/requirements),
+in particular the generative AI policy: a Flathub manifest must contain no
+AI-generated or AI-assisted content, AI tools must not open or write the
+submission PR or its replies, and AI-generated material in the app must be
+disclosed. Much of Pelican, and the manifest in this folder, were written
+with AI assistance (the `Co-Authored-By` trailers in the history say where).
+The manifest submitted to Flathub therefore has to be the maintainer's own.
+
+Before starting:
 
 1. **App ID.** `io.github.n0ble_s1x.Pelican` is verified through the GitHub
    account `n0ble-s1x` (Flathub turns the hyphen into an underscore): sign
    in to Flathub with that account. No domain is involved.
 2. **Icon.** `packaging/icons/io.github.n0ble_s1x.Pelican.svg`.
-3. **Release.** Merge the release PR and push the signed `v0.2.0` tag, so
+3. **Release.** Merge the release PR and push the signed `v0.X.Y` tag, so
    the screenshots under
-   `https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.2.0/docs/images/`
+   `https://raw.githubusercontent.com/n0ble-s1x/pelican/v0.X.Y/docs/images/`
    and the `<release>` date in the metainfo are real. Set that date in the
    release PR.
 
@@ -133,8 +141,8 @@ Then:
 3. Copy in `io.github.n0ble_s1x.Pelican.yaml` and `cargo-sources.json`
    (regenerated from the tagged `Cargo.lock`).
 4. In the copied manifest, delete the `type: dir` source and uncomment the
-   `type: git` source, with `tag: v0.2.0` and `commit:` set to the tag's
-   full commit SHA (`git rev-parse v0.2.0^{commit}`).
+   `type: git` source, with `tag: v0.X.Y` and `commit:` set to the tag's
+   full commit SHA (`git rev-parse v0.X.Y^{commit}`).
 5. Build and lint it locally with the commands above (the linter's
    `appstream-screenshots-not-mirrored-in-ostree` error is expected on a
    local build; Flathub's build mirrors them).

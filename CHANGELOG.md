@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-20
+
 ### Fixed
 - Clear the watch could have reset a watch's ledger while songs were still
   on it. Finding `/Music` skipped any entry the watch would not describe, so
@@ -24,6 +26,24 @@ All notable changes to this project are documented here. Format follows
   0700. They hold the watch's activities, location and health data.
 - The backup step names Agoge again: "If you use Agoge or another fitness
   app, pull your activities into it first."
+- The AUR package is `krypteia-pelican`. Arch's official repositories
+  already have a `pelican` (the static site generator); both install
+  `/usr/bin/pelican`, so the two conflict.
+- Release tags are signed; branch commits are no longer required to be.
+- Code comments and a few messages were corrected where they had drifted
+  from the code.
+
+### Dependencies
+- sha2 0.11.1, clap 4.6.7, futures 0.3.34, libc 0.2.189, nusb 0.2.7,
+  tauri 2.12.4, tokio 1.53.3, serde_json 1.0.154, lofty 0.25.4.
+  yoke-derive 0.8.4: 0.8.3 was yanked, which failed `cargo audit`.
+
+### Repository
+- History was rewritten once, on 2026-10-20, to take the maintainer's watch
+  serial and home path out of old commits. Every commit after v0.1.0 has a
+  new hash. The v0.2.0, v0.2.1 and `archive/macos-port` tags were re-signed
+  on the rewritten commits, with their original messages and dates. Their
+  files differ from before only where the serial and path were replaced.
 
 ## [0.2.1] - 2026-09-27
 

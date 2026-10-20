@@ -26,6 +26,11 @@ use crate::transfer::Stop;
 /// The folder on the watch that holds its own data.
 pub const GARMIN_FOLDER: &str = "GARMIN";
 
+/// How many folders deep the copy goes below `GARMIN`. The watch's own tree
+/// is three or four deep. Listings come from the device, so a folder that
+/// contains itself would otherwise be walked without end.
+const MAX_DEPTH: usize = 32;
+
 /// A backup as it goes. Serialized as the IPC's `pelican://backup` payload.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -94,6 +99,7 @@ pub fn backup(
         &mut items,
         &mut failed,
         &mut unreadable,
+        0,
     )?;
     if items.is_empty() {
         bail!(
@@ -102,7 +108,7 @@ pub fn backup(
         );
     }
 
-    std::fs::create_dir_all(dest).with_context(|| format!("creating {}", dest.display()))?;
+    create_private_dirs(dest)?;
     let total = items.len();
     let (mut files, mut bytes, mut stopped) = (0usize, 0u64, false);
     for (index, item) in items.into_iter().enumerate() {
@@ -174,6 +180,7 @@ fn walk(
     items: &mut Vec<Item>,
     failed: &mut Vec<Failed>,
     unreadable: &mut usize,
+    depth: usize,
 ) -> Result<()> {
     let listing: Vec<RemoteEntry> = dev
         .list_dir(remote)
@@ -192,8 +199,21 @@ fn walk(
             continue;
         }
         let child_local = local.join(&e.name);
-        if e.is_folder {
-            walk(dev, &child_remote, &child_local, items, failed, unreadable)?;
+        if e.is_folder && depth >= MAX_DEPTH {
+            failed.push(Failed {
+                path: child_remote,
+                reason: format!("more than {MAX_DEPTH} folders deep, so it was not copied"),
+            });
+        } else if e.is_folder {
+            walk(
+                dev,
+                &child_remote,
+                &child_local,
+                items,
+                failed,
+                unreadable,
+                depth + 1,
+            )?;
         } else {
             items.push(Item {
                 remote: child_remote,
@@ -214,20 +234,39 @@ fn safe_name(name: &str) -> bool {
 }
 
 /// Create `path` (and its folders) and write `data`, never replacing a file
-/// that is already there.
+/// that is already there. Owner-only on Unix: a backup holds the watch's
+/// activities, location and health data.
 fn write_new(path: &Path, data: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("creating {}", parent.display()))?;
+        create_private_dirs(parent)?;
     }
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
+    let mut o = std::fs::OpenOptions::new();
+    o.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        o.mode(0o600);
+    }
+    let mut f = o
         .open(path)
         .with_context(|| format!("creating {}", path.display()))?;
     f.write_all(data)
         .and_then(|()| f.sync_all())
         .with_context(|| format!("writing {}", path.display()))
+}
+
+/// `mkdir -p`, owner-only on Unix for every folder it creates. A folder that
+/// is already there keeps its mode.
+fn create_private_dirs(path: &Path) -> Result<()> {
+    let mut b = std::fs::DirBuilder::new();
+    b.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        b.mode(0o700);
+    }
+    b.create(path)
+        .with_context(|| format!("creating {}", path.display()))
 }
 
 /// `documents/Pelican/<model> backup <date>`, pure. `model` is
@@ -473,6 +512,51 @@ mod tests {
         assert_eq!(s.failed.len(), 2);
         assert!(s.failed.iter().all(|f| !f.path.contains('\u{1b}')));
         assert_eq!(std::fs::read_dir(tmp.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn a_folder_loop_on_the_watch_ends_at_the_depth_limit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dev = FakeDevice::new();
+        let deep = vec!["a"; MAX_DEPTH + 5].join("/");
+        dev.add_folder(&format!("GARMIN/{deep}"));
+        dev.add_file("GARMIN", "Device.fit", b"d");
+        let s = backup(
+            dev.backend().as_mut(),
+            tmp.path(),
+            &Stop::new(),
+            &mut |_| {},
+        )
+        .unwrap();
+        assert_eq!(s.files, 1);
+        assert_eq!(s.failed.len(), 1, "{:?}", s.failed);
+        assert!(
+            s.failed[0].reason.contains("folders deep"),
+            "{:?}",
+            s.failed
+        );
+        let listed = |c: &&Call| matches!(c, Call::ListDir(_));
+        assert_eq!(dev.calls().iter().filter(listed).count(), MAX_DEPTH + 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_backup_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let dest = tmp.path().join("b");
+        backup(watch().backend().as_mut(), &dest, &Stop::new(), &mut |_| {}).unwrap();
+        let mode = |p: &str| {
+            std::fs::metadata(dest.join(p))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode(""), 0o700);
+        assert_eq!(mode("GARMIN/Activity"), 0o700);
+        assert_eq!(mode("GARMIN/Device.fit"), 0o600);
+        assert_eq!(mode("GARMIN/Activity/2026-09-26-07-00-00.fit"), 0o600);
     }
 
     #[test]

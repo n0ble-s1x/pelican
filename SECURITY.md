@@ -150,7 +150,9 @@ The GTK3 stack Tauri uses on Linux brings two advisory exceptions (`glib`
     when the send ends and swept at the next start if a send was killed.
   - `~/Documents/Pelican/<model> backup <YYYY-MM-DD>/`: the watch backup,
     when you run one. `pelican backup DEST` writes into the folder you name
-    instead. A backup creates files and never replaces one.
+    instead. A backup creates files and never replaces one. The files are
+    readable only by you (0600, in folders created 0700): they hold the
+    watch's activities, location and health data.
 
   All of these are per-user directories, never `/tmp` or another shared
   location.
@@ -164,7 +166,9 @@ The GTK3 stack Tauri uses on Linux brings two advisory exceptions (`glib`
   used. It has no code path that deletes or overwrites anything there. The
   backup only reads from the watch.
 - A watch's ledger is reset only after Pelican re-reads `/Music` itself and
-  finds no audio. The reset is an appended line; nothing is erased.
+  finds no audio. If the watch will not describe an entry where `/Music`
+  should be, the check refuses rather than guessing. The reset is an
+  appended line; nothing is erased.
 - It opens no network sockets and changes no system files, with one
   exception you trigger yourself: the **Install the USB rule** button writes
   `/etc/udev/rules.d/70-garmin-mtp.rules` through polkit, after asking for

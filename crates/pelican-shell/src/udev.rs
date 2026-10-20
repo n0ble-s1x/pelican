@@ -19,7 +19,7 @@ pub const RULE: &str = include_str!("../../../udev/70-garmin-mtp.rules");
 
 /// Where an administrator's rule goes; it overrides a packaged one.
 pub const ETC_RULE: &str = "/etc/udev/rules.d/70-garmin-mtp.rules";
-/// Where the AUR and .deb packages install the same file.
+/// Where the AUR package installs the same file.
 pub const LIB_RULE: &str = "/usr/lib/udev/rules.d/70-garmin-mtp.rules";
 
 /// Absolute, so `$PATH` never chooses what runs as root.

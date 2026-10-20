@@ -1,8 +1,8 @@
-//! End-to-end logic tests for the Garmin-quirk workarounds. These are the
-//! parts of the pipeline most likely to regress silently. They encode hard-
-//! won knowledge about what the watch firmware accepts. If any of these
-//! ever fails, double-check against `docs/garmin-mtp.md` before
-//! "fixing" the test. They bind to the real `transcode` implementation.
+//! Tests for the Garmin-quirk workarounds, against the real `transcode`
+//! implementation. These are the parts of the pipeline most likely to
+//! regress silently, and they encode what the watch firmware was found to
+//! accept. If one fails, check `docs/garmin-mtp.md` before "fixing" the
+//! test.
 
 use std::path::Path;
 

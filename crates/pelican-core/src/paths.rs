@@ -10,8 +10,7 @@
 
 use std::path::PathBuf;
 
-/// Reverse-DNS identifier, used for the macOS directory names and as the
-/// bundle identifier for a packaged app.
+/// Reverse-DNS name of the macOS cache and data directories.
 pub const BUNDLE_ID: &str = "com.krypteia.pelican";
 
 /// Directory for short-lived transcode artifacts (see [`crate::staging`]).
@@ -22,9 +21,11 @@ pub fn cache_dir() -> Option<PathBuf> {
     ensure(cache_dir_unchecked()?)
 }
 
-/// Directory for the per-device ledger of every name ever written.
+/// Directory for the per-watch ledgers and the device names.
 ///
 /// Linux: `$XDG_DATA_HOME/pelican`, falling back to `$HOME/.local/share/pelican`.
+/// In a Flatpak, always the host's `$HOME/.local/share/pelican` (see
+/// `data_dir_from`).
 /// macOS: `$HOME/Library/Application Support/com.krypteia.pelican`.
 pub fn data_dir() -> Option<PathBuf> {
     ensure(data_dir_unchecked()?)

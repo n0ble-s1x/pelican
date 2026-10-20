@@ -1,7 +1,7 @@
 //! An in-memory watch, for tests.
 //!
-//! Agents and CI never touch the real device, so everything above the
-//! [`Backend`] trait is proven against this instead. It models the parts of
+//! Tests never touch a real watch, so everything above the [`Backend`]
+//! trait is proven against this instead. It models the parts of
 //! the FR165's behavior that the transfer loop's correctness depends on,
 //! not just the happy path:
 //!

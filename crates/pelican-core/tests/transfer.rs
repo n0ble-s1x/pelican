@@ -1,8 +1,8 @@
 //! The run, end to end, against the fake watch.
 //!
-//! Everything here is what the hardware acceptance run will check by hand
-//! on the real FR165, proven first where a failure costs nothing: names
-//! never reused, the reserve line on disk before the write, a bad read-back
+//! These are the properties the hardware acceptance run checked by hand on
+//! the real FR165, proven here where a failure costs nothing: names never
+//! reused, the reserve line on disk before the write, a bad read-back
 //! recorded and retried under a new name, capacity refused before the first
 //! byte, staging gone however the run ends, and no delete anywhere.
 //!

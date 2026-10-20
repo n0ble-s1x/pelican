@@ -1,6 +1,6 @@
 //! The IPC contract's shapes, and the mapping from the core's types onto
 //! them. Pure: nothing here touches a device, a window or the disk, so all
-//! of it is tested without either.
+//! of it is tested without any of them.
 //!
 //! Paths cross as strings. A path that is not UTF-8 cannot be named back
 //! through JSON, so a listing leaves it out, and a display-only field

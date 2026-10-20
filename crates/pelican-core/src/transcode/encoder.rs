@@ -10,8 +10,7 @@
 //! passthrough file carries whatever frames, art, VBR headers and sample
 //! rate it came with, and each of those is a way to land a file on the
 //! watch that the music app will not show. One profile means one thing to
-//! have proven. The afconvert/AAC path is gone for the same reason: it was
-//! never confirmed against hardware.
+//! have proven.
 
 use std::ffi::OsString;
 use std::path::Path;
@@ -133,7 +132,7 @@ pub fn encode(src: &Path, dst: &Path, tags: &Resolved) -> Result<()> {
         })?;
     if !out.status.success() {
         bail!(
-            "ffmpeg failed for {} :: {}",
+            "ffmpeg failed on {}: {}",
             src.display(),
             String::from_utf8_lossy(&out.stderr).trim()
         );

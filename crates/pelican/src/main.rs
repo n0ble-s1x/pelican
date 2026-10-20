@@ -16,8 +16,8 @@ fn main() -> ExitCode {
         )
         .init();
 
-    // Before anything else: a run killed by Ctrl-C left its staging dir
-    // behind, and this is the one place that can clear it.
+    // Before anything else: a run killed by Ctrl-C leaves its staging dir
+    // behind, and only the next start can clear it.
     staging::sweep();
 
     let cli = cli::Cli::parse();

@@ -3,9 +3,9 @@
 //! The watch allows a single session, and a second open fails with an
 //! exclusive-access error that reads like someone else's fault. So every
 //! command that opens one (`status`, `watch_list`, `push`, `backup_watch`,
-//! `reset_check`, `reset_ledger`) takes this lock
-//! first, and a command that cannot take it is refused as busy rather than
-//! queued: a click that silently waits minutes behind a send looks broken.
+//! `reset_check`, `reset_ledger`) takes this lock first, and a command that
+//! cannot take it is refused as busy rather than queued: a click that
+//! silently waits minutes behind a send looks broken.
 //!
 //! The guard is an owned value, not a `MutexGuard`, because a push holds it
 //! on its own worker thread for the whole run.

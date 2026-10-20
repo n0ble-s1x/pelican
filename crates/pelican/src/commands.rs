@@ -130,8 +130,12 @@ fn push(a: PushArgs) -> Result<ExitCode> {
     let device = garmin::pick_device(a.serial.as_deref())?;
     let serial = serial_of(&device)?;
     let mut ledger = Ledger::open(&data_dir()?, &serial)?;
-    let cache = paths::cache_dir()
-        .ok_or_else(|| anyhow!("no per-user cache dir (neither XDG_CACHE_HOME nor HOME is set)"))?;
+    let cache = paths::cache_dir().ok_or_else(|| {
+        anyhow!(
+            "no per-user cache dir: XDG_CACHE_HOME and HOME are unset or not absolute paths, \
+             or the folder could not be created"
+        )
+    })?;
     eprintln!("{} · ledger {}", device.label(), ledger.path().display());
 
     let report = transfer::push(
@@ -473,8 +477,12 @@ fn serial_of(device: &Device) -> Result<String> {
 }
 
 fn data_dir() -> Result<PathBuf> {
-    paths::data_dir()
-        .ok_or_else(|| anyhow!("no per-user data dir (neither XDG_DATA_HOME nor HOME is set)"))
+    paths::data_dir().ok_or_else(|| {
+        anyhow!(
+            "no per-user data dir: XDG_DATA_HOME and HOME are unset or not absolute paths, \
+             or the folder could not be created"
+        )
+    })
 }
 
 /// Totals count only the events since the last factory reset.
